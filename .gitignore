@@ -1,6 +1,7 @@
 node_modules/
 *.env
 .env.*
+!.env.vault
 *.log
 app/backend/data/
 Elvi-Ra/Elvi-Ra Zone/BackEnd/Creedenciales.txt

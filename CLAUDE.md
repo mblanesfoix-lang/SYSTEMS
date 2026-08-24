@@ -172,13 +172,13 @@ Penalización fuerte: biogás/anaerobia clásica, sanciones CNMC, opacidad, inco
 
 ## Stack actual
 
-- **Backend**: Node.js >=20 + Express ESM, un solo proceso/puerto (5173) para todas las mesas. MongoDB (db `elvira` + db `reff`, pool compartido). Estado ligero en JSON (`data/elvira.json`, users, sessions). Sesión token Bearer 8h persistida.
+- **Backend**: Node.js >=20 + Express ESM, un solo proceso/puerto (5173) para todas las mesas. MongoDB (db `elvira` + db `reff`, pool compartido). Estado ligero en JSON solo para `data/elvira.json` (bridges/OPHS scoring/CNMC) y caches; usuarios y sesiones viven en Mongo (ver Auth abajo).
 - **LLM**: `app/backend/llm.js` — `LLM_PROVIDER=anthropic|ollama` via env, lectura perezosa de `ANTHROPIC_API_KEY`. Tokens contabilizados en T'Controler.
 - **Rëff**: Vite/React+TS compilado a dist/, montado en runtime por server.js bajo `/reff` (y su API en `/reff/api` + alias `/api`). El Dockerfile lo compila en stage propio.
 - **S-NFI Finance**: planificada como página vanilla en `app/frontend/pages/` + rutas nativas en `app/backend/server.js`, mismo patrón que S-NFI U2/Factory (no dentro de la app React de Rëff — descartado ese diseño).
 - **Frontend Elvi-Ra**: HTML/CSS/JS vanilla. Fonts: Inter + IBM Plex Mono + Syne. Vendor local (three.js, topojson, world-atlas) — cero CDN en runtime.
 - **Estética**: minimalismo Apple + animaciones Palantir/Anduril (reveal, delays, mono labels, dark feel). Login: infinito neón canvas + transición descenso a oficina. Dashboard: fondo oficina animada sutil.
-- **Auth**: token Bearer en `localStorage`. `requireAuth()` + guard `/api/me/permissions` (mesas por rol) en cada página.
+- **Auth**: token Bearer en `localStorage`. `requireAuth()` + guard `/api/me/permissions` (mesas por rol) en cada página. Backend: `app/backend/routes/auth.routes.js` (colecciones Mongo `users`/`sessions`, TTL index sobre `exp` — Mongo purga sesiones expiradas solo). Migración one-shot desde el store JSON previo: `scripts/migrate-auth-to-mongo.js` (idempotente, respalda los JSON originales a `*.migrated.json`).
 
 ## Infraestructura de despliegue
 
@@ -193,9 +193,17 @@ Penalización fuerte: biogás/anaerobia clásica, sanciones CNMC, opacidad, inco
 
 ## Credenciales (dev)
 
-Usuarios y contraseñas dev: ver `.env` local (no trackeado, `SEED_*_PASSWORD`). No commitear credenciales en texto plano. Hashes bcrypt en `data/users.json` tras el primer seed.
+Usuarios y contraseñas dev: ver `.env` local (no trackeado, `SEED_*_PASSWORD`). No commitear credenciales en texto plano. Hashes bcrypt en la colección Mongo `users` tras el primer seed (`ensureUsersSeed`, solo si la colección está vacía).
 
 Seed Rëff (`server/db.ts`): contraseñas via env `REFF_SEED_<USER>_PASSWORD` (movidas de texto plano a env 2026-07-09); sin variable, el usuario no se crea.
+
+## Vault de secretos (.env cifrado)
+
+`app/backend/scripts/env-vault.js` cifra `.env` -> `.env.vault` (AES-256-GCM, `node:crypto`, sin dependencia externa). `.env.vault` SÍ se commitea (excepción explícita en `.gitignore`: `!.env.vault`); `.env` sigue ignorado. La clave de descifrado (32 bytes hex) se imprime una única vez al cifrar y debe guardarse en el gestor de secretos de la plataforma de despliegue — nunca en el repo. Uso: `node scripts/env-vault.js encrypt [dir]` / `decrypt [dir]` (dir por defecto: `app/backend`; para el `.env` de Rëff pasar `"Elvi-Ra/Mesas/Rëff"`). Recifrar tras cualquier cambio de secretos en `.env`.
+
+## Tests
+
+`app/backend/test/` (`node:test` nativo, cero dependencias nuevas). `npm test` desde `app/backend/`. Cobertura actual: `auth.routes.test.js` (login/logout/sesiones/change-password contra Mongo real), `sentinel-forensics.chain.test.js` (integridad de la cadena de hashes forense: append, detección de manipulación, re-anclado), `finance.money.test.js` (aritmética en céntimos: IVA, amortización, proyección de caja). Los tests que requieren Mongo usan la db `elvira_test` (mismo `MONGO_URI` del `.env`, db separada de `elvira`) y se saltan automáticamente si no hay `MONGO_URI`. Pendiente: cobertura de mesas restantes (Factory, F&L, M&A, Foundry, Rack, Grid) — se añade según se toque ese código, no de golpe.
 
 ## Convenciones de trabajo
 
@@ -214,6 +222,8 @@ Seed Rëff (`server/db.ts`): contraseñas via env `REFF_SEED_<USER>_PASSWORD` (m
 **Rëff CRM adjuntos** (2026-07-09): la galería por empresa acepta ahora PDFs además de imágenes (JPG/PNG/WebP 8 MB, PDF 16 MB, mismo bucket GridFS `company_images`, límite 30 archivos). Tile PDF con badge, abre en pestaña nueva vía blob autenticado; `Content-Disposition: inline` en descarga. Cambios en `companies.routes.ts` + `CompanyImages.tsx`. Server local 5173 reiniciado con build actual (el pendiente anterior de restart por OPS/PAIA/Cockpit quedó resuelto).
 
 **Dashboard SYSTEMS a 4 dominios + KPI pérdidas U-2 en Pactvm Viridi** (2026-08-24): `dashboard.html` pasa de 2 a 4 tiles de dominio de primer nivel (OPHS, Rëff, Elvi-Ra, Pactvm Viridi). OPHS sale del dominio Elvi-Ra (se quita su tile y health-check de `elvira-dashboard.html`; breadcrumb, brand-click, back-button y guard de permisos de `ophs.html` corregidos para depender de la mesa `ophs` y no de `elvira` — el guard antiguo comprobaba `elvira`, error preexistente). `ROLE_MESAS`: `pactvm` añadida a `ray` y `gonzalo` (antes solo admin). Pactvm Viridi gana lectura del snapshot U-2 (`exceso_gwh_hoy`, `pct_horas_desperdiciadas`) vía closure `getU2Snapshot` inyectado a `mountPactvm` (mismo patrón que `mountElviraCentral`, reutiliza `liveCache` de `server.js` sin acoplar la mesa `snfiu2`); nuevo endpoint `GET /api/pactvm/u2-summary` y campo `u2` embebido en `GET /api/pactvm/summary`. `pactum-viridi.html`: 5ª celda KPI "Pérdidas vertido renovable U-2 (hoy)", breadcrumb ya no cuelga de Rëff. Alcance de datos de Pactvm Viridi sigue siendo solo lectura (U-2 + Herzog), sin escritura fuera de sus propias colecciones `pactvm_*`.
+
+**Auth migrado a Mongo + vault de secretos + tests (2026-08-24)**: usuarios/sesiones dejan el store JSON (`data/users.json`, `data/sessions.json`) y pasan a colecciones Mongo `users`/`sessions` (TTL index sobre `exp`, purga automática). Lógica extraída a `app/backend/routes/auth.routes.js` (`mountAuth`, `ensureUsersSeed`), `server.js` monta el módulo en vez de tener login/logout/me/change-password inline. Migración one-shot ejecutada: `scripts/migrate-auth-to-mongo.js` (5 usuarios migrados, JSON originales respaldados a `*.migrated.json`, no borrados). `elvira-central.js` y el endpoint `/api/elvira/overview` ya no dependen del `Map` `SESSIONS` en memoria — consultan Mongo directamente. Vault de secretos sin infraestructura externa: `.env` y el `.env` de Rëff cifrados a `.env.vault` (AES-256-GCM, ver sección Vault); claves de descifrado entregadas al jefe, no están en el repo ni en memoria persistente. Primeros tests automatizados del proyecto (ver sección Tests): 29 tests, cubren auth, cadena forense Sentinel y aritmética Finance — server arrancado y verificado manualmente tras la migración (`GET /api/health` 200, login rechaza credenciales inválidas).
 
 **Pendiente (requiere accesos externos o decisión Admin)**:
 - Data Foundry: conectar hardware/Systems real al Ingress Gateway (contrato en `GET /api/foundry/contract`; el jefe decide puerto definitivo y UFW). Corrección prod prevista: sustituir `FoundryBus` in-process por Redis Streams/MQTT y mover secretos de nodo de Mongo a vault/env.

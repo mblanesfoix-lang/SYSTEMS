@@ -23,13 +23,13 @@ import PDFDocument from 'pdfkit';
 
 /* ---- aritmética monetaria en céntimos (entero), sin coma flotante ---- */
 
-function parseAmountToCents(value) {
+export function parseAmountToCents(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) return null;
   return Math.round(n * 100);
 }
 
-function centsToEuros(cents) {
+export function centsToEuros(cents) {
   return Math.round(cents) / 100;
 }
 
@@ -45,7 +45,7 @@ function withId(doc) {
 
 /* ---- IVA: importe base -> importe con IVA, en céntimos, redondeo bancario ---- */
 
-function applyVat(baseCents, vatRatePct) {
+export function applyVat(baseCents, vatRatePct) {
   const rate = Number(vatRatePct) || 0;
   const vatCents = Math.round(baseCents * (rate / 100));
   return { vatCents, totalCents: baseCents + vatCents };
@@ -53,7 +53,7 @@ function applyVat(baseCents, vatRatePct) {
 
 /* ---- amortización lineal de activos, en céntimos ---- */
 
-function computeAssetCurrentValueCents(acquisitionCents, residualCents, acquisitionDate, usefulLifeMonths, asOf = new Date()) {
+export function computeAssetCurrentValueCents(acquisitionCents, residualCents, acquisitionDate, usefulLifeMonths, asOf = new Date()) {
   const start = new Date(acquisitionDate);
   const monthsElapsed = Math.max(0, (asOf.getFullYear() - start.getFullYear()) * 12 + (asOf.getMonth() - start.getMonth()));
   if (usefulLifeMonths <= 0) return residualCents;
@@ -65,7 +65,7 @@ function computeAssetCurrentValueCents(acquisitionCents, residualCents, acquisit
 
 /* ---- proyección de caja, en céntimos ---- */
 
-function projectCashflow(currentBalanceCents, scheduledMovements, horizonDays, from = new Date()) {
+export function projectCashflow(currentBalanceCents, scheduledMovements, horizonDays, from = new Date()) {
   const points = [];
   let balanceCents = currentBalanceCents;
   const dailyDeltas = new Map();

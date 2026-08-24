@@ -8,6 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { connectMongo, getElviraDb, getMongoClient, withTransaction } from './db/mongo.js';
 import { createSentinelForensics } from './sentinel-forensics.js';
+import { ensureUsersSeed, mountAuth } from './routes/auth.routes.js';
 
 // Load .env manually for environments that don't use --env-file
 {
@@ -53,8 +54,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const FRONT = path.join(ROOT, 'frontend');
 const DATA_DIR = path.join(__dirname, 'data');
-const USERS_FILE = path.join(DATA_DIR, 'users.json');
-const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
 const HISTORY_FILE = path.join(DATA_DIR, 'search_history.json');
 const ELVIRA_FILE = path.join(DATA_DIR, 'elvira.json');
 const BUS_HISTORY_FILE = path.join(DATA_DIR, 'bus_history.json');
@@ -73,20 +72,6 @@ function atomicWriteJson(file, data) {
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 if (!fs.existsSync(HISTORY_FILE)) atomicWriteJson(HISTORY_FILE, {});
 if (!fs.existsSync(BUS_HISTORY_FILE)) atomicWriteJson(BUS_HISTORY_FILE, []);
-
-/* Carga de sesiones persistentes */
-const SESSIONS = new Map();
-if (fs.existsSync(SESSIONS_FILE)) {
-  try {
-    const saved = JSON.parse(fs.readFileSync(SESSIONS_FILE, 'utf8'));
-    const now = Date.now();
-    // Solo cargar sesiones que no hayan expirado
-    for (const [k, v] of Object.entries(saved)) {
-      if (v.exp > now) SESSIONS.set(k, v);
-    }
-  } catch { console.warn('[sessions] No se pudieron cargar sesiones previas'); }
-}
-function saveSessions() { atomicWriteJson(SESSIONS_FILE, Object.fromEntries(SESSIONS)); }
 
 /* ---------- MongoDB Initialization ---------- */
 await connectMongo();
@@ -131,32 +116,9 @@ if (!fs.existsSync(ELVIRA_FILE)) atomicWriteJson(ELVIRA_FILE, {
 
 // LLM provider configured in llm.js via LLM_PROVIDER env var (.env ya cargado arriba)
 
-// Credenciales: hashes persistidos en data/users.json (gitignored).
-// Seed inicial solo si el archivo no existe, desde variables de entorno SEED_*_PASSWORD.
-const SEED_USERS = {
-  'mblanes@snficorp.com': { password: process.env.SEED_MARC_PASSWORD,    role: 'admin'   },
-  'nour@snficorp.com':    { password: process.env.SEED_NOUR_PASSWORD,    role: 'admin'   },
-  'ray@snficorp.com':     { password: process.env.SEED_RAY_PASSWORD,     role: 'ray'     },
-  'ventures@snficorp.com':{ password: process.env.SEED_AMIR_PASSWORD,    role: 'amir'    },
-  'gonzalo@snficorp.com': { password: process.env.SEED_GONZALO_PASSWORD, role: 'gonzalo' },
-};
-
-function loadUsers() {
-  if (fs.existsSync(USERS_FILE)) {
-    return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
-  }
-  const users = {};
-  for (const [name, { password, role }] of Object.entries(SEED_USERS)) {
-    if (!password) continue;
-    users[name] = { passwordHash: bcrypt.hashSync(password, 12), role };
-  }
-  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
-  return users;
-}
-function saveUsers(users) {
-  atomicWriteJson(USERS_FILE, users);
-}
-const USERS = loadUsers();
+// Credenciales: usuarios/sesiones en Mongo (colecciones 'users'/'sessions').
+// Seed inicial solo si 'users' esta vacia, desde variables de entorno SEED_*_PASSWORD.
+await ensureUsersSeed(mongo);
 
 // Mesas accesibles por rol. 'admin' = todo. Others = whitelist.
 const ROLE_MESAS = {
@@ -368,81 +330,13 @@ function sentinelLogger(req, res, next) {
   next();
 }
 
-/* ---------- auth ---------- */
-function auth(req, res, next) {
-  const h = req.headers.authorization || '';
-  // EventSource no permite headers personalizados: el stream SSE acepta el token por query string.
-  const token = h.startsWith('Bearer ') ? h.slice(7) : (req.path.endsWith('/stream') ? req.query.token : null);
-  const s = token && SESSIONS.get(token);
-  if (!s || s.exp < Date.now()) return res.status(401).json({ error: 'unauthorized' });
-  req.user = s.user;
-  req.role = s.role;
-  next();
-}
 app.use(sentinelLogger);
 
 const sentinelForensics = createSentinelForensics({ mongo, busEmit });
 app.use(sentinelForensics.middleware(mesaForPath));
 
-app.post('/api/login', authLimiter, async (req, res) => {
-  const { username, password } = req.body || {};
-  const ip = req.ip || 'unknown';
-
-  if (!username || !String(username).toLowerCase().endsWith('@snficorp.com')) {
-    await sentinelForensics.registerLoginAttempt({ ip, username, ok: false, reason: 'dominio_no_autorizado' });
-    return res.status(403).json({ error: 'Dominio no autorizado. IP bloqueada por Sentinel.' });
-  }
-
-  const u = USERS[username];
-  if (!u || !password || !(await bcrypt.compare(password, u.passwordHash))) {
-    await sentinelForensics.registerLoginAttempt({ ip, username, ok: false, reason: 'credenciales_invalidas' });
-    return res.status(401).json({ error: 'Credenciales inválidas' });
-  }
-  await sentinelForensics.registerLoginAttempt({ ip, username, ok: true });
-  const token = crypto.randomBytes(24).toString('hex');
-  SESSIONS.set(token, { user: username, role: u.role, exp: Date.now() + 1000 * 60 * 60 * 8 });
-  saveSessions();
-  // Bus hook: auth event (busEmit defined later — deferred call safe because Express routes run after all top-level code)
-  setImmediate(() => busEmit({
-    id: crypto.randomUUID(), ts: new Date().toISOString(), seq: busEvents.length + 1,
-    origin: 'SENTINEL', dest: 'ELVI-RA', type: 'event', state: 'COMPLETED',
-    label: `LOGIN OK · ${username}`, payload: { user: username, role: u.role }, user: username,
-  }));
-  res.json({ token, user: username, role: u.role });
-});
-app.post('/api/logout', auth, (req, res) => {
-  const h = req.headers.authorization || '';
-  SESSIONS.delete(h.slice(7));
-  saveSessions();
-  setImmediate(() => busEmit({
-    id: crypto.randomUUID(), ts: new Date().toISOString(), seq: busEvents.length + 1,
-    origin: 'SENTINEL', dest: 'ELVI-RA', type: 'event', state: 'COMPLETED',
-    label: `LOGOUT · ${req.user}`, payload: { user: req.user }, user: req.user,
-  }));
-  res.json({ ok: true });
-});
-app.get('/api/me', auth, (req, res) => res.json({ user: req.user, role: req.role }));
-app.get('/api/me/permissions', auth, (req, res) => {
-  res.json({ mesas: ROLE_MESAS[req.role] || [] });
-});
-
-app.post('/api/change-password', auth, async (req, res) => {
-  const { currentPassword, newPassword } = req.body || {};
-  if (!currentPassword || !newPassword) return res.status(400).json({ error: 'currentPassword y newPassword requeridos' });
-  if (newPassword.length < 6) return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
-  const u = USERS[req.user];
-  if (!u || !(await bcrypt.compare(currentPassword, u.passwordHash))) {
-    return res.status(401).json({ error: 'Contraseña actual incorrecta' });
-  }
-  u.passwordHash = await bcrypt.hash(newPassword, 12);
-  saveUsers(USERS);
-  busEmit({
-    id: crypto.randomUUID(), ts: new Date().toISOString(), seq: busEvents.length + 1,
-    origin: 'SENTINEL', dest: 'ELVI-RA', type: 'event', state: 'COMPLETED',
-    label: `PASSWORD_CHANGE · ${req.user}`, payload: { user: req.user }, user: req.user,
-  });
-  res.json({ ok: true });
-});
+/* ---------- auth (usuarios/sesiones en Mongo, ver routes/auth.routes.js) ---------- */
+const { auth } = mountAuth(app, { mongo, requireAdmin, ROLE_MESAS, authLimiter, sentinelForensics, busEmit });
 
 /* ---------- mesa guards ---------- */
 app.use('/api/sheets',    auth, requireMesa('reff'));
@@ -1545,10 +1439,11 @@ function writeElvira(state) {
 /* Overview agregado: estado sistemas + métricas globales */
 app.get('/api/elvira/overview', auth, async (req, res) => {
   const state = readElvira();
-  const totalUsers = Object.keys(USERS).length;
-  const activeSessions = [...SESSIONS.values()].filter(s => s.exp > Date.now()).length;
-
-  const totalCompanies = await mongo.collection('companies').countDocuments();
+  const [totalUsers, activeSessions, totalCompanies] = await Promise.all([
+    mongo.collection('users').countDocuments(),
+    mongo.collection('sessions').countDocuments({ exp: { $gt: new Date() } }),
+    mongo.collection('companies').countDocuments(),
+  ]);
 
   res.json({
     systems: state.systems,
@@ -3885,7 +3780,7 @@ app.get('/api/snfi-u2/esios-generation', auth, async (req, res) => {
 mountElviraCentral(app, {
   auth, requireMesa, mongo, getMongoClient,
   callLLM, trackTokens, busEmit, adminNotify,
-  SESSIONS, readElvira, cibe,
+  readElvira, cibe,
   getU2Snapshot: () => {
     const today = new Date().toISOString().split('T')[0];
     const d = liveCache.get(today);
