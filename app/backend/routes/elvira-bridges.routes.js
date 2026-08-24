@@ -28,15 +28,16 @@ async function getUsdToEurRate() {
 
 export function mountElviraBridges(app, {
   auth, mongo, busEmit, busEvents,
-  readElvira, writeElvira, USERS, SESSIONS,
+  readElvira, writeElvira,
 }) {
   /* Overview agregado: estado sistemas + métricas globales */
   app.get('/api/elvira/overview', auth, async (req, res) => {
     const state = readElvira();
-    const totalUsers = Object.keys(USERS).length;
-    const activeSessions = [...SESSIONS.values()].filter(s => s.exp > Date.now()).length;
-
-    const totalCompanies = await mongo.collection('companies').countDocuments();
+    const [totalUsers, activeSessions, totalCompanies] = await Promise.all([
+      mongo.collection('users').countDocuments(),
+      mongo.collection('sessions').countDocuments({ exp: { $gt: new Date() } }),
+      mongo.collection('companies').countDocuments(),
+    ]);
 
     res.json({
       systems: state.systems,

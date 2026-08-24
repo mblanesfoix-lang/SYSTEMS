@@ -59,7 +59,7 @@ export function mountElviraCentral(app, deps) {
   const {
     auth, requireMesa, mongo, getMongoClient,
     callLLM, trackTokens, busEmit, adminNotify,
-    SESSIONS, readElvira, getU2Snapshot, cibe,
+    readElvira, getU2Snapshot, cibe,
   } = deps;
   // firma CIBE del bunker Pactvm Viridi en endpoints criticos OPHS
   const cibeGuard = (scope) => (cibe ? cibe.guard(scope) : (_req, _res, next) => next());
@@ -201,8 +201,7 @@ export function mountElviraCentral(app, deps) {
 
     // Sesiones activas (Sentinel básico)
     try {
-      const now = Date.now();
-      const active = [...SESSIONS.values()].filter(s => s.exp > now);
+      const active = await mongo.collection('sessions').find({ exp: { $gt: new Date() } }).project({ user: 1 }).toArray();
       ctx.sesiones = { activas: active.length, usuarios: [...new Set(active.map(s => s.user))] };
     } catch { ctx.sesiones = null; }
 

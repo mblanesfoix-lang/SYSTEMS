@@ -25,6 +25,10 @@ export function getElviraDb() {
 }
 
 async function ensureIndexes() {
+  // Auth: sesiones expiran solas via TTL index (Mongo purga tras exp, sin filtrar en memoria)
+  await elviraDb.collection('sessions').createIndex({ exp: 1 }, { expireAfterSeconds: 0 });
+  await elviraDb.collection('users').createIndex({ role: 1 });
+
   await elviraDb.collection('sheets').createIndex({ user: 1 });
   await elviraDb.collection('companies').createIndex({ sheetId: 1 });
   await elviraDb.collection('companies').createIndex({ cnmc: 1 });
