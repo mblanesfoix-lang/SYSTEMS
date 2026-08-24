@@ -60,7 +60,18 @@ ELVI-RA/
 │           └── dist/                 ← Build que server.js monta bajo /reff
 ├── app/                              ← Implementación principal
 │   ├── backend/
-│   │   ├── server.js                 ← Express único (todas las mesas, ~3900 líneas)
+│   │   ├── server.js                 ← Bootstrap Express único (~590 líneas: env/Mongo, middleware, mount de rutas y mesas, Rëff/static/listen)
+│   │   ├── routes/                   ← Rutas extraídas de server.js (mountX(app, {...}), mismo patrón que las mesas de abajo)
+│   │   │   ├── auth.routes.js        ← login/logout/me/change-password (Mongo: users/sessions)
+│   │   │   ├── bus.routes.js         ← Event Bus: SSE/emit/stats/history, dueño de busEmit/busEmitAlert
+│   │   │   ├── notifications.routes.js ← Notificaciones Admin (SSE + CRUD)
+│   │   │   ├── elvira-store.js       ← Helper compartido readElvira/writeElvira (store JSON data/elvira.json)
+│   │   │   ├── reff-crm.routes.js    ← Sheets/Companies/Search IA/LinkedIn/Email/Overview (Rëff CRM-adjacent)
+│   │   │   ├── factory.routes.js     ← S-NFI Factory CRUD (assembly/logistics/inventory/maintenance)
+│   │   │   ├── elvira-bridges.routes.js ← Puentes mock Sentinel/Herzog + OPHS scoring + T'Controler
+│   │   │   ├── cnmc.routes.js        ← CNMC embudo legal + buscador híbrido (numeracionyoperadores.cnmc.es + LLM)
+│   │   │   ├── sentinel-forensic.routes.js ← Wrappers finos sobre sentinel-forensics.js
+│   │   │   └── u2-ree.routes.js      ← S-NFI U2 REE/ESIOS (pollers, caches, getU2SnapshotToday)
 │   │   ├── elvira-central.js         ← Central: chat + acciones + OPHS mock/puerto
 │   │   ├── llm.js                    ← Capa LLM (anthropic|ollama via env)
 │   │   ├── sentinel-forensics.js     ← Hash chain + rate limit + geoip
@@ -72,6 +83,8 @@ ELVI-RA/
 │   │   ├── rack-state.js             ← Consenso Raft entre racks: puertos + estados seguridad (V3)
 │   │   ├── grid-interlink.js         ← Grid Abstraction Layer: supervisor por país (V3)
 │   │   ├── grid-country-worker.js    ← Worker sandboxed (resourceLimits) por TSO/país (V3)
+│   │   ├── scripts/                  ← migrate-auth-to-mongo.js, env-vault.js (ver secciones Auth/Vault)
+│   │   ├── test/                     ← Suite node:test (ver sección Tests)
 │   │   └── db/mongo.js               ← Conexión Mongo compartida
 │   └── frontend/                     ← Vanilla HTML/CSS/JS
 │       ├── pages/  (login, dashboard SYSTEMS, elvira-dashboard, elvi-ra, ophs, foundry, reff, sentinel, snfi-u2)
@@ -223,7 +236,9 @@ Seed Rëff (`server/db.ts`): contraseñas via env `REFF_SEED_<USER>_PASSWORD` (m
 
 **Dashboard SYSTEMS a 4 dominios + KPI pérdidas U-2 en Pactvm Viridi** (2026-08-24): `dashboard.html` pasa de 2 a 4 tiles de dominio de primer nivel (OPHS, Rëff, Elvi-Ra, Pactvm Viridi). OPHS sale del dominio Elvi-Ra (se quita su tile y health-check de `elvira-dashboard.html`; breadcrumb, brand-click, back-button y guard de permisos de `ophs.html` corregidos para depender de la mesa `ophs` y no de `elvira` — el guard antiguo comprobaba `elvira`, error preexistente). `ROLE_MESAS`: `pactvm` añadida a `ray` y `gonzalo` (antes solo admin). Pactvm Viridi gana lectura del snapshot U-2 (`exceso_gwh_hoy`, `pct_horas_desperdiciadas`) vía closure `getU2Snapshot` inyectado a `mountPactvm` (mismo patrón que `mountElviraCentral`, reutiliza `liveCache` de `server.js` sin acoplar la mesa `snfiu2`); nuevo endpoint `GET /api/pactvm/u2-summary` y campo `u2` embebido en `GET /api/pactvm/summary`. `pactum-viridi.html`: 5ª celda KPI "Pérdidas vertido renovable U-2 (hoy)", breadcrumb ya no cuelga de Rëff. Alcance de datos de Pactvm Viridi sigue siendo solo lectura (U-2 + Herzog), sin escritura fuera de sus propias colecciones `pactvm_*`.
 
-**Auth migrado a Mongo + vault de secretos + tests (2026-08-24)**: usuarios/sesiones dejan el store JSON (`data/users.json`, `data/sessions.json`) y pasan a colecciones Mongo `users`/`sessions` (TTL index sobre `exp`, purga automática). Lógica extraída a `app/backend/routes/auth.routes.js` (`mountAuth`, `ensureUsersSeed`), `server.js` monta el módulo en vez de tener login/logout/me/change-password inline. Migración one-shot ejecutada: `scripts/migrate-auth-to-mongo.js` (5 usuarios migrados, JSON originales respaldados a `*.migrated.json`, no borrados). `elvira-central.js` y el endpoint `/api/elvira/overview` ya no dependen del `Map` `SESSIONS` en memoria — consultan Mongo directamente. Vault de secretos sin infraestructura externa: `.env` y el `.env` de Rëff cifrados a `.env.vault` (AES-256-GCM, ver sección Vault); claves de descifrado entregadas al jefe, no están en el repo ni en memoria persistente. Primeros tests automatizados del proyecto (ver sección Tests): 29 tests, cubren auth, cadena forense Sentinel y aritmética Finance — server arrancado y verificado manualmente tras la migración (`GET /api/health` 200, login rechaza credenciales inválidas).
+**Auth migrado a Mongo + vault de secretos + tests (2026-08-24)**: usuarios/sesiones dejan el store JSON (`data/users.json`, `data/sessions.json`) y pasan a colecciones Mongo `users`/`sessions` (TTL index sobre `exp`, purga automática). Lógica extraída a `app/backend/routes/auth.routes.js` (`mountAuth`, `ensureUsersSeed`), `server.js` monta el módulo en vez de tener login/logout/me/change-password inline. Migración one-shot ejecutada: `scripts/migrate-auth-to-mongo.js` (5 usuarios migrados, JSON originales respaldados a `*.migrated.json`, no borrados). `elvira-central.js` y el endpoint `/api/elvira/overview` ya no dependen del `Map` `SESSIONS` en memoria — consultan Mongo directamente. Vault de secretos sin infraestructura externa: `.env` y el `.env` de Rëff cifrados a `.env.vault` (AES-256-GCM, ver sección Vault); claves de descifrado entregadas al jefe, no están en el repo ni en memoria persistente. Primeros tests automatizados del proyecto (ver sección Tests): 29 tests, cubren auth, cadena forense Sentinel y aritmética Finance.
+
+**Split de server.js en módulos de rutas (2026-08-24)**: `server.js` pasa de 4093 a ~590 líneas (solo bootstrap: env/Mongo, middleware, mount de rutas/mesas, integración Rëff, static, listen). Extracción mecánica sin cambio de comportamiento a `app/backend/routes/*.js` (10 archivos nuevos, ver árbol de arquitectura arriba) — 105/105 rutas verificadas coincidentes contra el original (mismo path, método, guards `auth`/`requireMesa`/`requireAdmin`, lógica idéntica). Único cambio más allá de extracción pura: `getU2Snapshot` (antes duplicado idéntico en dos sitios) se consolidó en una sola `getU2SnapshotToday()` en `u2-ree.routes.js`, reutilizada por Pactvm y Elvira Central. `busEmit`/`adminNotify`/`auth` pasan de `function` hoisted a bindings `let` asignados según se montan los módulos (documentado inline en `server.js`) — necesario porque el hoisting entre archivos no existe como existía dentro de un único archivo. Server arrancado y verificado tras el split completo (health 200, login rechaza credenciales inválidas, suite de 29 tests íntegra).
 
 **Pendiente (requiere accesos externos o decisión Admin)**:
 - Data Foundry: conectar hardware/Systems real al Ingress Gateway (contrato en `GET /api/foundry/contract`; el jefe decide puerto definitivo y UFW). Corrección prod prevista: sustituir `FoundryBus` in-process por Redis Streams/MQTT y mover secretos de nodo de Mongo a vault/env.
