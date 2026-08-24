@@ -40,17 +40,17 @@ export function DashboardPage() {
           <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
             Dashboard Global
           </div>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text-muted)', marginTop: 4 }}>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
             {cities.length} {cities.length === 1 ? 'ciudad' : 'ciudades'} · {totalCompanies} {totalCompanies === 1 ? 'empresa' : 'empresas'} registradas
           </div>
         </div>
 
         {/* Legend */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
           {Object.entries(STATUS_META).map(([key, meta]) => (
             <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-secondary)' }}>
               <span style={{ width: 8, height: 8, borderRadius: '50%', background: meta.color }} />
-              <span style={{ letterSpacing: '0.08em', textTransform: 'uppercase' }}>{meta.label}</span>
+              <span>{meta.label}</span>
             </div>
           ))}
         </div>
@@ -64,7 +64,7 @@ export function DashboardPage() {
 
       {error && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 5 }}>
-          <span style={{ color: '#ff6b6b', fontFamily: 'var(--font-mono)', fontSize: 13 }}>{error}</span>
+          <span style={{ color: '#ff6b6b', fontSize: 13 }}>{error}</span>
         </div>
       )}
 
@@ -85,10 +85,8 @@ export function DashboardPage() {
             left: 0,
             right: 0,
             textAlign: 'center',
-            fontFamily: 'var(--font-mono)',
             fontSize: 12,
             color: 'var(--text-muted)',
-            letterSpacing: '0.08em',
             pointerEvents: 'none',
           }}
         >

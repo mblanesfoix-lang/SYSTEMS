@@ -46,7 +46,7 @@ interface CompanyDoc {
 router.get('/globe', async (req: Request, res: Response) => {
   const db = getReffDb();
   const userSheets = await db.collection('sheets').find({ user_id: req.user.id } as never).toArray();
-  const sheetIds = userSheets.map((s) => s._id);
+  const sheetIds = userSheets.map((s) => s._id) as unknown as number[];
   const rows = await db.collection<CompanyDoc>('companies')
     .find({ sheet_id: { $in: sheetIds } })
     .project<CompanyDoc>({ name: 1, country: 1, city: 1, lat: 1, lng: 1, status: 1, sheet_id: 1 })

@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gob Share · S-NFI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
+  <style>
+    /* Gob Share corre en modo oscuro propio, aislado del tema claro global (body.gobshare-dark).
+       Estetica deliberadamente contenida: negro frio + mono type + una linea de acento verde
+       apagada. Sin scanlines, sin glow neon, sin cliches de "hacker" — la sobriedad es el efecto. */
+    /* Paleta subida un escalon respecto al primer intento (fondos mas claros, bordes mas
+       visibles, texto de mayor contraste) — misma identidad, mejor legibilidad. */
+    body.gobshare-dark {
+      background: #12141a;
+      color: #cfd5de;
+    }
+    body.gobshare-dark::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background:
+        radial-gradient(ellipse 900px 600px at 18% -10%, rgba(0,113,227,0.07), transparent 60%),
+        radial-gradient(ellipse 700px 500px at 100% 110%, rgba(0,113,227,0.05), transparent 55%);
+    }
+    body.gobshare-dark .nav {
+      background: rgba(18,21,28,0.78); border-bottom: 1px solid rgba(255,255,255,0.09);
+      backdrop-filter: blur(10px); position: relative; z-index: 2;
+    }
+    body.gobshare-dark .nav .brand, body.gobshare-dark .nav span { color: #aab2bd; }
+    body.gobshare-dark .nav .brand a { color: #e4e7ec; }
+    body.gobshare-dark .kicker { color: #4ba3f0; }
+    body.gobshare-dark main.container h1 { color: #f2f4f7; }
+    body.gobshare-dark main.container p { color: #939bA6; }
+    body.gobshare-dark .user-menu__trigger { color: #9aa2ad; }
+    body.gobshare-dark .user-menu__trigger:hover { background: rgba(255,255,255,0.07); color: #e4e7ec; }
+    body.gobshare-dark .user-menu__dropdown { background: #191c24; border-color: rgba(255,255,255,0.1); box-shadow: 0 20px 48px rgba(0,0,0,0.55); }
+    body.gobshare-dark .user-menu__label { color: #7b8390; }
+    body.gobshare-dark .user-menu__input { background: #12141a; border-color: rgba(255,255,255,0.12); color: #e4e7ec; }
+    body.gobshare-dark .user-menu__item { color: #cfd5de; }
+    body.gobshare-dark .user-menu__item:hover { background: rgba(255,255,255,0.06); }
+    body.gobshare-dark .user-menu__divider { background: rgba(255,255,255,0.09); }
+
+    main.container { position: relative; z-index: 1; }
+
+    .gobshare-wrap {
+      position: relative; width: 100%; height: 640px; border-radius: 14px; overflow: hidden;
+      background: #14171f;
+      border: 1px solid rgba(255,255,255,0.10);
+      box-shadow: 0 30px 60px rgba(0,0,0,0.35);
+    }
+    .gobshare-map { width: 100%; height: 100%; position: relative; z-index: 1; }
+    .gobshare-map.hoverable { cursor: pointer; }
+    .gobshare-tooltip {
+      position: fixed; z-index: 200; pointer-events: none;
+      background: rgba(18,21,28,0.95); border: 1px solid rgba(0,113,227,0.35); border-radius: var(--radius-sm);
+      padding: 8px 12px; font-size: 0.8rem; font-family: var(--font-sans);
+      box-shadow: 0 12px 32px rgba(0,0,0,0.5); color: #e4e7ec;
+      max-width: 240px; backdrop-filter: blur(6px);
+    }
+    .gobshare-tooltip .gobshare-tooltip__country { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.02em; color: #939ba6; display: block; margin-bottom: 2px; }
+    .gobshare-tooltip .gobshare-tooltip__service { display: block; font-weight: 600; color: #f2f4f7; }
+    .gobshare-tooltip .gobshare-tooltip__hint { display: block; margin-top: 6px; font-size: 0.7rem; color: #4ba3f0; font-family: var(--font-mono); letter-spacing: 0.02em; }
+    .gobshare-empty { position: absolute; bottom: 14px; left: 14px; z-index: 20; font-size: 0.78rem; font-family: var(--font-mono); color: #cfd5de; background: rgba(18,21,28,0.92); border: 1px solid rgba(255,255,255,0.1); padding: 6px 10px; border-radius: var(--radius-sm); }
+
+    /* Panel lateral: cajon (drawer) pegado al borde derecho del mapa, cerrado por defecto.
+       El mapa es lo unico visible en el centro; la pestana vive FUERA del drawer (hijo directo
+       de .gobshare-wrap) para quedar siempre visible pegada al borde, sin moverse con el
+       transform del cajon. El cajon se desliza por ENCIMA del mapa (no reparte layout). */
+    .gobshare-drawer {
+      position: absolute; top: 0; right: 0; bottom: 0; z-index: 30;
+      width: 300px; max-width: 82vw;
+      transform: translateX(100%);
+      transition: transform 0.28s ease;
+      background: rgba(16,19,25,0.97); border-left: 1px solid rgba(255,255,255,0.12);
+      box-shadow: -20px 0 40px rgba(0,0,0,0.4);
+      display: flex; flex-direction: column;
+    }
+    .gobshare-drawer.open { transform: translateX(0); }
+    .gobshare-drawer__tab {
+      position: absolute; top: 18px; right: 0; z-index: 31;
+      display: flex; align-items: center; gap: 7px;
+      padding: 9px 12px; border-radius: 8px 0 0 8px;
+      background: rgba(16,19,25,0.97); border: 1px solid rgba(255,255,255,0.14); border-right: none;
+      color: #cfd5de; font-family: var(--font-mono); font-size: 0.74rem; letter-spacing: 0.03em;
+      cursor: pointer;
+    }
+    .gobshare-drawer__tab:hover { color: #f2f4f7; border-color: rgba(0,113,227,0.45); }
+    .gobshare-drawer__tab .count { color: #4ba3f0; }
+    .gobshare-panel__head {
+      padding: 16px 16px 10px; border-bottom: 1px solid rgba(255,255,255,0.08); flex-shrink: 0;
+    }
+    .gobshare-panel__head .kicker { font-size: 0.68rem; }
+    .gobshare-panel__search {
+      width: 100%; margin-top: 8px; padding: 7px 10px; box-sizing: border-box;
+      background: #0d0f14; border: 1px solid rgba(255,255,255,0.13); border-radius: 6px;
+      color: #e4e7ec; font-family: var(--font-sans); font-size: 0.82rem; outline: none;
+    }
+    .gobshare-panel__search:focus { border-color: rgba(0,113,227,0.5); }
+    .gobshare-panel__list { overflow-y: auto; flex: 1; }
+    .gobshare-node {
+      display: block; width: 100%; text-align: left; padding: 9px 16px; background: none;
+      border: none; border-bottom: 1px solid rgba(255,255,255,0.06); cursor: pointer;
+      font-family: var(--font-sans); color: #cfd5de; transition: background 0.12s;
+    }
+    .gobshare-node:hover, .gobshare-node.active { background: rgba(0,113,227,0.10); }
+    .gobshare-node__row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+    .gobshare-node__country { font-size: 0.85rem; font-weight: 600; color: #f2f4f7; }
+    .gobshare-node__code { font-family: var(--font-mono); font-size: 0.68rem; color: #4ba3f0; }
+    .gobshare-node__service { display: block; margin-top: 2px; font-size: 0.74rem; color: #939ba6; }
+    .gobshare-node--nolink { cursor: default; opacity: 0.6; }
+    .gobshare-node--nolink:hover { background: none; }
+  </style>
+</head>
+<body class="gobshare-dark">
+  <nav class="nav">
+    <div class="brand">
+      <a href="/pages/dashboard.html" style="color:inherit; text-decoration:none;">
+        <img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;"> SYSTEMS
+      </a>
+      <span class="mono" style="opacity:0.5; margin:0 8px;">/</span>
+      <a href="/pages/reff-dashboard.html" style="color:inherit; text-decoration:none;">Rëff</a>
+      <span class="mono" style="opacity:0.5; margin:0 8px;">/</span>
+      <span>Gob Share</span>
+    </div>
+    <div class="row" style="gap:18px;">
+      <div class="user-menu" id="userMenu">
+        <button class="user-menu__trigger mono" id="userTag" aria-haspopup="true" aria-expanded="false">…</button>
+        <div class="user-menu__dropdown" id="userDropdown" hidden>
+          <div class="user-menu__section">
+            <span class="user-menu__label">Cambiar contraseña</span>
+            <input class="user-menu__input" type="password" id="pwdCurrent" placeholder="Contraseña actual" autocomplete="current-password">
+            <input class="user-menu__input" type="password" id="pwdNew" placeholder="Nueva contraseña" autocomplete="new-password">
+            <input class="user-menu__input" type="password" id="pwdConfirm" placeholder="Confirmar nueva" autocomplete="new-password">
+            <p class="user-menu__error" id="pwdError" hidden></p>
+            <button class="btn sage" id="pwdSubmit" style="width:100%;margin-top:4px;">Actualizar</button>
+          </div>
+          <div class="user-menu__divider"></div>
+          <button class="user-menu__item user-menu__item--danger" id="logoutBtn">Cerrar sesión</button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <style>
+    .user-menu { position: relative; }
+    .user-menu__trigger { background: none; border: none; cursor: pointer; padding: 6px 10px; border-radius: var(--radius-sm); font-size: 0.82rem; color: var(--text-2); transition: background 0.15s; }
+    .user-menu__trigger:hover { background: rgba(20,24,32,0.06); color: var(--text-1); }
+    .user-menu__dropdown { position: absolute; right: 0; top: calc(100% + 8px); background: #fff; border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 8px 32px rgba(0,0,0,0.10); min-width: 240px; padding: 12px 0; z-index: 100; }
+    .user-menu__section { padding: 4px 14px 8px; display: flex; flex-direction: column; gap: 6px; }
+    .user-menu__label { font-size: 0.72rem; font-family: var(--font-mono); color: var(--text-3); letter-spacing: -0.005em; margin-bottom: 2px; }
+    .user-menu__input { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 0.82rem; font-family: var(--font-sans); background: var(--bg); color: var(--text-1); outline: none; box-sizing: border-box; }
+    .user-menu__input:focus { border-color: var(--accent-blue); }
+    .user-menu__error { font-size: 0.78rem; color: #c0392b; margin: 2px 0 0; }
+    .user-menu__divider { height: 1px; background: var(--border); margin: 4px 0; }
+    .user-menu__item { display: block; width: 100%; text-align: left; padding: 9px 14px; background: none; border: none; cursor: pointer; font-size: 0.85rem; font-family: var(--font-sans); color: var(--text-1); transition: background 0.12s; }
+    .user-menu__item:hover { background: rgba(20,24,32,0.04); }
+    .user-menu__item--danger { color: #c0392b; }
+    .user-menu__item--danger:hover { background: rgba(192,57,43,0.06); }
+  </style>
+
+  <main class="container">
+    <header class="reveal">
+      <span class="kicker">Dominio Rëff · Enlaces institucionales</span>
+      <h1>Gob Share</h1>
+      <p style="max-width:640px; margin-top:8px;">
+        Portales de registro gubernamentales por país. Pasa el cursor sobre un país registrado (resaltado en verde) para ver su servicio, haz clic para abrir el portal oficial.
+      </p>
+    </header>
+
+    <section class="reveal delay-1">
+      <div class="gobshare-wrap" style="margin-top:20px;">
+        <div id="gobShareMap" class="gobshare-map"></div>
+        <div id="gobShareTooltip" class="gobshare-tooltip" hidden></div>
+        <div id="gobShareEmpty" class="gobshare-empty" hidden>Sin nodo configurado para este país todavía.</div>
+
+        <button type="button" id="gobShareDrawerTab" class="gobshare-drawer__tab">
+          <span>PAÍSES</span><span class="count" id="gobShareCount"></span>
+        </button>
+        <aside class="gobshare-drawer" id="gobShareDrawer">
+          <div class="gobshare-panel__head">
+            <span class="kicker">Nodos registrados</span>
+            <input type="text" id="gobShareSearch" class="gobshare-panel__search" placeholder="Buscar país o servicio...">
+          </div>
+          <div class="gobshare-panel__list" id="gobShareList"></div>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <!-- Script clasico (no ES module): topojson-client.min.js es un bundle UMD sin sentencias
+       export/import propias del lenguaje de modulos. Cargarlo con <script> normal fija
+       window.topojson de forma garantizada; dynamic import() de este mismo archivo desde
+       gob-share-map.js fallaba de forma silenciosa. -->
+  <script src="/vendor/topojson-client.min.js"></script>
+  <script type="module">
+    import { api, getUser, getToken, clearSession, requireAuth, toast } from '/js/api.js';
+    import { mountAdminNotifications } from '/js/notifications.js';
+    import { mountOfficeBg } from '/js/office-bg.js';
+    import { mountGobShareMap, openNodePortal } from '/js/gob-share-map.js';
+    import { GOB_SHARE_NODES } from '/js/gob-share-nodes.js';
+    requireAuth();
+    mountOfficeBg();
+    const user = getUser() || '';
+    document.getElementById('userTag').textContent = user;
+    mountAdminNotifications(document.querySelector('nav.nav .row'));
+
+    const mapEl = document.getElementById('gobShareMap');
+    const tooltipEl = document.getElementById('gobShareTooltip');
+    const emptyEl = document.getElementById('gobShareEmpty');
+
+    mountGobShareMap(mapEl, { tooltip: tooltipEl, emptyBadge: emptyEl });
+
+    // Panel lateral: cajon cerrado por defecto, lista completa de nodos registrados
+    // (30: UE-27 + US + CN + MA). La pestana en el borde derecho lo abre/cierra sin
+    // desplazar el mapa (position:absolute, ver CSS .gobshare-drawer).
+    const drawerEl = document.getElementById('gobShareDrawer');
+    const drawerTabEl = document.getElementById('gobShareDrawerTab');
+    drawerTabEl.addEventListener('click', () => drawerEl.classList.toggle('open'));
+
+    const listEl = document.getElementById('gobShareList');
+    const searchEl = document.getElementById('gobShareSearch');
+    const nodes = Object.values(GOB_SHARE_NODES).sort((a, b) => a.nombre_sistema.localeCompare(b.nombre_sistema, 'es'));
+    document.getElementById('gobShareCount').textContent = nodes.length;
+
+    function renderList(filter = '') {
+      const q = filter.trim().toLowerCase();
+      listEl.innerHTML = '';
+      for (const node of nodes) {
+        const url = node.portal_registro_oficial && node.portal_registro_oficial.url;
+        const hay = `${node.nombre_sistema} ${node.id_pais} ${node.portal_registro_oficial.label}`.toLowerCase();
+        if (q && !hay.includes(q)) continue;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'gobshare-node' + (url ? '' : ' gobshare-node--nolink');
+        btn.innerHTML = `<span class="gobshare-node__row"><span class="gobshare-node__country">${node.nombre_sistema}</span><span class="gobshare-node__code">${node.id_pais}</span></span>` +
+          `<span class="gobshare-node__service">${node.portal_registro_oficial.label}</span>`;
+        btn.title = url ? 'Abrir portal oficial' : 'Sin URL verificada todavía';
+        btn.addEventListener('click', () => openNodePortal(node));
+        listEl.appendChild(btn);
+      }
+    }
+    renderList();
+    searchEl.addEventListener('input', () => renderList(searchEl.value));
+
+    // User menu dropdown
+    const trigger = document.getElementById('userTag');
+    const dropdown = document.getElementById('userDropdown');
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = !dropdown.hidden;
+      dropdown.hidden = open;
+      trigger.setAttribute('aria-expanded', String(!open));
+    });
+    document.addEventListener('click', (e) => {
+      if (!document.getElementById('userMenu').contains(e.target)) {
+        dropdown.hidden = true;
+        trigger.setAttribute('aria-expanded', 'false');
+      }
+    });
+
+    // Change password
+    document.getElementById('pwdSubmit').addEventListener('click', async () => {
+      const cur = document.getElementById('pwdCurrent').value;
+      const neu = document.getElementById('pwdNew').value;
+      const con = document.getElementById('pwdConfirm').value;
+      const errEl = document.getElementById('pwdError');
+      errEl.hidden = true;
+      if (!cur || !neu || !con) { errEl.textContent = 'Rellena todos los campos'; errEl.hidden = false; return; }
+      if (neu !== con) { errEl.textContent = 'Las contraseñas no coinciden'; errEl.hidden = false; return; }
+      try {
+        await api.changePassword(cur, neu);
+        toast('Contraseña actualizada');
+        dropdown.hidden = true;
+        trigger.setAttribute('aria-expanded', 'false');
+        ['pwdCurrent','pwdNew','pwdConfirm'].forEach(id => document.getElementById(id).value = '');
+      } catch (ex) {
+        errEl.textContent = ex.message || 'Error al cambiar contraseña';
+        errEl.hidden = false;
+      }
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      try { await api.logout(); } catch {}
+      clearSession();
+      location.href = '/pages/login.html';
+    });
+  </script>
+</body>
+</html>

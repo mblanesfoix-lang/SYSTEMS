@@ -33,6 +33,7 @@ const MESA_LABELS = {
   snfiu2: 'S-NFI U-2 (datos científicos)',
   sentinel: 'Sentinel (seguridad)',
   twin: 'Twin (enlace S-NFI Systems)',
+  foundry: 'Data Foundry (ingesta pipeline)',
 };
 
 function humanizePath(path) {
@@ -126,19 +127,21 @@ export function createSentinelForensics({ mongo, busEmit }) {
   // en memoria garantiza una bifurcación (seq duplicado o hash que no encaja).
   // Por eso cada append relee la cola real con findOneAndUpdate atómico sobre
   // un contador en Mongo, y reintenta si otro proceso ganó la carrera.
-  async function nextSeq() {
+  // El contador guarda tambien el hash de la ultima entrada: findOneAndUpdate
+  // es atomico en Mongo, asi que seq+prevHash salen de una unica operacion
+  // indivisible. Ningun otro proceso puede colarse entre "leer el tail" y
+  // "reservar el siguiente seq" porque ya no son dos pasos.
+  async function nextSeqAndPrevHash() {
     const doc = await mongo.collection('forensic_seq').findOneAndUpdate(
       { _id: 'counter' },
       { $inc: { value: 1 } },
       { upsert: true, returnDocument: 'after' },
     );
-    return doc.value;
+    return { seq: doc.value, prevHash: doc.lastHash || '0'.repeat(64) };
   }
 
   async function appendForensicEntry(fields, attempt = 0) {
-    const seq = await nextSeq();
-    const tail = seq === 1 ? null : await mongo.collection('forensic_log').findOne({ seq: seq - 1 });
-    const prevHash = tail ? tail.hash : '0'.repeat(64);
+    const { seq, prevHash } = await nextSeqAndPrevHash();
     const entry = {
       seq,
       ts: new Date().toISOString(),
@@ -160,10 +163,18 @@ export function createSentinelForensics({ mongo, busEmit }) {
     try {
       await mongo.collection('forensic_log').insertOne(doc);
     } catch (err) {
-      // seq duplicado (carrera con otro proceso): reintenta con seq nuevo.
+      // seq duplicado: no deberia pasar (el contador es atomico), pero si
+      // ocurre por una anomalia de Mongo, reintenta con seq nuevo en vez de tirar.
       if (err?.code === 11000 && attempt < 5) return appendForensicEntry(fields, attempt + 1);
       throw err;
     }
+    // Encadena el contador al hash recien escrito, solo hacia adelante: si dos
+    // inserts terminan en orden distinto al que reservaron su seq, el de mayor
+    // seq nunca se deja pisar por uno mas antiguo que llegue tarde.
+    await mongo.collection('forensic_seq').updateOne(
+      { _id: 'counter', $or: [{ lastHashSeq: { $exists: false } }, { lastHashSeq: { $lt: seq } }] },
+      { $set: { lastHash: hash, lastHashSeq: seq } },
+    );
     return doc;
   }
 
@@ -234,8 +245,38 @@ export function createSentinelForensics({ mongo, busEmit }) {
     return { exceeded: count > limit, count, limit };
   }
 
+  /* ---- lista blanca: IPs de confianza (ej. la del propio Admin) que nunca ----
+     entran en cola de revision ni se autobloquean. El Admin la gestiona a mano,
+     doctrina "el ser humano autoriza" — Sentinel no decide por su cuenta quien entra aqui. */
+  async function isIpAllowlisted(ip) {
+    const entry = await mongo.collection('ip_allowlist').findOne({ ip });
+    return !!entry;
+  }
+
+  async function addToAllowlist(ip, label, decidedBy) {
+    const now = new Date();
+    await mongo.collection('ip_allowlist').updateOne(
+      { ip },
+      { $set: { ip, label: label || null, addedBy: decidedBy, updatedAt: now }, $setOnInsert: { createdAt: now } },
+      { upsert: true },
+    );
+    // si estaba bloqueada o en cola, se limpia: marcar como propia anula cualquier decision previa
+    await mongo.collection('ip_review_queue').deleteOne({ ip });
+    return mongo.collection('ip_allowlist').findOne({ ip });
+  }
+
+  async function removeFromAllowlist(ip) {
+    const r = await mongo.collection('ip_allowlist').deleteOne({ ip });
+    return { removed: r.deletedCount > 0 };
+  }
+
+  async function listAllowlist() {
+    return mongo.collection('ip_allowlist').find().sort({ updatedAt: -1 }).toArray();
+  }
+
   /* ---- política de exceso: cola de revisión Admin + auto-bloqueo por patrón ---- */
   async function isIpBlocked(ip) {
+    if (await isIpAllowlisted(ip)) return false;
     const blocked = await mongo.collection('ip_review_queue').findOne({ ip, decision: 'BLOCKED' });
     return !!blocked;
   }
@@ -301,7 +342,7 @@ export function createSentinelForensics({ mongo, busEmit }) {
           return res.status(403).json({ error: 'IP bloqueada por Sentinel' });
         }
 
-        if (sensitive) {
+        if (sensitive && !(await isIpAllowlisted(ip))) {
           const { exceeded } = await checkRateLimit(ip, req.path, SENSITIVE_LIMIT_PER_MIN);
           if (exceeded) {
             const excess = await registerExcess(ip, req.path, geo);
@@ -334,22 +375,32 @@ export function createSentinelForensics({ mongo, busEmit }) {
     };
   }
 
-  async function listForensicLog({ ip, mesa, blocked, sensitive, limit = 200, offset = 0 } = {}) {
+  async function listForensicLog({ ip, mesa, blocked, sensitive, from, to, limit = 200, offset = 0 } = {}) {
     const q = {};
     if (ip) q.ip = ip;
     if (mesa) q.mesa = mesa;
     if (blocked != null) q.blocked = blocked === 'true' || blocked === true;
     if (sensitive != null) q.sensitive = sensitive === 'true' || sensitive === true;
+    if (from || to) {
+      q.ts = {};
+      if (from) q.ts.$gte = new Date(String(from)).toISOString();
+      if (to)   q.ts.$lte = new Date(String(to)).toISOString();
+    }
     const total = await mongo.collection('forensic_log').countDocuments(q);
     const events = await mongo.collection('forensic_log').find(q).sort({ seq: -1 }).skip(Number(offset)).limit(Math.min(Number(limit), 1000)).toArray();
     return { total, events };
   }
 
   /* ---- mismo log, en frases claras para usuarios sin conocimiento tecnico ---- */
-  async function listForensicLogHuman({ ip, blocked, limit = 100, offset = 0 } = {}) {
+  async function listForensicLogHuman({ ip, blocked, from, to, limit = 100, offset = 0 } = {}) {
     const q = {};
     if (ip) q.ip = ip;
     if (blocked != null) q.blocked = blocked === 'true' || blocked === true;
+    if (from || to) {
+      q.ts = {};
+      if (from) q.ts.$gte = new Date(String(from)).toISOString();
+      if (to)   q.ts.$lte = new Date(String(to)).toISOString();
+    }
     const total = await mongo.collection('forensic_log').countDocuments(q);
     const events = await mongo.collection('forensic_log').find(q).sort({ seq: -1 }).skip(Number(offset)).limit(Math.min(Number(limit), 500)).toArray();
     return {
@@ -382,7 +433,7 @@ export function createSentinelForensics({ mongo, busEmit }) {
     const geo = geoip.lookup(ip.replace(/^::ffff:/, '')) || null;
     await mongo.collection('login_attempts').insertOne({ ip, username, ok, reason: reason || null, geo, ts: now });
 
-    if (reason === 'dominio_no_autorizado') {
+    if (reason === 'dominio_no_autorizado' && !(await isIpAllowlisted(ip))) {
       await mongo.collection('ip_review_queue').updateOne(
         { ip },
         { $set: {
@@ -457,5 +508,6 @@ export function createSentinelForensics({ mongo, busEmit }) {
   return {
     middleware, attach, listForensicLog, listForensicLogHuman, ipStats, listReviewQueue, decideReview, manualBlock,
     trafficTimeline, exportIpReport, verifyChain, reanchorChain, isSensitivePath, registerLoginAttempt,
+    addToAllowlist, removeFromAllowlist, listAllowlist, isIpAllowlisted,
   };
 }

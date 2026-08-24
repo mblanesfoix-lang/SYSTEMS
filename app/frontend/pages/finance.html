@@ -1,0 +1,1169 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>S-NFI Finance · S-NFI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
+  <style>
+    .finance-hero {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-top: 2px solid var(--accent-blue);
+      border-radius: var(--radius);
+      padding: 28px 36px;
+      margin-bottom: 20px;
+    }
+    .finance-hero__title {
+      font-family: var(--font-display);
+      font-size: clamp(1.7rem, 3vw, 2.3rem);
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      margin: 0 0 8px;
+    }
+    .finance-hero__sub {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      max-width: 680px;
+      line-height: 1.6;
+      margin: 0;
+    }
+
+    .kpi-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 0;
+      border: 1px solid var(--border-mid); border-radius: var(--radius); overflow: hidden;
+      margin-bottom: 20px; background: var(--bg-card);
+    }
+    @media (max-width: 900px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+    .kpi-cell { padding: 18px 22px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .kpi-cell:nth-child(4n) { border-right: none; }
+    .kpi-label { font-family: var(--font-mono); font-size: 0.55rem; letter-spacing: 0.03em; color: var(--text-muted); margin-bottom: 8px; }
+    .kpi-val { font-family: var(--font-display); font-size: 1.7rem; font-weight: 800; letter-spacing: -0.03em; }
+
+    /* ---- Dashboard de graficos, protagonista, siempre visible ---- */
+    .dash-grid {
+      display: grid;
+      grid-template-columns: 1.6fr 1fr;
+      gap: 18px;
+      margin-bottom: 24px;
+      align-items: stretch;
+    }
+    @media (max-width: 1100px) { .dash-grid { grid-template-columns: 1fr; } }
+    .dash-card {
+      background: var(--bg-card); border: 1px solid var(--border); border-top: 2px solid var(--accent-blue);
+      border-radius: var(--radius);
+      padding: 20px 22px;
+      display: flex; flex-direction: column;
+    }
+    .dash-card__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+    .dash-card__title { font-family: var(--font-display); font-weight: 700; font-size: 1.02rem; letter-spacing: -0.01em; }
+    .dash-card__controls { display: flex; gap: 8px; }
+    .dash-card__controls select { height: 32px; font-size: 0.72rem; padding: 0 8px; width: auto; }
+    .dash-sub-row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; }
+    @media (max-width: 700px) { .dash-sub-row { grid-template-columns: 1fr; } }
+
+    .chart-wrap { position: relative; width: 100%; flex: 1; }
+    .chart-wrap canvas { width: 100%; display: block; cursor: crosshair; }
+    .chart-legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; }
+    .chart-legend .item { display: flex; align-items: center; gap: 7px; font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.02em; color: var(--text-muted); }
+    .chart-legend .swatch { width: 10px; height: 10px; display: inline-block; flex-shrink: 0; }
+    .chart-tooltip {
+      position: absolute; pointer-events: none; background: var(--text-primary); color: #fff;
+      font-family: var(--font-mono); font-size: 0.7rem; padding: 6px 10px; white-space: nowrap;
+      transform: translate(-50%, -120%); opacity: 0; transition: opacity .12s var(--ease); z-index: 5;
+    }
+    .chart-tooltip.show { opacity: 1; }
+    .chart-summary { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); margin-top: 8px; }
+
+    /* ---- Tabs de tablas ---- */
+    .mode-tabs {
+      display: flex; gap: 0; margin-bottom: 18px;
+      border: 1px solid var(--border-mid); border-radius: var(--radius-sm); overflow: hidden;
+      width: fit-content; flex-wrap: wrap;
+    }
+    .mode-tab {
+      padding: 10px 22px; font-family: var(--font-mono); font-size: 0.65rem;
+      letter-spacing: 0.03em; color: var(--text-muted);
+      background: var(--bg-card); border: none; border-right: 1px solid var(--border-mid);
+      cursor: pointer; transition: background 0.18s var(--ease), color 0.18s var(--ease);
+      white-space: nowrap;
+    }
+    .mode-tab:last-child { border-right: none; }
+    .mode-tab.active { background: var(--text-primary); color: #fff; font-weight: 600; }
+    .mode-tab:hover:not(.active) { color: var(--text-primary); }
+
+    .finance-panel { display: none; }
+    .finance-panel.active { display: block; }
+
+    /* ---- Toolbar: buscador + filtros + boton nuevo ---- */
+    .fin-toolbar {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      padding: 12px 14px; margin-bottom: 14px; background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+    }
+    .fin-toolbar .filter-input {
+      flex: 1 1 220px; max-width: 320px; height: 36px; padding: 0 12px; font-size: 0.86rem;
+      border: 1px solid var(--border-mid); border-radius: var(--radius-sm); background: var(--bg-card); outline: none;
+      transition: border-color .2s var(--ease);
+    }
+    .fin-toolbar .filter-input:focus { border-color: var(--accent-blue); }
+    .fin-toolbar select { height: 36px; font-size: 0.8rem; width: auto; min-width: 130px; }
+    .fin-toolbar .spacer { flex: 1 1 auto; }
+    .fin-toolbar .meta { font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-muted); letter-spacing: 0.03em; }
+
+    .amount-pos { color: #00a878; font-weight: 700; }
+    .amount-neg { color: #d80300; font-weight: 700; }
+    .amount-neutral { color: var(--text-muted); font-weight: 600; }
+    .empty-row td { text-align: center; color: var(--text-muted); font-size: 0.82rem; padding: 24px !important; }
+
+    /* ---- Edicion inline ---- */
+    .editable { cursor: text; position: relative; border-radius: var(--radius-sm); transition: background .15s var(--ease); }
+    .editable:hover { background: rgba(0,113,227,0.07); box-shadow: inset 0 0 0 1px rgba(0,113,227,0.18); }
+    .editable.editing { background: #fff; box-shadow: inset 0 0 0 1.5px var(--accent-blue); }
+    .editable input, .editable select {
+      width: 100%; height: 28px; padding: 2px 6px; font: inherit; border: none; outline: none;
+      background: transparent; font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-primary);
+    }
+    .editable .edit-hint { position: absolute; top: -8px; right: 2px; font-size: 0.55rem; opacity: 0; color: var(--accent-blue-text); transition: opacity .15s ease; }
+    .editable:hover .edit-hint { opacity: 0.8; }
+
+    /* fila arrastrable */
+    tr[draggable="true"] { cursor: grab; }
+    tr.dragging { opacity: 0.4; }
+    .cc-drop-list {
+      display: flex; flex-direction: column; gap: 6px; margin-top: 6px;
+    }
+    .cc-drop-target {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      padding: 10px 14px; background: var(--bg-card); border: 1px dashed var(--border-mid);
+      border-radius: var(--radius-sm);
+      font-size: 0.82rem; transition: border-color .18s var(--ease), background .18s var(--ease), transform .12s var(--ease);
+    }
+    .cc-drop-target span.name { font-weight: 600; }
+    .cc-drop-target span.total { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); }
+    .cc-drop-target.drag-over { border-color: var(--accent-blue); background: rgba(0,113,227,0.08); transform: scale(1.01); }
+    .drop-hint { font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.03em; color: var(--text-muted); margin: 14px 0 4px; }
+
+    /* ---- Modal ---- */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(14,17,22,0.45); backdrop-filter: blur(3px);
+      display: flex; align-items: center; justify-content: center; z-index: 300;
+      opacity: 0; pointer-events: none; transition: opacity .2s var(--ease);
+    }
+    .modal-overlay.show { opacity: 1; pointer-events: auto; }
+    .modal-box {
+      background: var(--bg-card); border: 1px solid var(--border); border-top: 3px solid var(--accent-blue);
+      border-radius: var(--radius);
+      width: min(560px, 92vw); max-height: 86vh; overflow-y: auto; padding: 28px 30px;
+      transform: translateY(14px) scale(0.98); transition: transform .22s var(--ease);
+      box-shadow: var(--shadow-2);
+    }
+    .modal-overlay.show .modal-box { transform: translateY(0) scale(1); }
+    .modal-box__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+    .modal-box__head h3 { margin: 0; }
+    .modal-close { background: none; border: none; font-size: 1.3rem; line-height: 1; cursor: pointer; color: var(--text-muted); padding: 4px; }
+    .modal-close:hover { color: var(--text-primary); }
+    .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 16px; }
+    .modal-grid .full { grid-column: 1 / -1; }
+    .modal-grid .sf { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+    .modal-grid .sf label { font-size: 0.62rem; letter-spacing: 0.03em; color: var(--text-muted); font-family: var(--font-mono); }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+    @media (max-width: 560px) { .modal-grid { grid-template-columns: 1fr; } }
+
+    .fab-new {
+      height: 36px; padding: 0 18px;
+    }
+
+    .analytics-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: start; }
+    @media (max-width: 980px) { .analytics-grid-2 { grid-template-columns: 1fr; } }
+
+    .report-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 22px; }
+    @media (max-width: 900px) { .report-cards { grid-template-columns: 1fr; } }
+    .report-card {
+      background: var(--bg-card); border: 1px solid var(--border); border-top: 2px solid var(--accent-blue);
+      border-radius: var(--radius);
+      padding: 20px 22px; cursor: pointer; transition: box-shadow .2s var(--ease), transform .2s var(--ease), border-color .2s var(--ease);
+    }
+    .report-card:hover { box-shadow: var(--shadow-1); transform: translateY(-2px); }
+    .report-card.selected { border-color: var(--accent-blue); box-shadow: 0 0 0 1px var(--accent-blue); }
+    .report-card h4 { font-family: var(--font-display); font-weight: 700; margin: 0 0 8px; font-size: 1rem; }
+    .report-card p { font-size: 0.8rem; color: var(--text-muted); margin: 0; line-height: 1.5; }
+
+    .transfer-arrow { font-family: var(--font-mono); color: var(--text-muted); padding: 0 4px; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="brand">
+      <img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;">
+      SYSTEMS
+    </div>
+    <div class="row" style="gap:18px;">
+      <span class="mono" id="userTag">...</span>
+      <button class="btn ghost" id="logoutBtn">Cerrar sesión</button>
+    </div>
+  </nav>
+
+  <main class="container">
+    <div class="breadcrumb-row" style="display:flex; align-items:center; gap:8px; font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.02em; color: var(--text-muted); margin-bottom: 22px;">
+      <a href="/pages/dashboard.html" style="color:inherit; text-decoration:none;">SYSTEMS</a>
+      <span style="opacity:.35;">/</span>
+      <a href="/pages/reff-dashboard.html" style="color:inherit; text-decoration:none;">Rëff</a>
+      <span style="opacity:.35;">/</span>
+      <span style="color: var(--text-primary); font-weight:600;">S-NFI Finance</span>
+    </div>
+
+    <div class="finance-hero reveal">
+      <span class="kicker">Mesa · Control financiero</span>
+      <h1 class="finance-hero__title">S-NFI <em style="font-style:normal;color:var(--accent-blue);">Finance</em></h1>
+      <p class="finance-hero__sub">
+        Panel en vivo de tesorería, cuentas, activos y analítica. Edita cualquier celda con un click,
+        arrastra movimientos entre centros de coste y filtra en tiempo real. Todo calculado en céntimos
+        (entero) para evitar arrastre de redondeo.
+      </p>
+    </div>
+
+    <div id="errorBox" style="display:none;" class="mole-error error-msg"></div>
+
+    <div class="kpi-grid reveal" id="summaryKpis">
+      <div class="kpi-cell">
+        <div class="kpi-label">Cuentas</div>
+        <div class="kpi-val" id="kpiAccountsVal">—</div>
+      </div>
+      <div class="kpi-cell">
+        <div class="kpi-label">Saldo total</div>
+        <div class="kpi-val" id="kpiBalanceVal">—</div>
+      </div>
+      <div class="kpi-cell">
+        <div class="kpi-label">Valor activos</div>
+        <div class="kpi-val" id="kpiAssetsVal">—</div>
+      </div>
+      <div class="kpi-cell">
+        <div class="kpi-label">Movimientos 30d</div>
+        <div class="kpi-val" id="kpiMovementsVal">—</div>
+      </div>
+    </div>
+
+    <!-- DASHBOARD DE GRAFICOS — protagonista, siempre visible -->
+    <div class="dash-grid reveal">
+      <div class="dash-card">
+        <div class="dash-card__head">
+          <span class="dash-card__title">Proyección de caja</span>
+          <div class="dash-card__controls">
+            <select id="projAccount"><option value="">Todas las cuentas</option></select>
+            <select id="projHorizon">
+              <option value="30">30 días</option>
+              <option value="60">60 días</option>
+              <option value="90" selected>90 días</option>
+              <option value="180">180 días</option>
+            </select>
+          </div>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="projectionChart" height="220"></canvas>
+          <div class="chart-tooltip" id="projectionTooltip"></div>
+        </div>
+        <div class="chart-summary" id="projectionSummary"></div>
+
+        <div class="dash-sub-row">
+          <div>
+            <span class="dash-card__title" style="font-size:0.85rem;">Ingresos vs gastos</span>
+            <div class="chart-wrap" style="margin-top:8px;">
+              <canvas id="monthlyChart" height="150"></canvas>
+              <div class="chart-tooltip" id="monthlyTooltip"></div>
+            </div>
+            <div class="chart-legend">
+              <span class="item"><span class="swatch" style="background:#00a878;"></span>Ingresos</span>
+              <span class="item"><span class="swatch" style="background:#d80300;"></span>Gastos</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dash-card">
+        <div class="dash-card__head">
+          <span class="dash-card__title">Por centro de coste</span>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="donutChart" height="220"></canvas>
+          <div class="chart-tooltip" id="donutTooltip"></div>
+        </div>
+        <div class="chart-legend" id="donutLegend"></div>
+
+        <div class="drop-hint">Arrastra un movimiento aquí para reasignarlo</div>
+        <div class="cc-drop-list" id="ccDropList"></div>
+      </div>
+    </div>
+
+    <div class="mode-tabs reveal">
+      <button class="mode-tab active" data-panel="tesoreria">Tesorería</button>
+      <button class="mode-tab" data-panel="cuentas">Cuentas</button>
+      <button class="mode-tab" data-panel="analitica">Centros de coste</button>
+      <button class="mode-tab" data-panel="activos">Activos</button>
+      <button class="mode-tab" data-panel="informes">Informes</button>
+    </div>
+
+    <!-- TESORERIA -->
+    <div class="finance-panel active card reveal" id="panel-tesoreria" style="padding:20px;">
+      <div class="fin-toolbar">
+        <input class="filter-input" id="mvFilter" placeholder="Buscar por descripción, referencia…">
+        <select id="mvFilterAccount"><option value="">Todas las cuentas</option></select>
+        <select id="mvFilterCategory">
+          <option value="">Todas categorías</option>
+          <option value="ingreso">Ingresos</option>
+          <option value="gasto">Gastos</option>
+          <option value="transferencia">Transferencias</option>
+        </select>
+        <span class="spacer"></span>
+        <span class="meta" id="mvFilterMeta"></span>
+        <button class="btn sage fab-new" data-modal="movement">+ Nuevo movimiento</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="tbl" id="mvTable">
+          <thead><tr><th>Fecha</th><th>Cuenta</th><th>Descripción</th><th>Ref.</th><th>Importe</th><th>IVA</th><th></th></tr></thead>
+          <tbody id="mvBody"><tr class="empty-row"><td colspan="7">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- CUENTAS -->
+    <div class="finance-panel card reveal" id="panel-cuentas" style="padding:20px;">
+      <div class="fin-toolbar">
+        <span class="dash-card__title" style="font-size:0.85rem;">Cuentas y cajas</span>
+        <span class="spacer"></span>
+        <button class="btn sage fab-new" data-modal="account">+ Nueva cuenta</button>
+      </div>
+      <div style="overflow-x:auto; margin-bottom:28px;">
+        <table class="tbl" id="accTable">
+          <thead><tr><th>Cuenta</th><th>Tipo</th><th>IBAN</th><th>Saldo inicial</th><th>Saldo actual</th><th></th></tr></thead>
+          <tbody id="accBody"><tr class="empty-row"><td colspan="6">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+
+      <div class="fin-toolbar">
+        <span class="dash-card__title" style="font-size:0.85rem;">Transferencias entre cuentas</span>
+        <span class="spacer"></span>
+        <button class="btn sage fab-new" data-modal="transfer">+ Transferir</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="tbl" id="trTable">
+          <thead><tr><th>Fecha</th><th>Origen</th><th>Destino</th><th>Importe</th><th>Descripción</th></tr></thead>
+          <tbody id="trBody"><tr class="empty-row"><td colspan="5">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- CENTROS DE COSTE -->
+    <div class="finance-panel card reveal" id="panel-analitica" style="padding:20px;">
+      <div class="fin-toolbar">
+        <span class="dash-card__title" style="font-size:0.85rem;">Centros de coste</span>
+        <span class="spacer"></span>
+        <button class="btn sage fab-new" data-modal="costcenter">+ Nuevo centro</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="tbl" id="ccTable">
+          <thead><tr><th>Centro de coste</th><th>Descripción</th><th>Total movimientos</th><th></th></tr></thead>
+          <tbody id="ccBody"><tr class="empty-row"><td colspan="4">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ACTIVOS -->
+    <div class="finance-panel card reveal" id="panel-activos" style="padding:20px;">
+      <div class="fin-toolbar">
+        <input class="filter-input" id="astFilter" placeholder="Buscar activo…">
+        <span class="spacer"></span>
+        <button class="btn sage fab-new" data-modal="asset">+ Nuevo activo</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="tbl" id="astTable">
+          <thead><tr><th>Activo</th><th>Adquisición</th><th>Residual</th><th>Vida útil</th><th>Valor actual</th><th></th></tr></thead>
+          <tbody id="astBody"><tr class="empty-row"><td colspan="6">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- INFORMES -->
+    <div class="finance-panel card reveal" id="panel-informes" style="padding:20px;">
+      <p style="font-size:0.82rem; color:var(--text-muted); line-height:1.6; max-width:680px; margin-top:0;">
+        Genera un informe en PDF del rango elegido, listo para entregar a la asesoría contable externa
+        o para archivo interno. El export expira a las 24h y queda registrado en el log inmutable.
+      </p>
+      <div class="report-cards">
+        <div class="report-card selected" data-report="tesoreria">
+          <h4>Tesorería</h4>
+          <p>Movimientos, saldos por cuenta y transferencias del periodo, con totales de ingresos, gastos y neto.</p>
+        </div>
+        <div class="report-card" data-report="activos">
+          <h4>Activos</h4>
+          <p>Cuadro de amortización: valor de adquisición, residual, vida útil y valor actual de cada activo.</p>
+        </div>
+        <div class="report-card" data-report="analitica">
+          <h4>Analítico</h4>
+          <p>Desglose por centro de coste con porcentaje sobre el movimiento total del periodo.</p>
+        </div>
+      </div>
+      <div class="add-row" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; align-items:flex-end;">
+        <div class="sf" style="display:flex; flex-direction:column; gap:4px;"><label style="font-size:0.62rem; letter-spacing:0.03em; color:var(--text-muted); font-family:var(--font-mono);">Desde</label><input class="input" type="date" id="expFrom"></div>
+        <div class="sf" style="display:flex; flex-direction:column; gap:4px;"><label style="font-size:0.62rem; letter-spacing:0.03em; color:var(--text-muted); font-family:var(--font-mono);">Hasta</label><input class="input" type="date" id="expTo"></div>
+        <button class="btn sage" id="expAddBtn">Generar informe</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="tbl" id="expTable">
+          <thead><tr><th>Tipo</th><th>Rango</th><th>Hash</th><th>Estado</th><th></th></tr></thead>
+          <tbody id="expBody"><tr class="empty-row"><td colspan="5">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- MODALES -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal-box" id="modalBox"></div>
+  </div>
+
+  <script type="module">
+    import { api, getUser, requireAuth, clearSession, toast, escapeHtml, downloadFinanceExport } from '/js/api.js';
+    import { mountOfficeBg } from '/js/office-bg.js';
+    requireAuth();
+    mountOfficeBg();
+    document.getElementById('userTag').textContent = getUser() || '';
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      try { await api.logout(); } catch {}
+      clearSession();
+      location.href = '/pages/login.html';
+    });
+
+    function showError(msg) {
+      const box = document.getElementById('errorBox');
+      box.textContent = msg;
+      box.style.display = msg ? 'block' : 'none';
+    }
+    function money(n) {
+      return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(n || 0);
+    }
+    const todayIso = new Date().toISOString().slice(0, 10);
+    document.getElementById('expTo').value = todayIso;
+    document.getElementById('expFrom').value = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+
+    // ================= TABS =================
+    document.querySelectorAll('.mode-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.finance-panel').forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(`panel-${tab.dataset.panel}`).classList.add('active');
+      });
+    });
+
+    // ================= MODAL =================
+    const overlay = document.getElementById('modalOverlay');
+    const modalBox = document.getElementById('modalBox');
+
+    const MODAL_TEMPLATES = {
+      account: () => `
+        <div class="modal-box__head"><h3>Nueva cuenta</h3><button class="modal-close" data-close>&times;</button></div>
+        <div class="modal-grid">
+          <div class="sf full"><label>Nombre</label><input class="input" id="m-accName" placeholder="BBVA Operativa"></div>
+          <div class="sf"><label>Tipo</label><select class="input" id="m-accKind"><option value="banco">Banco</option><option value="caja">Caja</option></select></div>
+          <div class="sf"><label>IBAN</label><input class="input" id="m-accIban" placeholder="Opcional"></div>
+          <div class="sf full"><label>Saldo inicial (EUR)</label><input class="input" type="number" step="0.01" id="m-accOpening" placeholder="0.00"></div>
+        </div>
+        <div class="modal-actions"><button class="btn ghost" data-close>Cancelar</button><button class="btn sage" id="m-accSubmit">Crear cuenta</button></div>
+      `,
+      transfer: () => `
+        <div class="modal-box__head"><h3>Transferencia entre cuentas</h3><button class="modal-close" data-close>&times;</button></div>
+        <div class="modal-grid">
+          <div class="sf"><label>Origen</label><select class="input" id="m-trFrom"></select></div>
+          <div class="sf"><label>Destino</label><select class="input" id="m-trTo"></select></div>
+          <div class="sf"><label>Importe (EUR)</label><input class="input" type="number" step="0.01" id="m-trAmount" placeholder="0.00"></div>
+          <div class="sf"><label>Fecha</label><input class="input" type="date" id="m-trDate"></div>
+          <div class="sf full"><label>Descripción</label><input class="input" id="m-trDescription" placeholder="Opcional"></div>
+        </div>
+        <div class="modal-actions"><button class="btn ghost" data-close>Cancelar</button><button class="btn sage" id="m-trSubmit">Transferir</button></div>
+      `,
+      movement: () => `
+        <div class="modal-box__head"><h3>Nuevo movimiento</h3><button class="modal-close" data-close>&times;</button></div>
+        <div class="modal-grid">
+          <div class="sf"><label>Cuenta</label><select class="input" id="m-mvAccount"></select></div>
+          <div class="sf"><label>Centro coste</label><select class="input" id="m-mvCostCenter"><option value="">Ninguno</option></select></div>
+          <div class="sf"><label>Categoría</label><select class="input" id="m-mvCategory"><option value="gasto">Salida (gasto)</option><option value="ingreso">Entrada (ingreso)</option></select></div>
+          <div class="sf"><label>Importe (EUR)</label><input class="input" type="number" step="0.01" id="m-mvAmount" placeholder="0.00"></div>
+          <div class="sf"><label>IVA %</label><input class="input" type="number" step="0.01" id="m-mvVat" value="0"></div>
+          <div class="sf"><label>Fecha</label><input class="input" type="date" id="m-mvDate"></div>
+          <div class="sf"><label>Referencia</label><input class="input" id="m-mvReference" placeholder="Nº factura"></div>
+          <div class="sf full"><label>Descripción</label><input class="input" id="m-mvDescription" placeholder="Concepto"></div>
+        </div>
+        <div class="modal-actions"><button class="btn ghost" data-close>Cancelar</button><button class="btn sage" id="m-mvSubmit">Registrar</button></div>
+      `,
+      costcenter: () => `
+        <div class="modal-box__head"><h3>Nuevo centro de coste</h3><button class="modal-close" data-close>&times;</button></div>
+        <div class="modal-grid">
+          <div class="sf full"><label>Nombre</label><input class="input" id="m-ccName" placeholder="Planta Barcelona"></div>
+          <div class="sf full"><label>Descripción</label><input class="input" id="m-ccDescription" placeholder="Opcional"></div>
+        </div>
+        <div class="modal-actions"><button class="btn ghost" data-close>Cancelar</button><button class="btn sage" id="m-ccSubmit">Crear</button></div>
+      `,
+      asset: () => `
+        <div class="modal-box__head"><h3>Nuevo activo</h3><button class="modal-close" data-close>&times;</button></div>
+        <div class="modal-grid">
+          <div class="sf full"><label>Nombre</label><input class="input" id="m-astName" placeholder="Línea BioGrinder #2"></div>
+          <div class="sf"><label>Centro coste</label><select class="input" id="m-astCostCenter"><option value="">Ninguno</option></select></div>
+          <div class="sf"><label>Adquisición</label><input class="input" type="date" id="m-astDate"></div>
+          <div class="sf"><label>Valor adquisición (EUR)</label><input class="input" type="number" step="0.01" id="m-astValue" placeholder="0.00"></div>
+          <div class="sf"><label>Valor residual (EUR)</label><input class="input" type="number" step="0.01" id="m-astResidual" value="0"></div>
+          <div class="sf"><label>Vida útil (meses)</label><input class="input" type="number" id="m-astLife" value="60"></div>
+        </div>
+        <div class="modal-actions"><button class="btn ghost" data-close>Cancelar</button><button class="btn sage" id="m-astSubmit">Añadir activo</button></div>
+      `,
+    };
+
+    function fillSelect(sel, rows, placeholder) {
+      sel.innerHTML = (placeholder ? `<option value="">${placeholder}</option>` : '') + rows.map(r => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('');
+    }
+
+    function openModal(kind) {
+      modalBox.innerHTML = MODAL_TEMPLATES[kind]();
+      overlay.classList.add('show');
+      modalBox.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeModal));
+
+      if (kind === 'account') {
+        document.getElementById('m-accSubmit').addEventListener('click', async () => {
+          const name = document.getElementById('m-accName').value.trim();
+          if (!name) return showError('Indica el nombre de la cuenta');
+          try {
+            await api.financeAccountAdd({
+              name, kind: document.getElementById('m-accKind').value,
+              iban: document.getElementById('m-accIban').value.trim() || null,
+              openingBalance: document.getElementById('m-accOpening').value || 0,
+            });
+            closeModal(); toast('Cuenta creada'); loadAccounts(); loadSummary();
+          } catch (ex) { showError(ex.message || 'Error al crear cuenta'); }
+        });
+      } else if (kind === 'transfer') {
+        fillSelect(document.getElementById('m-trFrom'), accountsCache, 'Seleccionar…');
+        fillSelect(document.getElementById('m-trTo'), accountsCache, 'Seleccionar…');
+        document.getElementById('m-trDate').value = todayIso;
+        document.getElementById('m-trSubmit').addEventListener('click', async () => {
+          const fromAccountId = document.getElementById('m-trFrom').value;
+          const toAccountId = document.getElementById('m-trTo').value;
+          const amount = Number(document.getElementById('m-trAmount').value);
+          if (!fromAccountId || !toAccountId) return showError('Selecciona cuentas origen y destino');
+          if (fromAccountId === toAccountId) return showError('Origen y destino deben ser distintos');
+          if (!amount || amount <= 0) return showError('Importe inválido');
+          try {
+            await api.financeTransferAdd({
+              fromAccountId, toAccountId, amount,
+              valueDate: document.getElementById('m-trDate').value,
+              description: document.getElementById('m-trDescription').value.trim(),
+            });
+            closeModal(); toast('Transferencia realizada');
+            loadAccounts(); loadTransfers(); loadSummary(); loadMovements(); loadProjection();
+          } catch (ex) { showError(ex.message || 'Error al transferir'); }
+        });
+      } else if (kind === 'movement') {
+        fillSelect(document.getElementById('m-mvAccount'), accountsCache, 'Seleccionar…');
+        fillSelect(document.getElementById('m-mvCostCenter'), costCentersCache, 'Ninguno');
+        document.getElementById('m-mvDate').value = todayIso;
+        document.getElementById('m-mvSubmit').addEventListener('click', async () => {
+          const accountId = document.getElementById('m-mvAccount').value;
+          const amountRaw = Number(document.getElementById('m-mvAmount').value);
+          const category = document.getElementById('m-mvCategory').value;
+          if (!accountId) return showError('Selecciona una cuenta');
+          if (!amountRaw) return showError('Importe inválido');
+          const amount = category === 'gasto' ? -Math.abs(amountRaw) : Math.abs(amountRaw);
+          try {
+            await api.financeMovementAdd({
+              accountId, costCenterId: document.getElementById('m-mvCostCenter').value || null, amount,
+              vatRatePct: Number(document.getElementById('m-mvVat').value) || 0,
+              reference: document.getElementById('m-mvReference').value.trim(),
+              valueDate: document.getElementById('m-mvDate').value,
+              description: document.getElementById('m-mvDescription').value.trim(),
+              category,
+            });
+            closeModal(); toast('Movimiento registrado');
+            loadMovements(); loadSummary(); loadAccounts(); loadProjection(); loadCostCenters(); loadAnalytics();
+          } catch (ex) { showError(ex.message || 'Error al registrar movimiento'); }
+        });
+      } else if (kind === 'costcenter') {
+        document.getElementById('m-ccSubmit').addEventListener('click', async () => {
+          const name = document.getElementById('m-ccName').value.trim();
+          if (!name) return showError('Indica el nombre del centro de coste');
+          try {
+            await api.financeCostCenterAdd({ name, description: document.getElementById('m-ccDescription').value.trim() || null });
+            closeModal(); toast('Centro de coste creado'); loadCostCenters(); loadAnalytics();
+          } catch (ex) { showError(ex.message || 'Error al crear centro de coste'); }
+        });
+      } else if (kind === 'asset') {
+        fillSelect(document.getElementById('m-astCostCenter'), costCentersCache, 'Ninguno');
+        document.getElementById('m-astDate').value = todayIso;
+        document.getElementById('m-astSubmit').addEventListener('click', async () => {
+          const name = document.getElementById('m-astName').value.trim();
+          const acquisitionValue = Number(document.getElementById('m-astValue').value);
+          if (!name) return showError('Indica el nombre del activo');
+          if (!acquisitionValue || acquisitionValue <= 0) return showError('Valor de adquisición inválido');
+          try {
+            await api.financeAssetAdd({
+              name, costCenterId: document.getElementById('m-astCostCenter').value || null,
+              acquisitionDate: document.getElementById('m-astDate').value, acquisitionValue,
+              residualValue: Number(document.getElementById('m-astResidual').value) || 0,
+              usefulLifeMonths: Number(document.getElementById('m-astLife').value) || 60,
+            });
+            closeModal(); toast('Activo creado'); loadAssets(); loadSummary();
+          } catch (ex) { showError(ex.message || 'Error al crear activo'); }
+        });
+      }
+    }
+    function closeModal() { overlay.classList.remove('show'); }
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+    document.querySelectorAll('[data-modal]').forEach(btn => btn.addEventListener('click', () => { showError(''); openModal(btn.dataset.modal); }));
+
+    // ================= EDICION INLINE =================
+    // cell: <td class="editable" data-field="x" data-value="raw"> label </td>
+    // onSave(id, field, newValue) -> Promise
+    function bindInlineEdit(tbody, onSave, opts = {}) {
+      tbody.addEventListener('click', (e) => {
+        const cell = e.target.closest('.editable');
+        if (!cell || cell.classList.contains('editing')) return;
+        const tr = cell.closest('tr');
+        const id = tr.dataset.id;
+        const field = cell.dataset.field;
+        const raw = cell.dataset.value ?? cell.textContent.trim();
+        const type = cell.dataset.type || 'text';
+        cell.classList.add('editing');
+        const original = cell.innerHTML;
+
+        let inputEl;
+        if (type === 'select' && opts.selectOptions) {
+          inputEl = document.createElement('select');
+          inputEl.innerHTML = opts.selectOptions(tr).map(o => `<option value="${o.value}" ${o.value === raw ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('');
+        } else {
+          inputEl = document.createElement('input');
+          inputEl.type = type === 'number' ? 'number' : (type === 'date' ? 'date' : 'text');
+          if (type === 'number') inputEl.step = '0.01';
+          inputEl.value = raw;
+        }
+        cell.innerHTML = '';
+        cell.appendChild(inputEl);
+        inputEl.focus();
+        if (inputEl.select) inputEl.select();
+
+        let done = false;
+        async function commit() {
+          if (done) return; done = true;
+          const newValue = inputEl.value;
+          cell.classList.remove('editing');
+          if (newValue === raw) { cell.innerHTML = original; return; }
+          try {
+            await onSave(id, field, newValue, tr);
+          } catch (ex) {
+            showError(ex.message || 'Error al guardar');
+            cell.innerHTML = original;
+          }
+        }
+        function cancel() {
+          if (done) return; done = true;
+          cell.classList.remove('editing');
+          cell.innerHTML = original;
+        }
+        inputEl.addEventListener('blur', commit);
+        inputEl.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Enter') { ev.preventDefault(); inputEl.blur(); }
+          if (ev.key === 'Escape') { ev.preventDefault(); cancel(); }
+        });
+      });
+    }
+
+    // ================= SUMMARY =================
+    async function loadSummary() {
+      try {
+        const s = await api.financeSummary();
+        document.getElementById('kpiAccountsVal').textContent = s.accountsCount ?? 0;
+        document.getElementById('kpiBalanceVal').textContent = money(s.totalBalance);
+        document.getElementById('kpiAssetsVal').textContent = money(s.totalAssetValue);
+        document.getElementById('kpiMovementsVal').textContent = s.movementsLast30d ?? 0;
+      } catch (ex) { showError(ex.message || 'Error al cargar resumen'); }
+    }
+
+    let accountsCache = [];
+    let costCentersCache = [];
+    let movementsCache = [];
+
+    // ================= CUENTAS =================
+    async function loadAccounts() {
+      const body = document.getElementById('accBody');
+      try {
+        const rows = await api.financeAccountsList();
+        accountsCache = rows;
+        if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="6">Sin cuentas registradas.</td></tr>'; }
+        else {
+          body.innerHTML = rows.map(r => `<tr data-id="${r.id}">
+            <td class="editable" data-field="name" data-value="${escapeHtml(r.name)}">${escapeHtml(r.name)}</td>
+            <td class="editable" data-field="kind" data-type="select" data-value="${r.kind}">${r.kind}</td>
+            <td class="editable" data-field="iban" data-value="${escapeHtml(r.iban || '')}">${escapeHtml(r.iban || '—')}</td>
+            <td class="mono">${money(r.openingBalance)}</td>
+            <td class="mono ${r.balance < 0 ? 'amount-neg' : 'amount-pos'}">${money(r.balance)}</td>
+            <td><button class="btn ghost btn--sm acc-del">Eliminar</button></td>
+          </tr>`).join('');
+          body.querySelectorAll('.acc-del').forEach(btn => btn.addEventListener('click', async (e) => {
+            const id = e.target.closest('tr').dataset.id;
+            try { await api.financeAccountDelete(id); loadAccounts(); loadSummary(); } catch (ex) { showError(ex.message); }
+          }));
+        }
+        [document.getElementById('projAccount'), document.getElementById('mvFilterAccount')].forEach(sel => {
+          const keep = sel.value;
+          sel.innerHTML = `<option value="">${sel.id === 'projAccount' ? 'Todas las cuentas' : 'Todas las cuentas'}</option>` + rows.map(r => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('');
+          sel.value = keep;
+        });
+      } catch (ex) { showError(ex.message || 'Error al cargar cuentas'); }
+    }
+    bindInlineEdit(document.getElementById('accBody'), async (id, field, value) => {
+      const payload = {};
+      payload[field] = value;
+      await api.financeAccountPatch(id, payload);
+      loadAccounts();
+    }, { selectOptions: () => [{ value: 'banco', label: 'banco' }, { value: 'caja', label: 'caja' }] });
+
+    // ================= TRANSFERENCIAS =================
+    async function loadTransfers() {
+      const body = document.getElementById('trBody');
+      try {
+        const rows = await api.financeTransfersList();
+        if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="5">Sin transferencias registradas.</td></tr>'; return; }
+        const byId = new Map(accountsCache.map(a => [a.id, a.name]));
+        body.innerHTML = rows.map(r => `<tr>
+          <td class="mono">${escapeHtml(r.valueDate)}</td>
+          <td>${escapeHtml(byId.get(r.fromAccountId) || r.fromAccountId)}</td>
+          <td>${escapeHtml(byId.get(r.toAccountId) || r.toAccountId)}</td>
+          <td class="mono">${money(r.amount)}</td>
+          <td>${escapeHtml(r.description || '—')}</td>
+        </tr>`).join('');
+      } catch (ex) { showError(ex.message || 'Error al cargar transferencias'); }
+    }
+
+    // ================= CENTROS DE COSTE =================
+    async function loadCostCenters() {
+      const body = document.getElementById('ccBody');
+      try {
+        const rows = await api.financeCostCentersList();
+        costCentersCache = rows;
+        const movements = await api.financeMovementsList();
+        if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="4">Sin centros de coste.</td></tr>'; }
+        else {
+          body.innerHTML = rows.map(r => {
+            const total = movements.filter(m => m.costCenterId === r.id).reduce((sum, m) => sum + m.amount, 0);
+            return `<tr data-id="${r.id}">
+              <td class="editable" data-field="name" data-value="${escapeHtml(r.name)}">${escapeHtml(r.name)}</td>
+              <td class="editable" data-field="description" data-value="${escapeHtml(r.description || '')}">${escapeHtml(r.description || '—')}</td>
+              <td class="mono ${total < 0 ? 'amount-neg' : 'amount-pos'}">${money(total)}</td>
+              <td><button class="btn ghost btn--sm cc-del">Eliminar</button></td>
+            </tr>`;
+          }).join('');
+          body.querySelectorAll('.cc-del').forEach(btn => btn.addEventListener('click', async (e) => {
+            const id = e.target.closest('tr').dataset.id;
+            try { await api.financeCostCenterDelete(id); loadCostCenters(); loadAnalytics(); } catch (ex) { showError(ex.message); }
+          }));
+        }
+        renderCcDropTargets(rows, movements);
+      } catch (ex) { showError(ex.message || 'Error al cargar centros de coste'); }
+    }
+    bindInlineEdit(document.getElementById('ccBody'), async (id, field, value) => {
+      const payload = {};
+      payload[field] = value;
+      await api.financeCostCenterPatch(id, payload);
+      loadCostCenters(); loadAnalytics();
+    });
+
+    // ================= MOVIMIENTOS: filtro + inline edit + drag =================
+    function renderMovements() {
+      const body = document.getElementById('mvBody');
+      const q = document.getElementById('mvFilter').value.trim().toLowerCase();
+      const accFilter = document.getElementById('mvFilterAccount').value;
+      const catFilter = document.getElementById('mvFilterCategory').value;
+      const byId = new Map(accountsCache.map(a => [a.id, a.name]));
+
+      let rows = movementsCache;
+      if (accFilter) rows = rows.filter(m => m.accountId === accFilter);
+      if (catFilter) rows = rows.filter(m => m.category === catFilter);
+      if (q) rows = rows.filter(m => (m.description || '').toLowerCase().includes(q) || (m.reference || '').toLowerCase().includes(q));
+
+      document.getElementById('mvFilterMeta').textContent = `${rows.length} / ${movementsCache.length}`;
+
+      if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="7">Sin movimientos que coincidan.</td></tr>'; return; }
+      body.innerHTML = rows.map(r => `<tr data-id="${r.id}" data-category="${r.category}" draggable="${r.category === 'transferencia' ? 'false' : 'true'}">
+        <td class="editable" data-field="valueDate" data-type="date" data-value="${r.valueDate}">${escapeHtml(r.valueDate)}</td>
+        <td>${escapeHtml(byId.get(r.accountId) || '—')}</td>
+        <td class="editable" data-field="description" data-value="${escapeHtml(r.description || '')}">${escapeHtml(r.description || (r.category === 'transferencia' ? 'Transferencia' : '(sin descripción)'))}</td>
+        <td class="editable" data-field="reference" data-value="${escapeHtml(r.reference || '')}">${escapeHtml(r.reference || '—')}</td>
+        <td class="mono editable ${r.amount < 0 ? 'amount-neg' : (r.category === 'transferencia' ? 'amount-neutral' : 'amount-pos')}" data-field="amount" data-type="number" data-value="${Math.abs(r.amount)}">${money(r.amount)}</td>
+        <td class="mono">${r.vat ? money(r.vat) : '—'}</td>
+        <td>${r.category === 'transferencia' ? '' : '<button class="btn ghost btn--sm mv-del">Eliminar</button>'}</td>
+      </tr>`).join('');
+
+      body.querySelectorAll('.mv-del').forEach(btn => btn.addEventListener('click', async (e) => {
+        const id = e.target.closest('tr').dataset.id;
+        try { await api.financeMovementDelete(id); await loadMovements(); loadSummary(); loadProjection(); loadCostCenters(); loadAnalytics(); } catch (ex) { showError(ex.message); }
+      }));
+
+      body.querySelectorAll('tr[draggable="true"]').forEach(tr => {
+        tr.addEventListener('dragstart', (e) => {
+          tr.classList.add('dragging');
+          e.dataTransfer.setData('text/plain', tr.dataset.id);
+          e.dataTransfer.effectAllowed = 'move';
+        });
+        tr.addEventListener('dragend', () => tr.classList.remove('dragging'));
+      });
+    }
+
+    async function loadMovements() {
+      try {
+        movementsCache = await api.financeMovementsList();
+        renderMovements();
+      } catch (ex) { showError(ex.message || 'Error al cargar movimientos'); }
+    }
+    bindInlineEdit(document.getElementById('mvBody'), async (id, field, value) => {
+      const payload = {};
+      if (field === 'amount') {
+        const row = movementsCache.find(m => m.id === id);
+        payload.amount = row.category === 'gasto' ? -Math.abs(Number(value)) : Math.abs(Number(value));
+      } else {
+        payload[field] = value;
+      }
+      await api.financeMovementPatch(id, payload);
+      await loadMovements(); loadSummary(); loadProjection(); loadCostCenters(); loadAnalytics();
+    });
+    ['mvFilter'].forEach(id => document.getElementById(id).addEventListener('input', renderMovements));
+    ['mvFilterAccount', 'mvFilterCategory'].forEach(id => document.getElementById(id).addEventListener('change', renderMovements));
+
+    // ---- drag&drop: soltar movimiento sobre centro de coste ----
+    function renderCcDropTargets(costCenters, movements) {
+      const list = document.getElementById('ccDropList');
+      const targets = costCenters.map(cc => {
+        const total = movements.filter(m => m.costCenterId === cc.id).reduce((s, m) => s + m.amount, 0);
+        return { id: cc.id, name: cc.name, total };
+      });
+      targets.push({ id: null, name: 'Sin centro', total: movements.filter(m => !m.costCenterId).reduce((s, m) => s + m.amount, 0) });
+      list.innerHTML = targets.map(t => `<div class="cc-drop-target" data-cc="${t.id ?? ''}">
+        <span class="name">${escapeHtml(t.name)}</span><span class="total">${money(t.total)}</span>
+      </div>`).join('');
+      list.querySelectorAll('.cc-drop-target').forEach(el => {
+        el.addEventListener('dragover', (e) => { e.preventDefault(); el.classList.add('drag-over'); });
+        el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+        el.addEventListener('drop', async (e) => {
+          e.preventDefault();
+          el.classList.remove('drag-over');
+          const movementId = e.dataTransfer.getData('text/plain');
+          if (!movementId) return;
+          const costCenterId = el.dataset.cc || null;
+          try {
+            await api.financeMovementPatch(movementId, { costCenterId });
+            toast('Movimiento reasignado');
+            await loadMovements(); loadCostCenters(); loadAnalytics();
+          } catch (ex) { showError(ex.message || 'Error al reasignar'); }
+        });
+      });
+    }
+
+    // ================= CANVAS: proyeccion, barras, donut =================
+    function setupCanvas(canvas) {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      const cssWidth = rect.width || canvas.parentElement.clientWidth || 400;
+      const cssHeight = Number(canvas.getAttribute('height')) || 200;
+      canvas.width = cssWidth * dpr;
+      canvas.height = cssHeight * dpr;
+      canvas.style.height = cssHeight + 'px';
+      const ctx = canvas.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return { ctx, width: cssWidth, height: cssHeight };
+    }
+
+    async function loadProjection() {
+      try {
+        const accountId = document.getElementById('projAccount').value || undefined;
+        const horizonDays = Number(document.getElementById('projHorizon').value);
+        const { points, currentBalance } = await api.financeProjection(accountId, horizonDays);
+        drawLineChart('projectionChart', points, 'balance', '#00a878');
+        const last = points[points.length - 1];
+        document.getElementById('projectionSummary').textContent =
+          `Saldo actual: ${money(currentBalance)} · Proyección ${horizonDays}d → ${last ? money(last.balance) : '—'}`;
+      } catch (ex) { showError(ex.message || 'Error al calcular proyección'); }
+    }
+    document.getElementById('projAccount').addEventListener('change', loadProjection);
+    document.getElementById('projHorizon').addEventListener('change', loadProjection);
+
+    function drawLineChart(canvasId, points, valueKey, color) {
+      const canvas = document.getElementById(canvasId);
+      if (!points.length) return;
+      const { ctx, width, height } = setupCanvas(canvas);
+      const padL = 58, padR = 12, padT = 14, padB = 22;
+      const plotW = width - padL - padR, plotH = height - padT - padB;
+      const values = points.map(p => p[valueKey]);
+      const min = Math.min(0, ...values), max = Math.max(0, ...values);
+      const range = (max - min) || 1;
+
+      ctx.clearRect(0, 0, width, height);
+      ctx.strokeStyle = 'rgba(20,24,32,0.08)';
+      ctx.fillStyle = 'rgba(90,97,112,0.9)';
+      ctx.font = '10px "IBM Plex Mono", monospace';
+      ctx.textAlign = 'right';
+      const steps = 4;
+      for (let i = 0; i <= steps; i++) {
+        const y = padT + (plotH * i) / steps;
+        const val = max - (range * i) / steps;
+        ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(width - padR, y); ctx.stroke();
+        ctx.fillText(Math.round(val).toLocaleString('es-ES'), padL - 8, y + 3);
+      }
+      if (min < 0 && max > 0) {
+        const zeroY = padT + plotH * (max / range);
+        ctx.strokeStyle = 'rgba(216,3,0,0.35)';
+        ctx.beginPath(); ctx.moveTo(padL, zeroY); ctx.lineTo(width - padR, zeroY); ctx.stroke();
+      }
+
+      const toX = (i) => padL + (plotW * i) / (points.length - 1 || 1);
+      const toY = (v) => padT + plotH * (1 - (v - min) / range);
+      ctx.beginPath();
+      ctx.moveTo(toX(0), toY(values[0]));
+      values.forEach((v, i) => ctx.lineTo(toX(i), toY(v)));
+      ctx.lineTo(toX(values.length - 1), padT + plotH);
+      ctx.lineTo(toX(0), padT + plotH);
+      ctx.closePath();
+      const grad = ctx.createLinearGradient(0, padT, 0, padT + plotH);
+      grad.addColorStop(0, color + '33');
+      grad.addColorStop(1, color + '02');
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(toX(0), toY(values[0]));
+      values.forEach((v, i) => ctx.lineTo(toX(i), toY(v)));
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.textAlign = 'center';
+      const labelEvery = Math.max(1, Math.floor(points.length / 6));
+      points.forEach((p, i) => {
+        if (i % labelEvery !== 0 && i !== points.length - 1) return;
+        ctx.fillText(p.date.slice(5), toX(i), height - 4);
+      });
+
+      const tooltip = document.getElementById(canvasId.replace('Chart', 'Tooltip'));
+      if (tooltip) {
+        canvas.onmousemove = (e) => {
+          const rect = canvas.getBoundingClientRect();
+          const mx = e.clientX - rect.left;
+          const idx = Math.round(((mx - padL) / plotW) * (points.length - 1));
+          const p = points[Math.max(0, Math.min(points.length - 1, idx))];
+          if (!p) return;
+          tooltip.textContent = `${p.date}: ${money(p[valueKey])}`;
+          tooltip.style.left = mx + 'px';
+          tooltip.style.top = toY(p[valueKey]) + 'px';
+          tooltip.classList.add('show');
+        };
+        canvas.onmouseleave = () => tooltip.classList.remove('show');
+      }
+    }
+
+    async function loadAnalytics() {
+      try {
+        const { series, costCenterBreakdown } = await api.financeAnalytics(12);
+        drawBarChart(series);
+        drawDonutChart(costCenterBreakdown);
+      } catch (ex) { showError(ex.message || 'Error al cargar analítica'); }
+    }
+
+    function drawBarChart(series) {
+      const canvas = document.getElementById('monthlyChart');
+      const { ctx, width, height } = setupCanvas(canvas);
+      const padL = 56, padR = 10, padT = 10, padB = 20;
+      const plotW = width - padL - padR, plotH = height - padT - padB;
+      ctx.clearRect(0, 0, width, height);
+
+      const maxAbs = Math.max(1, ...series.map(s => Math.max(s.income, Math.abs(s.expense))));
+      ctx.strokeStyle = 'rgba(20,24,32,0.08)';
+      ctx.fillStyle = 'rgba(90,97,112,0.9)';
+      ctx.font = '9px "IBM Plex Mono", monospace';
+      ctx.textAlign = 'right';
+      for (let i = 0; i <= 2; i++) {
+        const y = padT + (plotH * i) / 2;
+        ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(width - padR, y); ctx.stroke();
+        ctx.fillText(Math.round(maxAbs - (maxAbs * 2 * i) / 2).toLocaleString('es-ES'), padL - 6, y + 3);
+      }
+      const zeroY = padT + plotH / 2;
+      const groupW = plotW / series.length;
+      const barW = Math.min(14, groupW * 0.3);
+      const bars = [];
+      series.forEach((s) => {
+        const cx = padL + groupW * series.indexOf(s) + groupW / 2;
+        const incH = (s.income / maxAbs) * (plotH / 2);
+        const expH = (Math.abs(s.expense) / maxAbs) * (plotH / 2);
+        ctx.fillStyle = '#00a878';
+        ctx.fillRect(cx - barW - 2, zeroY - incH, barW, incH);
+        ctx.fillStyle = '#d80300';
+        ctx.fillRect(cx + 2, zeroY, barW, expH);
+        bars.push({ cx, income: s.income, expense: s.expense, month: s.month });
+        ctx.fillStyle = 'rgba(90,97,112,0.9)';
+        ctx.textAlign = 'center';
+        ctx.fillText(s.month.slice(5), cx, height - 4);
+      });
+      ctx.strokeStyle = 'rgba(20,24,32,0.25)';
+      ctx.beginPath(); ctx.moveTo(padL, zeroY); ctx.lineTo(width - padR, zeroY); ctx.stroke();
+
+      const tooltip = document.getElementById('monthlyTooltip');
+      canvas.onmousemove = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+        const bar = bars.reduce((best, b) => Math.abs(b.cx - mx) < Math.abs((best || { cx: -999 }).cx - mx) ? b : best, null);
+        if (!bar || Math.abs(bar.cx - mx) > groupW / 2) { tooltip.classList.remove('show'); return; }
+        tooltip.textContent = `${bar.month} · ingresos ${money(bar.income)} · gastos ${money(bar.expense)}`;
+        tooltip.style.left = mx + 'px';
+        tooltip.style.top = my + 'px';
+        tooltip.classList.add('show');
+      };
+      canvas.onmouseleave = () => tooltip.classList.remove('show');
+    }
+
+    const DONUT_COLORS = ['#00a878', '#0098c7', '#c87a00', '#d80300', '#8a8e96', '#5a5d64', '#008a62', '#6b7280'];
+    function drawDonutChart(breakdown) {
+      const canvas = document.getElementById('donutChart');
+      const { ctx, width, height } = setupCanvas(canvas);
+      ctx.clearRect(0, 0, width, height);
+      const legend = document.getElementById('donutLegend');
+      const total = breakdown.reduce((s, b) => s + Math.abs(b.total), 0) || 1;
+      const cx = width / 2, cy = height / 2, rOuter = Math.min(width, height) / 2 - 10, rInner = rOuter * 0.6;
+
+      if (!breakdown.length) { legend.innerHTML = '<span class="item">Sin datos en el periodo</span>'; return; }
+
+      let angle = -Math.PI / 2;
+      const slices = [];
+      breakdown.forEach((b, i) => {
+        const frac = Math.abs(b.total) / total;
+        const sweep = frac * Math.PI * 2;
+        const color = DONUT_COLORS[i % DONUT_COLORS.length];
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, rOuter, angle, angle + sweep);
+        ctx.closePath();
+        ctx.fillStyle = color;
+        ctx.fill();
+        slices.push({ start: angle, end: angle + sweep, name: b.name, total: b.total, pct: frac * 100 });
+        angle += sweep;
+      });
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.beginPath(); ctx.arc(cx, cy, rInner, 0, Math.PI * 2); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+
+      legend.innerHTML = breakdown.map((b, i) => `<span class="item"><span class="swatch" style="background:${DONUT_COLORS[i % DONUT_COLORS.length]};"></span>${escapeHtml(b.name)} · ${money(b.total)}</span>`).join('');
+
+      const tooltip = document.getElementById('donutTooltip');
+      canvas.onmousemove = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left - cx, my = e.clientY - rect.top - cy;
+        const dist = Math.sqrt(mx * mx + my * my);
+        if (dist < rInner || dist > rOuter) { tooltip.classList.remove('show'); return; }
+        let a = Math.atan2(my, mx);
+        if (a < -Math.PI / 2) a += Math.PI * 2;
+        const slice = slices.find(s => a >= s.start && a <= s.end);
+        if (!slice) { tooltip.classList.remove('show'); return; }
+        tooltip.textContent = `${slice.name}: ${money(slice.total)} (${slice.pct.toFixed(1)}%)`;
+        tooltip.style.left = (mx + cx) + 'px';
+        tooltip.style.top = (my + cy) + 'px';
+        tooltip.classList.add('show');
+      };
+      canvas.onmouseleave = () => tooltip.classList.remove('show');
+    }
+
+    // ================= ACTIVOS =================
+    let assetsCache = [];
+    function renderAssets() {
+      const body = document.getElementById('astBody');
+      const q = document.getElementById('astFilter').value.trim().toLowerCase();
+      const rows = q ? assetsCache.filter(r => r.name.toLowerCase().includes(q)) : assetsCache;
+      if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="6">Sin activos que coincidan.</td></tr>'; return; }
+      body.innerHTML = rows.map(r => `<tr data-id="${r.id}">
+        <td class="editable" data-field="name" data-value="${escapeHtml(r.name)}">${escapeHtml(r.name)}</td>
+        <td class="mono editable" data-field="acquisitionValue" data-type="number" data-value="${r.acquisitionValue}">${escapeHtml(r.acquisitionDate)} · ${money(r.acquisitionValue)}</td>
+        <td class="mono editable" data-field="residualValue" data-type="number" data-value="${r.residualValue}">${money(r.residualValue)}</td>
+        <td class="mono editable" data-field="usefulLifeMonths" data-type="number" data-value="${r.usefulLifeMonths}">${r.usefulLifeMonths}m</td>
+        <td class="mono">${money(r.currentValue)}</td>
+        <td><button class="btn ghost btn--sm ast-del">Eliminar</button></td>
+      </tr>`).join('');
+      body.querySelectorAll('.ast-del').forEach(btn => btn.addEventListener('click', async (e) => {
+        const id = e.target.closest('tr').dataset.id;
+        try { await api.financeAssetDelete(id); loadAssets(); loadSummary(); } catch (ex) { showError(ex.message); }
+      }));
+    }
+    async function loadAssets() {
+      try { assetsCache = await api.financeAssetsList(); renderAssets(); }
+      catch (ex) { showError(ex.message || 'Error al cargar activos'); }
+    }
+    bindInlineEdit(document.getElementById('astBody'), async (id, field, value) => {
+      const payload = {};
+      payload[field] = field === 'usefulLifeMonths' ? Number(value) : value;
+      await api.financeAssetPatch(id, payload);
+      loadAssets(); loadSummary();
+    });
+    document.getElementById('astFilter').addEventListener('input', renderAssets);
+
+    // ================= INFORMES =================
+    let selectedReport = 'tesoreria';
+    document.querySelectorAll('.report-card').forEach(card => {
+      card.addEventListener('click', () => {
+        document.querySelectorAll('.report-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+        selectedReport = card.dataset.report;
+      });
+    });
+
+    const REPORT_LABELS = { tesoreria: 'Tesorería', activos: 'Activos', analitica: 'Analítico' };
+    async function loadExports() {
+      const body = document.getElementById('expBody');
+      try {
+        const rows = await api.financeExportsList();
+        if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="5">Sin informes generados.</td></tr>'; return; }
+        body.innerHTML = rows.map(r => `<tr data-id="${r.id}" data-type="${r.reportType}">
+          <td>${REPORT_LABELS[r.reportType] || r.reportType}</td>
+          <td class="mono">${escapeHtml(r.fromDate)} → ${escapeHtml(r.toDate)}</td>
+          <td class="mono" style="font-size:0.7rem;">${r.contentHash.slice(0, 16)}…</td>
+          <td>${r.expired ? '<span style="color:#d80300;">expirado</span>' : `expira ${new Date(r.expiresAt).toLocaleString('es-ES')}`}</td>
+          <td><button class="btn sage btn--sm exp-dl" ${r.expired ? 'disabled' : ''}>Descargar</button></td>
+        </tr>`).join('');
+        body.querySelectorAll('.exp-dl').forEach(btn => btn.addEventListener('click', async (e) => {
+          const tr = e.target.closest('tr');
+          try { await downloadFinanceExport(tr.dataset.id, tr.dataset.type); } catch (ex) { showError(ex.message); }
+        }));
+      } catch (ex) { showError(ex.message || 'Error al cargar informes'); }
+    }
+    document.getElementById('expAddBtn').addEventListener('click', async () => {
+      showError('');
+      const fromDate = document.getElementById('expFrom').value;
+      const toDate = document.getElementById('expTo').value;
+      if (!fromDate || !toDate) return showError('Indica el rango de fechas');
+      try {
+        await api.financeExportCreate(fromDate, toDate, selectedReport);
+        toast('Informe generado');
+        loadExports();
+      } catch (ex) { showError(ex.message || 'Error al generar informe'); }
+    });
+
+    window.addEventListener('resize', () => { loadProjection(); loadAnalytics(); });
+
+    // ================= INIT =================
+    loadSummary();
+    loadAccounts().then(() => {
+      loadCostCenters().then(loadMovements);
+      loadProjection();
+      loadTransfers();
+      loadAnalytics();
+    });
+    loadAssets();
+    loadExports();
+  </script>
+</body>
+</html>

@@ -6,7 +6,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { connectMongo, getElviraDb, withTransaction } from './db/mongo.js';
+import { connectMongo, getElviraDb, getMongoClient, withTransaction } from './db/mongo.js';
 import { createSentinelForensics } from './sentinel-forensics.js';
 
 // Load .env manually for environments that don't use --env-file
@@ -21,6 +21,18 @@ import { createSentinelForensics } from './sentinel-forensics.js';
   }
 }
 import { callLLM, PRICE_INPUT_PER_M, PRICE_OUTPUT_PER_M, ANTHROPIC_MODEL } from './llm.js';
+import { mountElviraCentral } from './elvira-central.js';
+import { mountFinance } from './finance.js';
+import { mountFL } from './fl.js';
+import { mountMna } from './mna.js';
+import { mountPactvm } from './pactum-viridi.js';
+import { mountOps } from './ops.js';
+import { mountPaia } from './paia.js';
+import { mountOphsCockpit } from './ophs-cockpit.js';
+import { mountFoundry } from './foundry.js';
+import { createCibeBunker, mountCibeBunker } from './cibe-bunker.js';
+import { mountRackState } from './rack-state.js';
+import { mountGridInterlink } from './grid-interlink.js';
 
 /* ---------- USD -> EUR exchange rate (cached 1h, frankfurter.app, sin API key) ---------- */
 let exchangeRateCache = { rate: 0.92, fetchedAt: 0 };
@@ -42,7 +54,6 @@ const ROOT = path.resolve(__dirname, '..');
 const FRONT = path.join(ROOT, 'frontend');
 const DATA_DIR = path.join(__dirname, 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
-const DB_FILE = path.join(DATA_DIR, 'db.json');
 const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
 const HISTORY_FILE = path.join(DATA_DIR, 'search_history.json');
 const ELVIRA_FILE = path.join(DATA_DIR, 'elvira.json');
@@ -60,7 +71,6 @@ function atomicWriteJson(file, data) {
 }
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-if (!fs.existsSync(DB_FILE))  atomicWriteJson(DB_FILE, {});
 if (!fs.existsSync(HISTORY_FILE)) atomicWriteJson(HISTORY_FILE, {});
 if (!fs.existsSync(BUS_HISTORY_FILE)) atomicWriteJson(BUS_HISTORY_FILE, []);
 
@@ -119,27 +129,16 @@ if (!fs.existsSync(ELVIRA_FILE)) atomicWriteJson(ELVIRA_FILE, {
   updatedAt: new Date().toISOString(),
 });
 
-/* ---------- .env loader (no dep) ---------- */
-(function loadEnv() {
-  const envFile = path.join(__dirname, '.env');
-  if (!fs.existsSync(envFile)) return;
-  for (const line of fs.readFileSync(envFile, 'utf8').split(/\r?\n/)) {
-    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-    if (!m) continue;
-    const [, k, v] = m;
-    if (!(k in process.env)) process.env[k] = v.replace(/^["']|["']$/g, '');
-  }
-})();
-
-// LLM provider configured in llm.js via LLM_PROVIDER env var
+// LLM provider configured in llm.js via LLM_PROVIDER env var (.env ya cargado arriba)
 
 // Credenciales: hashes persistidos en data/users.json (gitignored).
 // Seed inicial solo si el archivo no existe, desde variables de entorno SEED_*_PASSWORD.
 const SEED_USERS = {
-  'mblanes@snficorp.com': { password: process.env.SEED_MARC_PASSWORD, role: 'admin' },
-  'nour@snficorp.com':    { password: process.env.SEED_NOUR_PASSWORD, role: 'admin' },
-  'ray@snficorp.com':     { password: process.env.SEED_RAY_PASSWORD,  role: 'ray'   },
-  'ventures@snficorp.com':{ password: process.env.SEED_AMIR_PASSWORD, role: 'amir' },
+  'mblanes@snficorp.com': { password: process.env.SEED_MARC_PASSWORD,    role: 'admin'   },
+  'nour@snficorp.com':    { password: process.env.SEED_NOUR_PASSWORD,    role: 'admin'   },
+  'ray@snficorp.com':     { password: process.env.SEED_RAY_PASSWORD,     role: 'ray'     },
+  'ventures@snficorp.com':{ password: process.env.SEED_AMIR_PASSWORD,    role: 'amir'    },
+  'gonzalo@snficorp.com': { password: process.env.SEED_GONZALO_PASSWORD, role: 'gonzalo' },
 };
 
 function loadUsers() {
@@ -161,9 +160,10 @@ const USERS = loadUsers();
 
 // Mesas accesibles por rol. 'admin' = todo. Others = whitelist.
 const ROLE_MESAS = {
-  admin: ['elvira', 'reff', 'snfiu2', 'ophs', 'sentinel'],
-  ray:   ['snfiu2'],
-  amir:  ['reff'],
+  admin:   ['elvira', 'reff', 'snfiu2', 'ophs', 'sentinel', 'factory', 'finance', 'fl', 'mna', 'pactvm', 'foundry'],
+  ray:     ['snfiu2', 'pactvm'],
+  amir:    ['reff'],
+  gonzalo: ['reff', 'snfiu2', 'pactvm'],
 };
 
 // Prefijos de rutas API por mesa (para protección en backend)
@@ -171,7 +171,14 @@ const MESA_ROUTES = {
   elvira:   ['/api/elvira/'],
   reff:     ['/api/reff', '/api/sheets', '/api/companies', '/api/search', '/api/linkedin', '/api/email', '/api/overview'],
   snfiu2:   ['/api/snfi-u2/', '/api/u2/'],
-  sentinel: ['/api/sentinel'],
+  sentinel: ['/api/sentinel', '/api/rack'],
+  factory:  ['/api/factory'],
+  finance:  ['/api/finance'],
+  fl:       ['/api/fl'],
+  mna:      ['/api/mna'],
+  pactvm:   ['/api/pactvm'],
+  ophs:     ['/api/ops', '/api/paia', '/api/ophs-cockpit', '/api/grid'],
+  foundry:  ['/api/foundry'],
 };
 
 function canAccessMesa(role, mesa) {
@@ -193,6 +200,11 @@ function requireMesa(mesa) {
     }
     next();
   };
+}
+
+function requireAdmin(req, res, next) {
+  if (req.role !== 'admin') return res.status(403).json({ error: 'admin requerido' });
+  next();
 }
 
 /* ---- Event Bus ring-buffer (declared early so login/logout hooks can use busEmit) ---- */
@@ -230,6 +242,40 @@ function busEmitAlert({ origin = 'SYSTEM', dest = 'ELVI-RA', label, detail, user
     origin, dest, type: 'alert', state: 'BLOCKED',
     label, payload: { error: detail }, user,
   });
+  adminNotify({ origin, label, detail });
+}
+
+/* ---- Notificaciones Admin: cola separada del bus, solo errores/inestabilidad ----
+   El bus registra todo el tráfico; esto es la señal curada para el Admin. */
+const NOTIFICATIONS_FILE = path.join(DATA_DIR, 'admin_notifications.json');
+const MAX_NOTIFICATIONS = 300;
+let adminNotifications = [];
+if (fs.existsSync(NOTIFICATIONS_FILE)) {
+  try {
+    const saved = JSON.parse(fs.readFileSync(NOTIFICATIONS_FILE, 'utf8'));
+    if (Array.isArray(saved)) adminNotifications = saved.slice(0, MAX_NOTIFICATIONS);
+  } catch { console.warn('[notifications] No se pudieron cargar notificaciones previas'); }
+}
+const adminSseClients = new Set();
+
+function adminNotify({ origin = 'SYSTEM', label, detail, severity = 'error' }) {
+  const notif = {
+    id: crypto.randomUUID(),
+    ts: new Date().toISOString(),
+    origin,
+    severity, // 'error' | 'warning'
+    label: String(label || '').slice(0, 200),
+    detail: detail ? String(detail).slice(0, 500) : '',
+    read: false,
+  };
+  adminNotifications.unshift(notif);
+  if (adminNotifications.length > MAX_NOTIFICATIONS) adminNotifications.length = MAX_NOTIFICATIONS;
+  atomicWriteJson(NOTIFICATIONS_FILE, adminNotifications);
+  const payload = `data: ${JSON.stringify(notif)}\n\n`;
+  for (const client of adminSseClients) {
+    try { client.write(payload); } catch { adminSseClients.delete(client); }
+  }
+  return notif;
 }
 
 const app = express();
@@ -253,6 +299,16 @@ const apiLimiter = rateLimit({
   message: { error: 'Demasiadas peticiones. Intenta de nuevo en un minuto.' },
 });
 app.use('/api', apiLimiter);
+
+/* Captura cualquier caída no controlada del proceso y la sube a notificaciones Admin */
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', err);
+  adminNotify({ origin: 'SYSTEM', label: 'Excepción no controlada', detail: err?.stack || err?.message || String(err), severity: 'error' });
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', reason);
+  adminNotify({ origin: 'SYSTEM', label: 'Promesa rechazada sin manejar', detail: reason?.stack || reason?.message || String(reason), severity: 'error' });
+});
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -315,7 +371,8 @@ function sentinelLogger(req, res, next) {
 /* ---------- auth ---------- */
 function auth(req, res, next) {
   const h = req.headers.authorization || '';
-  const token = h.startsWith('Bearer ') ? h.slice(7) : null;
+  // EventSource no permite headers personalizados: el stream SSE acepta el token por query string.
+  const token = h.startsWith('Bearer ') ? h.slice(7) : (req.path.endsWith('/stream') ? req.query.token : null);
   const s = token && SESSIONS.get(token);
   if (!s || s.exp < Date.now()) return res.status(401).json({ error: 'unauthorized' });
   req.user = s.user;
@@ -400,6 +457,14 @@ app.use('/api/sentinel',  auth, requireMesa('sentinel'));
 app.use('/api/snfi-u2',   auth, requireMesa('snfiu2'));
 app.use('/api/u2',        auth, requireMesa('snfiu2'));
 app.use('/api/reff',      auth, requireMesa('reff'));
+app.use('/api/factory',   auth, requireMesa('factory'));
+app.use('/api/finance',   auth, requireMesa('finance'));
+app.use('/api/fl',        auth, requireMesa('fl'));
+app.use('/api/mna',       auth, requireMesa('mna'));
+app.use('/api/pactvm',    auth, requireMesa('pactvm'));
+app.use('/api/ops',       auth, requireMesa('ophs'));
+app.use('/api/paia',      auth, requireMesa('ophs'));
+app.use('/api/ophs-cockpit', auth, requireMesa('ophs'));
 
 /* ---------- sheets ---------- */
 app.get('/api/sheets', auth, async (req, res) => {
@@ -561,6 +626,381 @@ app.get('/api/overview', auth, async (req, res) => {
     top: top.map(t => ({ ...t, id: t._id, tareas: t.tareas || [] })),
   });
 });
+
+/* ==========================================================================
+   S-NFI Factory · control cadena de suministro industrial
+   Alcance: ensamblaje BioHybrid, logistica materiales, inventario
+   componentes mecanicos, ciclo mantenimiento nodos desplegados.
+   Datos manuales (CRUD) por ahora; conector ERP/sensores real queda pendiente.
+========================================================================== */
+
+const FACTORY_ASSEMBLY_STAGES = ['recepcion', 'mecanizado', 'integracion', 'qa', 'listo_envio'];
+const FACTORY_ASSEMBLY_STATUSES = ['en_curso', 'parado', 'bloqueado', 'completado'];
+const FACTORY_LOGISTICS_STATUSES = ['pedido', 'transito', 'recibido', 'incidencia'];
+const FACTORY_MAINTENANCE_TYPES = ['preventivo', 'correctivo', 'inspeccion'];
+const FACTORY_MAINTENANCE_STATUSES = ['programado', 'en_curso', 'completado'];
+
+function withId(doc) {
+  if (!doc) return doc;
+  const { _id, ...rest } = doc;
+  return { id: _id, ...rest };
+}
+
+/* ---- Ensamblaje ---- */
+app.get('/api/factory/assembly', async (req, res) => {
+  const rows = await mongo.collection('factory_assembly').find({}).sort({ _id: -1 }).toArray();
+  res.json(rows.map(withId));
+});
+
+app.post('/api/factory/assembly', async (req, res) => {
+  const b = req.body || {};
+  const nodeRef = String(b.nodeRef || '').trim();
+  if (!nodeRef) return res.status(400).json({ error: 'nodeRef requerido' });
+  const stage = FACTORY_ASSEMBLY_STAGES.includes(b.stage) ? b.stage : 'recepcion';
+  const now = new Date().toISOString();
+  const doc = {
+    _id: crypto.randomUUID(),
+    nodeRef,
+    stage,
+    status: 'en_curso',
+    startedAt: now,
+    eta: typeof b.eta === 'string' ? b.eta : null,
+    blockerNote: typeof b.blockerNote === 'string' ? b.blockerNote : null,
+    createdBy: req.user,
+    updatedAt: now,
+  };
+  await mongo.collection('factory_assembly').insertOne(doc);
+  res.status(201).json(withId(doc));
+});
+
+app.patch('/api/factory/assembly/:id', async (req, res) => {
+  const row = await mongo.collection('factory_assembly').findOne({ _id: req.params.id });
+  if (!row) return res.status(404).json({ error: 'registro no encontrado' });
+
+  const b = req.body || {};
+  const $set = { updatedAt: new Date().toISOString() };
+  if (b.nodeRef !== undefined) {
+    if (!String(b.nodeRef).trim()) return res.status(400).json({ error: 'nodeRef invalido' });
+    $set.nodeRef = String(b.nodeRef).trim();
+  }
+  if (b.stage !== undefined) {
+    if (!FACTORY_ASSEMBLY_STAGES.includes(b.stage)) return res.status(400).json({ error: 'stage invalido' });
+    $set.stage = b.stage;
+  }
+  if (b.status !== undefined) {
+    if (!FACTORY_ASSEMBLY_STATUSES.includes(b.status)) return res.status(400).json({ error: 'status invalido' });
+    $set.status = b.status;
+  }
+  if (b.eta !== undefined) $set.eta = typeof b.eta === 'string' ? b.eta : null;
+  if (b.blockerNote !== undefined) $set.blockerNote = typeof b.blockerNote === 'string' ? b.blockerNote : null;
+
+  await mongo.collection('factory_assembly').updateOne({ _id: req.params.id }, { $set });
+  const updated = await mongo.collection('factory_assembly').findOne({ _id: req.params.id });
+  res.json(withId(updated));
+});
+
+app.delete('/api/factory/assembly/:id', async (req, res) => {
+  const result = await mongo.collection('factory_assembly').deleteOne({ _id: req.params.id });
+  if (result.deletedCount === 0) return res.status(404).json({ error: 'registro no encontrado' });
+  res.json({ id: req.params.id });
+});
+
+/* ---- Logistica de materiales ---- */
+app.get('/api/factory/logistics', async (req, res) => {
+  const rows = await mongo.collection('factory_logistics').find({}).sort({ _id: -1 }).toArray();
+  res.json(rows.map(withId));
+});
+
+app.post('/api/factory/logistics', async (req, res) => {
+  const b = req.body || {};
+  const material = String(b.material || '').trim();
+  if (!material) return res.status(400).json({ error: 'material requerido' });
+  const qty = Number(b.qty);
+  if (!Number.isFinite(qty) || qty < 0) return res.status(400).json({ error: 'qty invalido' });
+  const unit = String(b.unit || '').trim();
+  if (!unit) return res.status(400).json({ error: 'unit requerido' });
+  const now = new Date().toISOString();
+  const doc = {
+    _id: crypto.randomUUID(),
+    material,
+    supplier: typeof b.supplier === 'string' ? b.supplier : null,
+    qty,
+    unit,
+    origin: typeof b.origin === 'string' ? b.origin : null,
+    destination: typeof b.destination === 'string' ? b.destination : null,
+    status: 'pedido',
+    eta: typeof b.eta === 'string' ? b.eta : null,
+    trackingRef: typeof b.trackingRef === 'string' ? b.trackingRef : null,
+    createdBy: req.user,
+    updatedAt: now,
+  };
+  await mongo.collection('factory_logistics').insertOne(doc);
+  res.status(201).json(withId(doc));
+});
+
+app.patch('/api/factory/logistics/:id', async (req, res) => {
+  const row = await mongo.collection('factory_logistics').findOne({ _id: req.params.id });
+  if (!row) return res.status(404).json({ error: 'envio no encontrado' });
+
+  const b = req.body || {};
+  const $set = { updatedAt: new Date().toISOString() };
+  if (b.material !== undefined) {
+    if (!String(b.material).trim()) return res.status(400).json({ error: 'material invalido' });
+    $set.material = String(b.material).trim();
+  }
+  if (b.supplier !== undefined) $set.supplier = typeof b.supplier === 'string' ? b.supplier : null;
+  if (b.qty !== undefined) {
+    const qty = Number(b.qty);
+    if (!Number.isFinite(qty) || qty < 0) return res.status(400).json({ error: 'qty invalido' });
+    $set.qty = qty;
+  }
+  if (b.unit !== undefined) {
+    if (!String(b.unit).trim()) return res.status(400).json({ error: 'unit invalido' });
+    $set.unit = String(b.unit).trim();
+  }
+  if (b.origin !== undefined) $set.origin = typeof b.origin === 'string' ? b.origin : null;
+  if (b.destination !== undefined) $set.destination = typeof b.destination === 'string' ? b.destination : null;
+  if (b.status !== undefined) {
+    if (!FACTORY_LOGISTICS_STATUSES.includes(b.status)) return res.status(400).json({ error: 'status invalido' });
+    $set.status = b.status;
+  }
+  if (b.eta !== undefined) $set.eta = typeof b.eta === 'string' ? b.eta : null;
+  if (b.trackingRef !== undefined) $set.trackingRef = typeof b.trackingRef === 'string' ? b.trackingRef : null;
+
+  await mongo.collection('factory_logistics').updateOne({ _id: req.params.id }, { $set });
+  const updated = await mongo.collection('factory_logistics').findOne({ _id: req.params.id });
+  res.json(withId(updated));
+});
+
+app.delete('/api/factory/logistics/:id', async (req, res) => {
+  const result = await mongo.collection('factory_logistics').deleteOne({ _id: req.params.id });
+  if (result.deletedCount === 0) return res.status(404).json({ error: 'envio no encontrado' });
+  res.json({ id: req.params.id });
+});
+
+/* ---- Inventario de componentes ---- */
+app.get('/api/factory/inventory', async (req, res) => {
+  const rows = await mongo.collection('factory_inventory').find({}).sort({ componentName: 1 }).toArray();
+  res.json(rows.map(r => ({ ...withId(r), lowStock: r.qtyStock < r.minThreshold })));
+});
+
+app.post('/api/factory/inventory', async (req, res) => {
+  const b = req.body || {};
+  const componentName = String(b.componentName || '').trim();
+  if (!componentName) return res.status(400).json({ error: 'componentName requerido' });
+  const category = String(b.category || '').trim();
+  if (!category) return res.status(400).json({ error: 'category requerido' });
+  const now = new Date().toISOString();
+  const doc = {
+    _id: crypto.randomUUID(),
+    componentName,
+    category,
+    qtyStock: Number.isFinite(Number(b.qtyStock)) && Number(b.qtyStock) >= 0 ? Number(b.qtyStock) : 0,
+    qtyReserved: Number.isFinite(Number(b.qtyReserved)) && Number(b.qtyReserved) >= 0 ? Number(b.qtyReserved) : 0,
+    minThreshold: Number.isFinite(Number(b.minThreshold)) && Number(b.minThreshold) >= 0 ? Number(b.minThreshold) : 0,
+    location: typeof b.location === 'string' ? b.location : null,
+    unitCost: Number.isFinite(Number(b.unitCost)) ? Number(b.unitCost) : null,
+    createdBy: req.user,
+    updatedAt: now,
+  };
+  await mongo.collection('factory_inventory').insertOne(doc);
+  res.status(201).json({ ...withId(doc), lowStock: doc.qtyStock < doc.minThreshold });
+});
+
+app.patch('/api/factory/inventory/:id', async (req, res) => {
+  const row = await mongo.collection('factory_inventory').findOne({ _id: req.params.id });
+  if (!row) return res.status(404).json({ error: 'componente no encontrado' });
+
+  const b = req.body || {};
+  const $set = { updatedAt: new Date().toISOString() };
+  if (b.componentName !== undefined) {
+    if (!String(b.componentName).trim()) return res.status(400).json({ error: 'componentName invalido' });
+    $set.componentName = String(b.componentName).trim();
+  }
+  if (b.category !== undefined) {
+    if (!String(b.category).trim()) return res.status(400).json({ error: 'category invalido' });
+    $set.category = String(b.category).trim();
+  }
+  for (const field of ['qtyStock', 'qtyReserved', 'minThreshold']) {
+    if (b[field] !== undefined) {
+      const n = Number(b[field]);
+      if (!Number.isFinite(n) || n < 0) return res.status(400).json({ error: `${field} invalido` });
+      $set[field] = n;
+    }
+  }
+  if (b.location !== undefined) $set.location = typeof b.location === 'string' ? b.location : null;
+  if (b.unitCost !== undefined) $set.unitCost = Number.isFinite(Number(b.unitCost)) ? Number(b.unitCost) : null;
+
+  await mongo.collection('factory_inventory').updateOne({ _id: req.params.id }, { $set });
+  const updated = await mongo.collection('factory_inventory').findOne({ _id: req.params.id });
+  res.json({ ...withId(updated), lowStock: updated.qtyStock < updated.minThreshold });
+});
+
+app.delete('/api/factory/inventory/:id', async (req, res) => {
+  const result = await mongo.collection('factory_inventory').deleteOne({ _id: req.params.id });
+  if (result.deletedCount === 0) return res.status(404).json({ error: 'componente no encontrado' });
+  res.json({ id: req.params.id });
+});
+
+/* ---- Mantenimiento de nodos desplegados ---- */
+app.get('/api/factory/maintenance', async (req, res) => {
+  const rows = await mongo.collection('factory_maintenance').find({}).sort({ scheduledAt: 1 }).toArray();
+  const now = Date.now();
+  res.json(rows.map(r => ({ ...withId(r), overdue: r.status !== 'completado' && new Date(r.scheduledAt).getTime() < now })));
+});
+
+app.post('/api/factory/maintenance', async (req, res) => {
+  const b = req.body || {};
+  const nodeId = String(b.nodeId || '').trim();
+  if (!nodeId) return res.status(400).json({ error: 'nodeId requerido' });
+  if (!FACTORY_MAINTENANCE_TYPES.includes(b.type)) return res.status(400).json({ error: 'type invalido' });
+  const scheduledAt = String(b.scheduledAt || '');
+  if (!scheduledAt) return res.status(400).json({ error: 'scheduledAt requerido' });
+  const now = new Date().toISOString();
+  const doc = {
+    _id: crypto.randomUUID(),
+    nodeId,
+    type: b.type,
+    status: 'programado',
+    scheduledAt,
+    completedAt: null,
+    technician: typeof b.technician === 'string' ? b.technician : null,
+    notes: typeof b.notes === 'string' ? b.notes : null,
+    createdBy: req.user,
+    updatedAt: now,
+  };
+  await mongo.collection('factory_maintenance').insertOne(doc);
+  res.status(201).json({ ...withId(doc), overdue: false });
+});
+
+app.patch('/api/factory/maintenance/:id', async (req, res) => {
+  const row = await mongo.collection('factory_maintenance').findOne({ _id: req.params.id });
+  if (!row) return res.status(404).json({ error: 'mantenimiento no encontrado' });
+
+  const b = req.body || {};
+  const $set = { updatedAt: new Date().toISOString() };
+  if (b.nodeId !== undefined) {
+    if (!String(b.nodeId).trim()) return res.status(400).json({ error: 'nodeId invalido' });
+    $set.nodeId = String(b.nodeId).trim();
+  }
+  if (b.type !== undefined) {
+    if (!FACTORY_MAINTENANCE_TYPES.includes(b.type)) return res.status(400).json({ error: 'type invalido' });
+    $set.type = b.type;
+  }
+  if (b.status !== undefined) {
+    if (!FACTORY_MAINTENANCE_STATUSES.includes(b.status)) return res.status(400).json({ error: 'status invalido' });
+    $set.status = b.status;
+    if (b.status === 'completado') $set.completedAt = new Date().toISOString();
+  }
+  if (b.scheduledAt !== undefined) {
+    if (!String(b.scheduledAt).trim()) return res.status(400).json({ error: 'scheduledAt invalido' });
+    $set.scheduledAt = b.scheduledAt;
+  }
+  if (b.technician !== undefined) $set.technician = typeof b.technician === 'string' ? b.technician : null;
+  if (b.notes !== undefined) $set.notes = typeof b.notes === 'string' ? b.notes : null;
+
+  await mongo.collection('factory_maintenance').updateOne({ _id: req.params.id }, { $set });
+  const updated = await mongo.collection('factory_maintenance').findOne({ _id: req.params.id });
+  res.json({ ...withId(updated), overdue: updated.status !== 'completado' && new Date(updated.scheduledAt).getTime() < Date.now() });
+});
+
+app.delete('/api/factory/maintenance/:id', async (req, res) => {
+  const result = await mongo.collection('factory_maintenance').deleteOne({ _id: req.params.id });
+  if (result.deletedCount === 0) return res.status(404).json({ error: 'mantenimiento no encontrado' });
+  res.json({ id: req.params.id });
+});
+
+/* ---- Resumen KPI ---- */
+app.get('/api/factory/summary', async (req, res) => {
+  const nowIso = new Date().toISOString();
+  const [assemblyActive, logisticsIncidents, inventoryLow, maintenanceOverdue] = await Promise.all([
+    mongo.collection('factory_assembly').countDocuments({ status: 'en_curso' }),
+    mongo.collection('factory_logistics').countDocuments({ status: 'incidencia' }),
+    mongo.collection('factory_inventory').countDocuments({ $expr: { $lt: ['$qtyStock', '$minThreshold'] } }),
+    mongo.collection('factory_maintenance').countDocuments({ status: { $ne: 'completado' }, scheduledAt: { $lt: nowIso } }),
+  ]);
+  res.json({ assemblyActive, logisticsIncidents, inventoryLow, maintenanceOverdue });
+});
+
+/* ==========================================================================
+   S-NFI Finance · control financiero y valoracion de activos reales
+   Tesoreria, flujo caja proyectado, contabilidad analitica, activos reales,
+   pasarela cifrada export para asesoria contable externa.
+========================================================================== */
+mountFinance(app, { auth, requireMesa, mongo });
+mountMna(app, { auth, requireMesa, mongo });
+
+/* ==========================================================================
+   Pactvm Viridi · guardian doctrinal, cientifico y de cumplimiento bio-ambiental
+   Certificado CIBE, politicas medioambientales, condiciones de acceso, lectura
+   de auditorias Herzog (db 'reff', sin escritura).
+========================================================================== */
+mountPactvm(app, {
+  auth, requireMesa, mongo, getMongoClient,
+  getU2Snapshot: () => {
+    const today = new Date().toISOString().split('T')[0];
+    const d = liveCache.get(today);
+    if (!d) return null;
+    return {
+      fecha: today,
+      exceso_gwh_hoy: d.exceso_gwh_hoy ?? null,
+      pct_horas_desperdiciadas: d.pct_horas_desperdiciadas ?? null,
+      precio_min_eur_mwh: d.precio_min_eur_mwh ?? null,
+      precio_max_eur_mwh: d.precio_max_eur_mwh ?? null,
+      actualizado: liveLastUpdated,
+    };
+  },
+});
+
+/* ==========================================================================
+   CIBE Bunker · modulo bunker de Pactvm Viridi (Instrucciones.txt §3)
+   Control de admision zero-trust: tokens Ed25519 firmados y fechados para
+   los endpoints criticos del OPHS Framework. Sin conformidad CIBE la puerta
+   permanece cerrada (Auth-Refusal en log de hash encadenado).
+========================================================================== */
+const cibe = createCibeBunker({ mongo, busEmit, adminNotify });
+cibe.ready().catch((err) => console.error('[CIBE] Error de arranque:', err.message));
+mountCibeBunker(app, { auth, requireMesa, mongo, bunker: cibe, busEmit });
+
+/* ==========================================================================
+   S-NFI F&L (Fiscal & Legal) · custodia legal del Holding
+   NDAs, contratos mercantiles/laborales, cesion de licencias, expediente
+   tecnico-juridico Modelo de Utilidad OEPM. Documentos en GridFS.
+========================================================================== */
+mountFL(app, { auth, requireMesa, mongo, db: mongo });
+
+/* ==========================================================================
+   OPHS Framework · OPS (telemetria) + PAIA (analitica predictiva) + Cockpit
+   Sub-interfaces del framework OPHS que convergen en la Consola Soberana
+   (fusiona OPS+PAIA+Herzog+Sentinel). Doctrina: solo lectura/propuesta, la
+   autoridad de ejecucion sigue siendo de cada dominio.
+========================================================================== */
+mountOps(app, { auth, requireMesa, mongo, cibe });
+mountPaia(app, { auth, requireMesa, mongo });
+mountOphsCockpit(app, { auth, requireMesa, mongo, getMongoClient });
+
+/* ==========================================================================
+   Data Foundry · pipeline de ingesta asincrona (doctrina Instrucciones.txt)
+   Ingress Gateway HMAC (puerto embebido o dedicado via FOUNDRY_INGRESS_PORT),
+   bus no bloqueante, salas OPS/PAIA/Herzog/U-2 con circuit breaker propio,
+   sifon U-2 en worker thread, metricas travel-time vigiladas por Sentinel.
+========================================================================== */
+mountFoundry(app, { auth, requireMesa, mongo, busEmit, adminNotify, cibe });
+
+/* ==========================================================================
+   Rack State · estado distribuido entre racks fisicos (Instrucciones.txt §1)
+   Consenso Raft (eleccion + replicacion + commit por mayoria) para puertos
+   parametrizados y estados de seguridad. Sin quorum: escrituras bloqueadas,
+   lecturas Offline-First del ultimo estado comprometido. Mesa sentinel.
+========================================================================== */
+const rackState = mountRackState(app, { auth, requireMesa, mongo, busEmit, adminNotify, cibe });
+
+/* ==========================================================================
+   Grid Interlink · redes electricas transnacionales (Instrucciones.txt §2)
+   Grid Abstraction Layer: un worker thread sandboxed (resourceLimits) por
+   pais (REE/REN/RTE/ONEE). El colapso de un TSO no toca a los demas. Mesa ophs.
+========================================================================== */
+mountGridInterlink(app, { auth, requireMesa, mongo, busEmit, adminNotify, cibe });
 
 /* ---------- search history (per user, 48h) ---------- */
 function readHistory() {
@@ -808,6 +1248,7 @@ SOLO JSON.`;
     res.json(entry);
   } catch (ex) {
     console.error('[search]', ex);
+    adminNotify({ origin: 'REFF', label: 'Búsqueda IA · fallo', detail: ex.message, severity: 'error' });
     res.status(500).json({ error: ex.message || 'error en búsqueda' });
   }
 });
@@ -874,6 +1315,49 @@ app.get('/api/companies/all', auth, async (req, res) => {
   const sheetMap = new Map(sheets.map(s => [s._id, s.name]));
   const all = await mongo.collection('companies').find({ sheetId: { $in: sheets.map(s => s._id) } }).toArray();
   res.json(all.map(c => ({ ...c, id: c._id, sheetName: sheetMap.get(c.sheetId) })));
+});
+
+/*
+ * GET /api/companies/:cid/dictamen
+ * Dictamen de Soberanía descargable: snapshot consolidado del nodo
+ * (OPHS, BSS, estado CNMC, dictamen departamental) + huella CNMC si existe
+ * auditoría previa. Pensado para entregar a una empresa que pide pruebas
+ * de una evaluación o discrepancia detectada.
+ */
+app.get('/api/companies/:cid/dictamen', auth, async (req, res) => {
+  const sheets = await mongo.collection('sheets').find({ user: req.user }).project({ _id: 1, name: 1 }).toArray();
+  const sheetIds = sheets.map(s => s._id);
+  const sheetMap = new Map(sheets.map(s => [s._id, s.name]));
+
+  const c = await mongo.collection('companies').findOne({ _id: req.params.cid, sheetId: { $in: sheetIds } });
+  if (!c) return res.status(404).json({ error: 'empresa no encontrada' });
+
+  const state = readElvira();
+  const cnmcAuditLog = (state.cnmc?.auditLog || []).filter(a => a.companyId === c._id || a.nodo === c.nodo);
+
+  res.json({
+    tipo:        'DICTAMEN_DE_SOBERANIA',
+    generadoEn:  new Date().toISOString(),
+    generadoPor: req.user,
+    nodo:        c.nodo,
+    sector:      c.sector || null,
+    ubicacion:   c.ubicacion || null,
+    sheetName:   sheetMap.get(c.sheetId) || null,
+    puntuacionOphs: c.ophs ?? null,
+    resilienceBss:  { mwh: c.bssMwh ?? null, descripcion: 'MWh estimados para 48h post-apagón' },
+    estadoCnmc:     c.cnmc ?? 'OK',
+    opsBlocked:     c.opsBlocked || false,
+    dictamenDepartamental: c.dictamen || null,
+    ficha: {
+      tipoResiduo:      c.tipoResiduo ?? null,
+      volumenResiduoT:  c.volumenResiduoT ?? null,
+      plantas:          c.plantas ?? null,
+      empleados:        c.empleados ?? null,
+      facturacionM:     c.facturacionM ?? null,
+      esg:              c.esg ?? null,
+    },
+    auditoriasCnmc: cnmcAuditLog,
+  });
 });
 
 /* ---------- LinkedIn Finder (IA · sugerencias de contactos) ---------- */
@@ -960,6 +1444,7 @@ Devuelve 5–8 perfiles tipo priorizados para outreach LinkedIn alineado a S-NFI
     });
   } catch (ex) {
     console.error('[linkedin]', ex);
+    adminNotify({ origin: 'REFF', label: 'LinkedIn Finder · fallo', detail: ex.message, severity: 'error' });
     res.status(500).json({ error: ex.message || 'error LinkedIn Finder' });
   }
 });
@@ -995,11 +1480,10 @@ app.post('/api/email', auth, async (req, res) => {
     const { companyId, situacion, destinatarioRol, tonoExtra } = req.body || {};
     if (!companyId) return res.status(400).json({ error: 'companyId requerido' });
     const sit = situacion === 'solicitud_nda' ? 'solicitud_nda' : 'primer_contacto';
-    const target = sqlite.prepare(`
-      SELECT c.* FROM companies c
-      JOIN sheets s ON c.sheetId = s.id
-      WHERE c.id = ? AND s.user = ?
-    `).get(companyId, req.user);
+    const target = await mongo.collection('companies').findOne({ _id: companyId });
+    if (!target) return res.status(404).json({ error: 'empresa no encontrada' });
+    const sheet = await mongo.collection('sheets').findOne({ _id: target.sheetId, user: req.user });
+    if (!sheet) return res.status(404).json({ error: 'empresa no encontrada' });
 
     const prompt = `SITUACIÓN: ${sit}
 DESTINATARIO (rol/perfil): ${destinatarioRol || 'Decision-maker industrial'}
@@ -1028,7 +1512,7 @@ Redacta el email para esta situación, anclado al sector y a las variables S-NFI
     const parsed = extractJson(raw);
 
     res.json({
-      company: { id: target.id, nodo: target.nodo, sector: target.sector, ubicacion: target.ubicacion },
+      company: { id: target._id, nodo: target.nodo, sector: target.sector, ubicacion: target.ubicacion },
       situacion: sit,
       destinatarioRol: destinatarioRol || '',
       asunto: String(parsed.asunto || '').trim(),
@@ -1040,6 +1524,7 @@ Redacta el email para esta situación, anclado al sector y a las variables S-NFI
     });
   } catch (ex) {
     console.error('[email]', ex);
+    adminNotify({ origin: 'REFF', label: 'Email Creator · fallo', detail: ex.message, severity: 'error' });
     res.status(500).json({ error: ex.message || 'error Email Creator' });
   }
 });
@@ -1172,6 +1657,19 @@ app.post('/api/elvira/ophs/score', auth, (req, res) => {
   res.json(dictamen);
 });
 
+/* GET /api/elvira/ophs/dictamenes/:id/report — Dictamen de Soberania descargable */
+app.get('/api/elvira/ophs/dictamenes/:id/report', auth, (req, res) => {
+  const state = readElvira();
+  const dictamen = (state.ophs.dictamenes || []).find(d => d.id === req.params.id);
+  if (!dictamen) return res.status(404).json({ error: 'dictamen no encontrado' });
+  res.json({
+    tipo:        'DICTAMEN_DE_SOBERANIA',
+    generadoEn:  new Date().toISOString(),
+    generadoPor: req.user,
+    dictamen,
+  });
+});
+
 /* ---------- T'Controler · consumo de tokens (Admin) ---------- */
 app.get('/api/elvira/tcontroler', auth, async (req, res) => {
   if (req.role !== 'admin') return res.status(403).json({ error: 'admin requerido' });
@@ -1207,7 +1705,7 @@ app.get('/api/elvira/tcontroler', auth, async (req, res) => {
   }, { calls: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0, costTotalUSD: 0, costTotalEUR: 0 });
 
   res.json({
-    model: ANTHROPIC_MODEL,
+    model: ANTHROPIC_MODEL(),
     pricing: { inputPer1M: PRICE_INPUT_PER_M, outputPer1M: PRICE_OUTPUT_PER_M, usdToEur: eurRate },
     tokensCap: tc.tokensCap || 0,
     global,
@@ -1409,12 +1907,16 @@ app.post('/api/elvira/cnmc/ingest', auth, (req, res) => {
  *
  * Body opcional: { docId } para forzar un documento específico.
  */
-app.post('/api/elvira/cnmc/audit/:companyId', auth, (req, res) => {
+app.post('/api/elvira/cnmc/audit/:companyId', auth, async (req, res) => {
   const state = readElvira();
   if (!state.cnmc) state.cnmc = { documents: [], auditLog: [] };
 
-  const targetCompany = sqlite.prepare('SELECT c.* FROM companies c JOIN sheets s ON c.sheetId = s.id WHERE c.id = ? AND s.user = ?').get(req.params.companyId, req.user);
-  
+  const targetCompany = await mongo.collection('companies').findOne({ _id: req.params.companyId });
+  if (targetCompany) {
+    const sheet = await mongo.collection('sheets').findOne({ _id: targetCompany.sheetId, user: req.user });
+    if (!sheet) return res.status(404).json({ error: 'empresa no encontrada' });
+  }
+
   if (!targetCompany) return res.status(404).json({ error: 'empresa no encontrada' });
 
   // Find matching CNMC document — by docId (body) or by empresa name match
@@ -1503,7 +2005,7 @@ app.post('/api/elvira/cnmc/audit/:companyId', auth, (req, res) => {
 
   const auditRecord = {
     id:          crypto.randomUUID(),
-    companyId:   targetCompany.id,
+    companyId:   targetCompany._id,
     nodo:        targetCompany.nodo,
     docId:       doc.id,
     fuente:      doc.fuente,
@@ -1520,12 +2022,11 @@ app.post('/api/elvira/cnmc/audit/:companyId', auth, (req, res) => {
   targetCompany.cnmcAudit  = auditRecord;
   targetCompany.opsBlocked = hasFailed;
   if (hasFailed && targetCompany.cnmc === 'OK') targetCompany.cnmc = 'RIESGO';
-  
-  // Persistir en SQLite
-  sqlite.prepare(`
-    UPDATE companies SET cnmc = ?, ophs = ophs -- update cnmc status
-    WHERE id = ?
-  `).run(targetCompany.cnmc, targetCompany.id);
+
+  await mongo.collection('companies').updateOne(
+    { _id: targetCompany._id },
+    { $set: { cnmc: targetCompany.cnmc, cnmcAudit: auditRecord, opsBlocked: hasFailed } }
+  );
 
   // --- Persist in auditLog ---
   state.cnmc.auditLog.unshift(auditRecord);
@@ -1588,6 +2089,30 @@ app.post('/api/elvira/cnmc/audit/:companyId', auth, (req, res) => {
   }
 
   res.status(200).json(auditRecord);
+});
+
+/*
+ * GET /api/elvira/cnmc/audit-log/:auditId/report
+ * Informe descargable autocontenido de una auditoría CNMC ya realizada:
+ * útil cuando una empresa pide pruebas de por qué se detectó una asimetría
+ * (ej. "por qué nos marcasteis error de mercado en 2023").
+ */
+app.get('/api/elvira/cnmc/audit-log/:auditId/report', auth, (req, res) => {
+  const state = readElvira();
+  if (!state.cnmc) state.cnmc = { documents: [], auditLog: [] };
+
+  const auditRecord = state.cnmc.auditLog.find(a => a.id === req.params.auditId);
+  if (!auditRecord) return res.status(404).json({ error: 'auditoría no encontrada' });
+
+  const doc = state.cnmc.documents.find(d => d.id === auditRecord.docId) || null;
+
+  res.json({
+    tipo:        'INFORME_AUDITORIA_CNMC',
+    generadoEn:  new Date().toISOString(),
+    generadoPor: req.user,
+    auditoria:   auditRecord,
+    fuente:      doc ? { fuente: doc.fuente, url: doc.url, periodo: doc.periodo, ingestedAt: doc.ingestedAt, ingestedBy: doc.ingestedBy, datos: doc.datos } : null,
+  });
 });
 
 /* ============================================================
@@ -1725,6 +2250,7 @@ SOLO JSON.`;
     });
   } catch (ex) {
     console.error('[cnmc/search]', ex);
+    adminNotify({ origin: 'REFF', label: 'CNMC búsqueda · fallo', detail: ex.message, severity: 'error' });
     res.status(500).json({ error: ex.message || 'error búsqueda CNMC' });
   }
 });
@@ -1917,6 +2443,71 @@ app.get('/api/bus/history', auth, (req, res) => {
 });
 
 /* ============================================================
+   NOTIFICACIONES ADMIN · errores/inestabilidad del sistema
+   Cola curada, separada del bus de tráfico general. Solo visible para 'admin'.
+   ============================================================ */
+
+/* GET /api/notifications/stream — SSE, push en tiempo real */
+app.get('/api/notifications/stream', auth, requireAdmin, (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  const backlog = adminNotifications.slice(0, 50).reverse();
+  for (const n of backlog) res.write(`data: ${JSON.stringify(n)}\n\n`);
+
+  adminSseClients.add(res);
+  const hb = setInterval(() => {
+    try { res.write(': heartbeat\n\n'); } catch { clearInterval(hb); adminSseClients.delete(res); }
+  }, 25000);
+  req.on('close', () => { clearInterval(hb); adminSseClients.delete(res); });
+});
+
+/* GET /api/notifications — snapshot + contador de no leídas */
+app.get('/api/notifications', auth, requireAdmin, (req, res) => {
+  const limit = Math.min(Math.max(Number(req.query.limit ?? 50), 1), MAX_NOTIFICATIONS);
+  res.json({
+    total: adminNotifications.length,
+    unread: adminNotifications.filter(n => !n.read).length,
+    notifications: adminNotifications.slice(0, limit),
+  });
+});
+
+/* POST /api/notifications/:id/read — marcar una como leída */
+app.post('/api/notifications/:id/read', auth, requireAdmin, (req, res) => {
+  const n = adminNotifications.find(x => x.id === req.params.id);
+  if (!n) return res.status(404).json({ error: 'notificación no encontrada' });
+  n.read = true;
+  atomicWriteJson(NOTIFICATIONS_FILE, adminNotifications);
+  res.json(n);
+});
+
+/* POST /api/notifications/read-all — marcar todas como leídas */
+app.post('/api/notifications/read-all', auth, requireAdmin, (req, res) => {
+  for (const n of adminNotifications) n.read = true;
+  atomicWriteJson(NOTIFICATIONS_FILE, adminNotifications);
+  res.json({ ok: true });
+});
+
+/* DELETE /api/notifications/:id — eliminar una notificación */
+app.delete('/api/notifications/:id', auth, requireAdmin, (req, res) => {
+  const idx = adminNotifications.findIndex(x => x.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'notificación no encontrada' });
+  adminNotifications.splice(idx, 1);
+  atomicWriteJson(NOTIFICATIONS_FILE, adminNotifications);
+  res.json({ ok: true });
+});
+
+/* DELETE /api/notifications — eliminar todas las leídas */
+app.delete('/api/notifications', auth, requireAdmin, (req, res) => {
+  adminNotifications = adminNotifications.filter(n => !n.read);
+  atomicWriteJson(NOTIFICATIONS_FILE, adminNotifications);
+  res.json({ ok: true });
+});
+
+/* ============================================================
    SENTINEL · Trazabilidad forense de IPs
    Log criptográfico inmutable (hash chain + HMAC) + cola de revisión
    de IPs que exceden rate limit en rutas sensibles (CNMC, U-2).
@@ -1924,16 +2515,36 @@ app.get('/api/bus/history', auth, (req, res) => {
 
 /* GET /api/sentinel/forensic-log — paginado, filtrable por ip/mesa/blocked/sensitive */
 app.get('/api/sentinel/forensic-log', auth, async (req, res) => {
-  const { ip, mesa, blocked, sensitive, limit, offset } = req.query;
-  const result = await sentinelForensics.listForensicLog({ ip, mesa, blocked, sensitive, limit, offset });
+  const { ip, mesa, blocked, sensitive, from, to, limit, offset } = req.query;
+  const result = await sentinelForensics.listForensicLog({ ip, mesa, blocked, sensitive, from, to, limit, offset });
   res.json(result);
 });
 
 /* GET /api/sentinel/forensic-log-human — mismo log en frases claras, sin jerga tecnica */
 app.get('/api/sentinel/forensic-log-human', auth, async (req, res) => {
-  const { ip, blocked, limit, offset } = req.query;
-  const result = await sentinelForensics.listForensicLogHuman({ ip, blocked, limit, offset });
+  const { ip, blocked, from, to, limit, offset } = req.query;
+  const result = await sentinelForensics.listForensicLogHuman({ ip, blocked, from, to, limit, offset });
   res.json(result);
+});
+
+/*
+ * GET /api/sentinel/forensic-log/export
+ * Informe descargable: traza completa de peticiones en un rango de fecha,
+ * util para demostrar a una empresa o auditor que pasó en un periodo concreto.
+ * Admin-only — datos forenses crudos.
+ */
+app.get('/api/sentinel/forensic-log/export', auth, async (req, res) => {
+  if (req.role !== 'admin') return res.status(403).json({ error: 'admin requerido' });
+  const { ip, mesa, blocked, sensitive, from, to } = req.query;
+  const result = await sentinelForensics.listForensicLog({ ip, mesa, blocked, sensitive, from, to, limit: 1000, offset: 0 });
+  res.json({
+    tipo:        'INFORME_TRAZA_SENTINEL',
+    generadoEn:  new Date().toISOString(),
+    generadoPor: req.user,
+    filtros:     { ip: ip || null, mesa: mesa || null, blocked: blocked ?? null, sensitive: sensitive ?? null, from: from || null, to: to || null },
+    total:       result.total,
+    events:      result.events,
+  });
 });
 
 /* GET /api/sentinel/verify-chain — Admin, valida integridad de la cadena de hashes */
@@ -1975,6 +2586,33 @@ app.post('/api/sentinel/block-ip', auth, async (req, res) => {
     label: `IP BLOQUEADA MANUALMENTE · ${ip} · por ${req.user}`, payload: { ip, reason }, user: req.user,
   });
   res.json(updated);
+});
+
+/* GET /api/sentinel/allowlist — IPs de confianza que Sentinel nunca bloquea */
+app.get('/api/sentinel/allowlist', auth, async (req, res) => {
+  const list = await sentinelForensics.listAllowlist();
+  res.json(list);
+});
+
+/* POST /api/sentinel/allowlist — Admin marca una IP como propia/de confianza, nunca mas se bloquea */
+app.post('/api/sentinel/allowlist', auth, async (req, res) => {
+  if (req.role !== 'admin') return res.status(403).json({ error: 'admin requerido' });
+  const { ip, label } = req.body || {};
+  if (!ip) return res.status(400).json({ error: 'ip requerida' });
+  const updated = await sentinelForensics.addToAllowlist(ip, label, req.user);
+  busEmit({
+    id: crypto.randomUUID(), ts: new Date().toISOString(), seq: busEvents.length + 1,
+    origin: 'SENTINEL', dest: 'ELVI-RA', type: 'event', state: 'APPROVED',
+    label: `IP MARCADA DE CONFIANZA · ${ip} · por ${req.user}`, payload: { ip, label }, user: req.user,
+  });
+  res.json(updated);
+});
+
+/* DELETE /api/sentinel/allowlist/:ip — Admin quita una IP de la lista de confianza */
+app.delete('/api/sentinel/allowlist/:ip', auth, async (req, res) => {
+  if (req.role !== 'admin') return res.status(403).json({ error: 'admin requerido' });
+  const result = await sentinelForensics.removeFromAllowlist(req.params.ip);
+  res.json(result);
 });
 
 /* GET /api/sentinel/review-queue — IPs pendientes/bloqueadas/permitidas */
@@ -2050,26 +2688,41 @@ const REE_IDS = {
   gen_total:      1,
 };
 
-async function fetchREE(endpoint, startDate, endDate, timeTrunc = 'hour') {
+async function fetchREEOnce(endpoint, startDate, endDate, timeTrunc, timeoutMs) {
   const { default: https } = await import('node:https');
   const url = new URL(`${REE_BASE}${endpoint}`);
   url.searchParams.set('start_date', `${startDate}T00:00`);
   url.searchParams.set('end_date',   `${endDate}T23:59`);
   url.searchParams.set('time_trunc', timeTrunc);
   return new Promise((resolve) => {
-    https.get(url.toString(), { headers: { 'Accept': 'application/json' } }, res => {
+    const req = https.get(url.toString(), { headers: { 'Accept': 'application/json' }, timeout: timeoutMs }, res => {
       let d = '';
       res.on('data', c => d += c);
       res.on('end', () => {
+        if (!d) { resolve({ ok: false, status: res.statusCode, data: null, error: 'empty body' }); return; }
         try {
           const json = JSON.parse(d);
           resolve({ ok: res.statusCode === 200, status: res.statusCode, data: json });
-        } catch {
-          resolve({ ok: false, status: res.statusCode, data: null });
+        } catch (e) {
+          resolve({ ok: false, status: res.statusCode, data: null, error: 'invalid JSON: ' + e.message });
         }
       });
-    }).on('error', e => resolve({ ok: false, status: 0, data: null, error: e.message }));
+      res.on('error', e => resolve({ ok: false, status: res.statusCode, data: null, error: e.message }));
+    });
+    req.on('timeout', () => req.destroy(new Error('timeout')));
+    req.on('error', e => resolve({ ok: false, status: 0, data: null, error: e.message }));
   });
+}
+
+// REE apidatos publico es intermitente: reintenta con backoff antes de rendirse
+async function fetchREE(endpoint, startDate, endDate, timeTrunc = 'hour', retries = 2) {
+  let last = null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    last = await fetchREEOnce(endpoint, startDate, endDate, timeTrunc, 12000);
+    if (last.ok && last.data) return last;
+    if (attempt < retries) await new Promise(r => setTimeout(r, 800 * (attempt + 1)));
+  }
+  return last;
 }
 
 // Extract series by REE numeric id from "included" array
@@ -2449,7 +3102,7 @@ app.get('/api/snfi-u2/historic', auth, async (req, res) => {
    Poller: cada 5 min REE apidatos → cache → SSE push
    ============================================================ */
 
-const LIVE_POLL_INTERVAL_MS = 5 * 60 * 1000;
+const LIVE_POLL_INTERVAL_MS = 69 * 1000; // 1.15 min
 const LIVE_HISTORY_MAX_DAYS = 7;
 
 const liveCache = new Map();
@@ -2651,6 +3304,7 @@ setInterval(pollGeneracion, LIVE_POLL_INTERVAL_MS);
 
 /* GET /api/snfi-u2/live */
 app.get('/api/snfi-u2/live', auth, async (req, res) => {
+  try {
   const today = new Date().toISOString().split('T')[0];
 
   if (!liveCache.has(today)) {
@@ -2721,24 +3375,34 @@ app.get('/api/snfi-u2/live', auth, async (req, res) => {
     fuente: 'apidatos.ree.es — Red Electrica de Espana (publico)',
     metodologia: 'Precio SPOT peninsular <= 1 EUR/MWh = energia desperdiciada. Exceso = 10% demanda real. PVPC tarifa regulada.',
   });
+  } catch (err) {
+    console.error('[snfi-u2/live] handler error:', err.message);
+    if (!res.headersSent) res.status(500).json({ error: 'Error interno consultando datos en vivo' });
+  }
 });
 
 /* GET /api/snfi-u2/generacion — mix generacion + demanda tiempo real */
 app.get('/api/snfi-u2/generacion', auth, async (req, res) => {
+  try {
   if (!generacionCache) await pollGeneracion();
   if (!generacionCache) return res.status(503).json({ error: 'Sin datos generacion aun, reintenta en 10s' });
   res.json({
     ...generacionCache,
     fuente: 'apidatos.ree.es — estructura-generacion + demanda-tiempo-real (publico)',
   });
+  } catch (err) {
+    console.error('[snfi-u2/generacion] handler error:', err.message);
+    if (!res.headersSent) res.status(500).json({ error: 'Error interno consultando generacion' });
+  }
 });
 
 /* GET /api/snfi-u2/renewables — alias hacia generacion (compatibilidad) */
 app.get('/api/snfi-u2/renewables', auth, async (req, res) => {
+  try {
   if (!generacionCache) await pollGeneracion();
   if (!generacionCache) return res.status(503).json({ error: 'Sin datos renovables aun, reintenta en 10s' });
 
-  const s = generacionCache.snapshot;
+  const s = generacionCache.snapshot || {};
   res.json({
     updatedAt: generacionCache.updatedAt,
     date: generacionCache.date,
@@ -2768,6 +3432,10 @@ app.get('/api/snfi-u2/renewables', auth, async (req, res) => {
     },
     fuente: 'apidatos.ree.es — publico',
   });
+  } catch (err) {
+    console.error('[snfi-u2/renewables] handler error:', err.message);
+    if (!res.headersSent) res.status(500).json({ error: 'Error interno consultando renovables' });
+  }
 });
 
 /* GET /api/snfi-u2/renewables-historic?from=2022&to=2026 */
@@ -3210,99 +3878,27 @@ app.get('/api/snfi-u2/esios-generation', auth, async (req, res) => {
 });
 
 /* ============================================================
-   S-NFI U2 · Calculos Energia Desperdiciada
-   Persistencia en DATA_DIR/u2_calculos.json
+   ELVI-RA · CENTRAL (Volumen 2)
+   Chat conocedor del sistema + acciones con consentimiento humano
+   + mock del puerto OPHS/Systems (/api/ophs/*)
    ============================================================ */
-const U2_CALC_FILE = path.join(DATA_DIR, 'u2_calculos.json');
-if (!fs.existsSync(U2_CALC_FILE)) fs.writeFileSync(U2_CALC_FILE, JSON.stringify([], null, 2));
-
-function readU2Calculos() {
-  try { return JSON.parse(fs.readFileSync(U2_CALC_FILE, 'utf8')); }
-  catch { return []; }
-}
-function writeU2Calculos(arr) {
-  atomicWriteJson(U2_CALC_FILE, arr);
-}
-
-// GET /api/u2/calculos — lista calculos guardados (auth)
-app.get('/api/u2/calculos', auth, (req, res) => {
-  const all = readU2Calculos();
-  res.json({ calculos: all });
-});
-
-// POST /api/u2/calculos — guarda un calculo certificado
-app.post('/api/u2/calculos', auth, (req, res) => {
-  const {
-    periodo,        // { from: 'YYYY-MM', to: 'YYYY-MM' }
-    metodologia,    // 'proxy_spot' | 'erni_esios'
-    gwh_desperdiciados,
-    gwh_renovable,
-    horas_precio_bajo,
-    pct_curtailment,
-    fuente,
-    notas,
-    // campos opcionales calculadora
-    mw_instalados,
-    horas_op_dia,
-    pct_eficiencia,
-    precio_local_eur_mwh,
-    // campos calculadora derivados
-    gwh_absorbibles_dia,
-    gwh_absorbibles_ano,
-    t_biopellet_estimadas,
-    ahorro_vs_gestion_externa,
-    score_bss,
-  } = req.body;
-
-  if (!periodo || gwh_desperdiciados == null) {
-    return res.status(400).json({ error: 'periodo y gwh_desperdiciados son requeridos' });
-  }
-
-  const id = crypto.randomUUID();
-  const entry = {
-    id,
-    usuario: req.user,
-    creadoAt: new Date().toISOString(),
-    periodo,
-    metodologia: metodologia || 'proxy_spot',
-    gwh_desperdiciados,
-    gwh_renovable: gwh_renovable ?? null,
-    horas_precio_bajo: horas_precio_bajo ?? null,
-    pct_curtailment: pct_curtailment ?? null,
-    fuente: fuente || 'apidatos.ree.es / api.esios.ree.es',
-    notas: notas || '',
-    calculadora: {
-      mw_instalados: mw_instalados ?? null,
-      horas_op_dia: horas_op_dia ?? null,
-      pct_eficiencia: pct_eficiencia ?? null,
-      precio_local_eur_mwh: precio_local_eur_mwh ?? null,
-      gwh_absorbibles_dia: gwh_absorbibles_dia ?? null,
-      gwh_absorbibles_ano: gwh_absorbibles_ano ?? null,
-      t_biopellet_estimadas: t_biopellet_estimadas ?? null,
-      ahorro_vs_gestion_externa: ahorro_vs_gestion_externa ?? null,
-      score_bss: score_bss ?? null,
-    },
-    hash: crypto.createHash('sha256').update(JSON.stringify({ periodo, gwh_desperdiciados, metodologia, fuente })).digest('hex').substring(0, 16),
-  };
-
-  const all = readU2Calculos();
-  all.unshift(entry);
-  writeU2Calculos(all);
-
-  busEmit({ type: 'u2-calculo', label: `U2 Calculo guardado · ${periodo?.from || '?'}-${periodo?.to || '?'} · ${gwh_desperdiciados} GWh`, user: req.user, at: entry.creadoAt });
-  res.json({ ok: true, calculo: entry });
-});
-
-// DELETE /api/u2/calculos/:id — borra un calculo
-app.delete('/api/u2/calculos/:id', auth, (req, res) => {
-  const { id } = req.params;
-  const all = readU2Calculos();
-  const idx = all.findIndex(c => c.id === id);
-  if (idx === -1) return res.status(404).json({ error: 'calculo no encontrado' });
-  const [removed] = all.splice(idx, 1);
-  writeU2Calculos(all);
-  busEmit({ type: 'u2-calculo-delete', label: `U2 Calculo eliminado · ${id}`, user: req.user, at: new Date().toISOString() });
-  res.json({ ok: true, removed });
+mountElviraCentral(app, {
+  auth, requireMesa, mongo, getMongoClient,
+  callLLM, trackTokens, busEmit, adminNotify,
+  SESSIONS, readElvira, cibe,
+  getU2Snapshot: () => {
+    const today = new Date().toISOString().split('T')[0];
+    const d = liveCache.get(today);
+    if (!d) return null;
+    return {
+      fecha: today,
+      exceso_gwh_hoy: d.exceso_gwh_hoy ?? null,
+      pct_horas_desperdiciadas: d.pct_horas_desperdiciadas ?? null,
+      precio_min_eur_mwh: d.precio_min_eur_mwh ?? null,
+      precio_max_eur_mwh: d.precio_max_eur_mwh ?? null,
+      actualizado: liveLastUpdated,
+    };
+  },
 });
 
 /* ---------- static frontend ---------- */
@@ -3320,7 +3916,7 @@ app.get('/', (req, res) => res.redirect('/pages/login.html'));
     const REFF_SERVER = path.join(REFF_DIST, 'server');
     const REFF_CLIENT = path.join(REFF_DIST, 'client');
 
-    // Load Rëff .env into process.env (ANTHROPIC_API_KEY, JWT_SECRET, DB_PATH)
+    // Load Rëff .env into process.env (ANTHROPIC_API_KEY, JWT_SECRET)
     const reffEnv = path.resolve(__dirname, '../../Elvi-Ra/Mesas/Rëff/.env');
     if (fs.existsSync(reffEnv)) {
       for (const line of fs.readFileSync(reffEnv, 'utf8').split(/\r?\n/)) {
@@ -3331,13 +3927,14 @@ app.get('/', (req, res) => res.redirect('/pages/login.html'));
       }
     }
 
-    // Always force DB_PATH to Rëff's own data folder, regardless of env
-    process.env.DB_PATH = path.join(REFF_DIST, '../data/snfi.db');
-
     const toFileUrl = (p) => 'file:///' + p.replace(/\\/g, '/');
 
+    // Rëff comparte el mismo MongoClient/pool que Elvi-Ra — un solo proceso, una sola conexión.
+    const { setMongoClient } = await import(toFileUrl(path.join(REFF_SERVER, 'mongo.js')));
+    await setMongoClient(getMongoClient());
+
     const { seedDatabase, getUserByUsername } = await import(toFileUrl(path.join(REFF_SERVER, 'db.js')));
-    seedDatabase();
+    await seedDatabase();
 
     const { signToken } = await import(toFileUrl(path.join(REFF_SERVER, 'auth.js')));
 
@@ -3346,6 +3943,8 @@ app.get('/', (req, res) => res.redirect('/pages/login.html'));
     const { default: reffCompaniesRoutes } = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'companies.routes.js')));
     const { default: reffGeoRoutes }       = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'geo.routes.js')));
     const { default: reffHerzogRoutes }    = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'herzog.routes.js')));
+    const { default: reffWatchRoutes }     = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'watch.routes.js')));
+    const { startWatchCron }               = await import(toFileUrl(path.join(REFF_SERVER, 'watch.js')));
 
     const reffHealth = (_req, res) => res.json({ status: 'ok', service: 'reff', env: process.env.NODE_ENV || 'development' });
 
@@ -3354,12 +3953,13 @@ app.get('/', (req, res) => res.redirect('/pages/login.html'));
       'mblanes@snficorp.com': 'marc',
       'nour@snficorp.com': 'nour',
       'ventures@snficorp.com': 'amir',
+      'gonzalo@snficorp.com': 'gonzalo',
     };
-    app.get('/reff/api/guest-token', (req, res) => {
+    app.get('/reff/api/guest-token', async (req, res) => {
       const elviraUser = req.headers['x-elvira-user'];
       const normalized = (typeof elviraUser === 'string' && elviraUser.trim()) ? elviraUser.trim().toLowerCase() : '';
       const username = ELVIRA_TO_REFF_USERNAME[normalized] || 'marc';
-      const userRow = getUserByUsername(username) || getUserByUsername('marc');
+      const userRow = (await getUserByUsername(username)) || (await getUserByUsername('marc'));
       if (!userRow) return res.status(500).json({ error: 'usuario no encontrado en DB de Rëff' });
       const token = signToken({ userId: userRow.id, username: userRow.username });
       res.json({
@@ -3379,15 +3979,26 @@ app.get('/', (req, res) => res.redirect('/pages/login.html'));
     app.use('/reff/api/crm',  reffCompaniesRoutes);
     app.use('/reff/api/geo',  reffGeoRoutes);
     app.use('/reff/api/herzog', reffHerzogRoutes);
+    app.use('/reff/api/watch', reffWatchRoutes);
 
     // Aliases at root /api so Rëff React client (built with base path "/") resolves correctly
     app.get('/api/guest-token', (_req, res) => res.redirect('/reff/api/guest-token'));
+    app.get('/api/health', (_req, res) => res.json({
+      status: 'ok',
+      service: 'elvira',
+      nodeEnv: process.env.NODE_ENV || 'development',
+      uptimeSec: Math.floor(process.uptime()),
+      mongoConfigured: Boolean(process.env.MONGO_URI),
+    }));
     app.get('/api/reff-health', reffHealth);
     app.use('/api/auth',   reffAuthRoutes);
     app.use('/api/crm',    reffSheetsRoutes);
     app.use('/api/crm',    reffCompaniesRoutes);
     app.use('/api/geo',    reffGeoRoutes);
     app.use('/api/herzog', reffHerzogRoutes);
+    app.use('/api/watch',  reffWatchRoutes);
+
+    startWatchCron();
 
     // Serve Rëff React client — assets built with base "/" so /assets/* must be mirrored
     if (fs.existsSync(REFF_CLIENT)) {
@@ -3424,8 +4035,18 @@ app.get('/', (req, res) => res.redirect('/pages/login.html'));
   }
 })();
 
+/* Error handler global — última red. Cualquier excepción no atrapada en una ruta
+   cae aquí; se notifica al Admin además de responder 500 al cliente. */
+app.use((err, req, res, _next) => {
+  console.error('[unhandled route error]', err);
+  adminNotify({ origin: 'SYSTEM', label: `Error no controlado · ${req.method} ${req.path}`, detail: err?.stack || err?.message || String(err), severity: 'error' });
+  if (res.headersSent) return;
+  res.status(500).json({ error: 'Error interno del servidor' });
+});
+
 const PORT = process.env.PORT || 5173;
-app.listen(PORT, () => console.log(`Elvi-Ra running → http://localhost:${PORT}`));
+const HOST = process.env.HOST || '0.0.0.0';
+app.listen(PORT, HOST, () => console.log(`Elvi-Ra running → http://0.0.0.0:${PORT}`));
 
 const TWIN_PORT = process.env.TWIN_PORT || 5174;
 const TWIN_TOKEN = process.env.TWIN_TOKEN;

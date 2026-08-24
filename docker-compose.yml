@@ -7,15 +7,39 @@ version: "3.9"
 # Variables de entorno requeridas (panel Coolify o archivo .env):
 #   ANTHROPIC_API_KEY   — sk-ant-... (obligatorio si LLM_PROVIDER=anthropic)
 #   JWT_SECRET          — openssl rand -hex 32  (obligatorio)
+#   SEED_*_PASSWORD     — SEED_MARC/NOUR/RAY/AMIR/GONZALO_PASSWORD (obligatorio en
+#                         PRIMER arranque con volumen elvira-data vacío; sin ellas
+#                         no se crea ningún usuario y no hay login posible)
+#   REFF_SEED_*_PASSWORD— REFF_SEED_MARC/NOUR/AMIR/GONZALO_PASSWORD (idem, usuarios Rëff)
 #   ESIOS_API_KEY       — token ESIOS/REE (opcional, activa endpoints curtailment)
+#   SERPAPI_KEY         — búsqueda web Rëff (opcional)
 #   CORS_ORIGIN         — dominio(s) permitido(s), coma-separados (obligatorio en producción)
 #   NODE_ENV            — production
 #   LLM_PROVIDER        — "anthropic" | "ollama"  (default: anthropic)
 #   OLLAMA_MODEL        — "llama3:70b" | "mistral:7b" (solo si LLM_PROVIDER=ollama)
 #   ANTHROPIC_MODEL     — claude-haiku-4-5-20251001 (optional override)
+#   FOUNDRY_INGRESS_PORT      — puerto dedicado del Ingress Gateway Data Foundry
+#                               (opcional; sin definir, ingesta embebida en /api/foundry/ingress)
+#   FOUNDRY_NODE_SECRET       — secreto HMAC global de nodos (opcional; sin definir,
+#                               solo aceptan nodos registrados con secreto propio)
+#   FOUNDRY_LATENCY_BUDGET_MS — presupuesto de latencia pipeline (default 250)
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
+
+  mongo:
+    image: mongo:7.0
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: elvira
+    volumes:
+      - mongo-data:/data/db
+    expose:
+      - "27017"
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval 'db.adminCommand(\"ping\")' >/dev/null 2>&1 || exit 1"]
+    networks:
+      - elvira-net
 
   # ── Ollama · Motor LLM local (opcional) ────────────────────────────────────
   ollama:
@@ -43,35 +67,70 @@ services:
       dockerfile: app/Dockerfile
     restart: unless-stopped
     depends_on:
-      - ollama
+      mongo:
+        condition: service_healthy
+      ollama:
+        condition: service_started
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: 5173
+      HOST: ${HOST:-0.0.0.0}
+      MONGO_URI: ${MONGO_URI:-mongodb://mongo:27017/elvira}
       LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
       OLLAMA_URL: http://ollama:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3:70b}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-haiku-4-5-20251001}
       ESIOS_API_KEY: ${ESIOS_API_KEY:-}
+      SERPAPI_KEY: ${SERPAPI_KEY:-}
       JWT_SECRET: ${JWT_SECRET:-}
       CORS_ORIGIN: ${CORS_ORIGIN:-}
+      # Seed de usuarios (solo primer arranque con datos vacíos)
+      SEED_MARC_PASSWORD: ${SEED_MARC_PASSWORD:-}
+      SEED_NOUR_PASSWORD: ${SEED_NOUR_PASSWORD:-}
+      SEED_RAY_PASSWORD: ${SEED_RAY_PASSWORD:-}
+      SEED_AMIR_PASSWORD: ${SEED_AMIR_PASSWORD:-}
+      SEED_GONZALO_PASSWORD: ${SEED_GONZALO_PASSWORD:-}
+      REFF_SEED_MARC_PASSWORD: ${REFF_SEED_MARC_PASSWORD:-}
+      REFF_SEED_NOUR_PASSWORD: ${REFF_SEED_NOUR_PASSWORD:-}
+      REFF_SEED_AMIR_PASSWORD: ${REFF_SEED_AMIR_PASSWORD:-}
+      REFF_SEED_GONZALO_PASSWORD: ${REFF_SEED_GONZALO_PASSWORD:-}
+      # Sentinel / Volumen 3 (opcionales; defaults seguros en código)
+      SENTINEL_FORENSIC_SECRET: ${SENTINEL_FORENSIC_SECRET:-}
+      SYSTEMS_URL: ${SYSTEMS_URL:-}
+      SYSTEMS_TOKEN: ${SYSTEMS_TOKEN:-}
+      TWIN_TOKEN: ${TWIN_TOKEN:-}
+      CIBE_MODE: ${CIBE_MODE:-auto}
+      RACK_ID: ${RACK_ID:-}
+      RACK_PEERS: ${RACK_PEERS:-}
+      RACK_SHARED_KEY: ${RACK_SHARED_KEY:-}
       # Puerto interno reservado para Twin Elvi-Ra <-> S-NFI Systems.
       # ENABLE_TWIN_PORT=true lo activa, pero NO se expone en "ports" abajo
       # — solo accesible dentro de elvira-net hasta que el Twin exista.
       ENABLE_TWIN_PORT: ${ENABLE_TWIN_PORT:-false}
       TWIN_PORT: 5174
+      # Data Foundry · Ingress Gateway dedicado (endpoint privado, puerto cerrado).
+      # Se expone solo dentro de elvira-net; para hardware externo, mapear el
+      # puerto en "ports" y cerrarlo por UFW a la red del nodo.
+      FOUNDRY_INGRESS_PORT: ${FOUNDRY_INGRESS_PORT:-}
+      FOUNDRY_NODE_SECRET: ${FOUNDRY_NODE_SECRET:-}
+      FOUNDRY_LATENCY_BUDGET_MS: ${FOUNDRY_LATENCY_BUDGET_MS:-250}
     volumes:
       - elvira-data:/app/backend/data
     ports:
       - "5173:5173"
     expose:
       - "5174"
+      - "5175"   # FOUNDRY_INGRESS_PORT recomendado: 5175 (interno hasta autorizar hardware)
     networks:
       - elvira-net
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:5173/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"" ]
 
 volumes:
   ollama-models:
   elvira-data:
+  mongo-data:
 
 networks:
   elvira-net:

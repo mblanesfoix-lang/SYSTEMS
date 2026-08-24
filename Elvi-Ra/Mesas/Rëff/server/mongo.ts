@@ -28,6 +28,9 @@ async function ensureIndexes(): Promise<void> {
   await reffDb.collection('companies').createIndex({ sheet_id: 1 });
   await reffDb.collection('companies').createIndex({ city: 1, country: 1 });
   await reffDb.collection('herzog_audits').createIndex({ user_id: 1 });
+  await reffDb.collection('watch_companies').createIndex({ active: 1 });
+  await reffDb.collection('watch_news').createIndex({ company_id: 1, detected_at: -1 });
+  await reffDb.collection('watch_news').createIndex({ dedupe_hash: 1 }, { unique: true });
 }
 
 // Emula AUTOINCREMENT de SQLite vía contador atómico.

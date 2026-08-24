@@ -74,10 +74,8 @@ export function CompanyTable({ companies, onEdit }: Props) {
 
 const thStyle: CSSProperties = {
   padding: '10px 16px',
-  fontSize: 11,
+  fontSize: 12,
   fontWeight: 600,
-  textTransform: 'uppercase',
-  letterSpacing: '0.06em',
   color: 'var(--text-muted)',
 };
 

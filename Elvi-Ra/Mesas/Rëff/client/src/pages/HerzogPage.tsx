@@ -11,7 +11,7 @@ const SCORE_LABELS: Record<keyof HerzogResult['scores'], string> = {
 };
 
 const CLASSIFICATION_META: Record<HerzogResult['classification'], { label: string; color: string }> = {
-  ESTRATEGICO: { label: 'Estratégico', color: '#00a878' },
+  ESTRATEGICO: { label: 'Estratégico', color: '#1fa855' },
   OPERATIVO: { label: 'Operativo', color: '#0071e3' },
   NO_CANDIDATO: { label: 'No candidato', color: '#b3322c' },
 };
@@ -32,7 +32,7 @@ function ResultCard({ result }: { result: HerzogResult }) {
         {(Object.keys(result.scores) as Array<keyof HerzogResult['scores']>).map((key) => (
           <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 18, fontWeight: 700 }}>{result.scores[key]}</div>
-            <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'center' }}>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
               {key} · {SCORE_LABELS[key]}
             </div>
           </div>
@@ -43,7 +43,7 @@ function ResultCard({ result }: { result: HerzogResult }) {
 
       {result.highlights?.length > 0 && (
         <div>
-          <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: 6 }}>Puntos clave</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>Puntos clave</div>
           <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
             {result.highlights.map((h, i) => <li key={i}>{h}</li>)}
           </ul>
@@ -52,7 +52,7 @@ function ResultCard({ result }: { result: HerzogResult }) {
 
       {result.risks?.length > 0 && (
         <div>
-          <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: 6 }}>Riesgos</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>Riesgos</div>
           <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
             {result.risks.map((r, i) => <li key={i}>{r}</li>)}
           </ul>
@@ -69,6 +69,7 @@ export function HerzogPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<HerzogAudit[]>([]);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   useEffect(() => {
     fetchHerzogHistory().then(({ audits }) => setHistory(audits)).catch(() => {});
@@ -140,19 +141,37 @@ export function HerzogPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {history.map((audit) => {
               const meta = CLASSIFICATION_META[audit.result.classification];
+              const isOpen = expandedId === audit.id;
               return (
-                <div key={audit.id} className="card" style={{ padding: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: meta.color }} />
-                    <span style={{ fontWeight: 600, fontSize: 13 }}>{audit.companyName}</span>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{meta.label}</span>
+                <div key={audit.id} className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                  <div
+                    onClick={() => setExpandedId(isOpen ? null : audit.id)}
+                    style={{ padding: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: meta.color }} />
+                      <span style={{ fontWeight: 600, fontSize: 13 }}>{audit.companyName}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{meta.label}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700 }}>{audit.result.overall}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        {new Date(audit.createdAt).toLocaleDateString('es-ES')}
+                      </span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{isOpen ? '▲' : '▼'}</span>
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700 }}>{audit.result.overall}</span>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                      {new Date(audit.createdAt).toLocaleDateString('es-ES')}
-                    </span>
-                  </div>
+                  {isOpen && (
+                    <div style={{ padding: '0 12px 16px', display: 'flex', flexDirection: 'column', gap: 12, borderTop: '1px solid var(--border-color, rgba(0,0,0,0.08))' }}>
+                      <div style={{ marginTop: 12 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>
+                          Información sustraída
+                        </div>
+                        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{audit.inputText}</p>
+                      </div>
+                      <ResultCard result={audit.result} />
+                    </div>
+                  )}
                 </div>
               );
             })}

@@ -28,6 +28,22 @@ export function clearSession(): void {
   localStorage.removeItem(USER_KEY);
 }
 
+// Pide un JWT de Rëff a partir de la sesión activa de Elvi-Ra (mismo origen,
+// mismo localStorage). Sin esto, App.tsx nunca tiene user/token y se queda
+// en el spinner o referencia un userId obsoleto.
+export async function fetchGuestToken(): Promise<{ token: string; user: User } | null> {
+  const elviraUser = localStorage.getItem('elvira_user') || '';
+  const res = await fetch(`${API_URL}/api/guest-token`, {
+    headers: elviraUser ? { 'x-elvira-user': elviraUser } : {},
+  });
+  if (!res.ok) return null;
+  const data = await res.json().catch(() => null);
+  if (!data?.token || !data?.user) return null;
+  localStorage.setItem(TOKEN_KEY, data.token);
+  localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+  return data;
+}
+
 // Cierra también la sesión de Elvi-Ra (mismo localStorage, mismo origen) para que
 // el logout desde Rëff cierre sesión en toda la plataforma.
 export function clearElviraSession(): void {
@@ -148,6 +164,52 @@ export async function deleteCompany(id: number) {
   return request<{ ok: true }>(`/api/crm/companies/${id}`, { method: 'DELETE' });
 }
 
+/* ---------- imágenes por empresa ---------- */
+
+export interface CompanyImage {
+  id: string;
+  filename: string;
+  contentType: string;
+  size: number;
+  uploadedAt: string | null;
+}
+
+export async function fetchCompanyImages(companyId: number) {
+  return request<{ images: CompanyImage[] }>(`/api/crm/companies/${companyId}/images`);
+}
+
+// Subida raw (sin multipart): el body es el File directamente.
+export async function uploadCompanyImage(companyId: number, file: File) {
+  const headers = new Headers();
+  headers.set('Content-Type', file.type);
+  headers.set('X-Filename', encodeURIComponent(file.name));
+  const token = getToken();
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  const res = await fetch(`${API_URL}/api/crm/companies/${companyId}/images`, {
+    method: 'POST',
+    body: file,
+    headers,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as any).error || `Error HTTP ${res.status}`);
+  return data as { image: CompanyImage };
+}
+
+export async function deleteCompanyImage(imageId: string) {
+  return request<{ ok: true }>(`/api/crm/images/${imageId}`, { method: 'DELETE' });
+}
+
+// Las imágenes exigen Authorization, así que un <img src> directo no sirve:
+// se baja el blob autenticado y se sirve como object URL (revocar al desmontar).
+export async function fetchImageObjectUrl(imageId: string): Promise<string> {
+  const headers = new Headers();
+  const token = getToken();
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  const res = await fetch(`${API_URL}/api/crm/images/${imageId}`, { headers });
+  if (!res.ok) throw new Error('No se pudo cargar la imagen');
+  return URL.createObjectURL(await res.blob());
+}
+
 export async function addCompanyTask(companyId: number, title: string, dueDate?: string | null) {
   return request<{ task: CompanyTask }>(`/api/crm/companies/${companyId}/tasks`, {
     method: 'POST',
@@ -222,4 +284,70 @@ export interface HerzogAudit {
 
 export async function fetchHerzogHistory() {
   return request<{ audits: HerzogAudit[] }>('/api/herzog/history');
+}
+
+/* ---------- Vigilancia (watch) ---------- */
+
+export type WatchCategory = 'residuos_inversion' | 'asociaciones' | 'novedades';
+
+export interface WatchCompany {
+  id: number;
+  name: string;
+  sector: string | null;
+  country: string | null;
+  active: boolean;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface WatchNews {
+  id: number;
+  companyId: number;
+  category: WatchCategory;
+  headline: string;
+  summary: string;
+  url: string | null;
+  sourceDate: string | null;
+  detectedAt: string;
+}
+
+export async function fetchWatchCompanies() {
+  return request<{ companies: WatchCompany[] }>('/api/watch/companies');
+}
+
+export async function createWatchCompany(input: { name: string; sector?: string | null; country?: string | null }) {
+  return request<{ company: WatchCompany }>('/api/watch/companies', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateWatchCompany(id: number, input: Partial<{ name: string; sector: string | null; country: string | null; active: boolean }>) {
+  return request<{ company: WatchCompany }>(`/api/watch/companies/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteWatchCompany(id: number) {
+  return request<{ ok: true }>(`/api/watch/companies/${id}`, { method: 'DELETE' });
+}
+
+export async function fetchWatchNews(filters?: { companyId?: number; category?: WatchCategory }) {
+  const params = new URLSearchParams();
+  if (filters?.companyId !== undefined) params.set('companyId', String(filters.companyId));
+  if (filters?.category) params.set('category', filters.category);
+  const qs = params.toString();
+  return request<{ news: WatchNews[] }>(`/api/watch/news${qs ? `?${qs}` : ''}`);
+}
+
+export async function deleteWatchNews(id: number) {
+  return request<{ ok: true }>(`/api/watch/news/${id}`, { method: 'DELETE' });
+}
+
+export async function runWatchNow(companyId?: number) {
+  return request<{ ok: true; message: string }>('/api/watch/run', {
+    method: 'POST',
+    body: JSON.stringify(companyId !== undefined ? { companyId } : {}),
+  });
 }

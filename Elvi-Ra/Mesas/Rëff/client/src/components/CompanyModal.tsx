@@ -4,6 +4,7 @@ import {
   type Company, type CompanyInput, type CompanyStatus, type CityOption,
 } from '../lib/api';
 import { STATUS_META, STATUS_OPTIONS } from '../lib/status';
+import { CompanyImages } from './CompanyImages';
 
 interface Props {
   company: Company | null;
@@ -187,6 +188,8 @@ export function CompanyModal({ company, onClose, onSave, onDelete }: Props) {
             </div>
           </div>
         )}
+
+        {company && <CompanyImages companyId={company.id} />}
 
         {error && <div style={{ color: '#b3322c', fontSize: 12 }}>{error}</div>}
 

@@ -7,7 +7,7 @@ Plataforma de inteligencia agentica de **S-NFI Corp.** Cada usuario accede unica
 - **Frontend:** React + Vite + TypeScript + Tailwind CSS
 - **Backend:** Node.js + Express + TypeScript
 - **Auth:** JWT + bcrypt (8h de expiracion)
-- **Storage:** SQLite (`better-sqlite3`)
+- **Storage:** MongoDB (driver oficial `mongodb`, db `reff`; pool compartido con Elvi-Ra en modo integrado)
 - **IA:** Anthropic SDK (`@anthropic-ai/sdk`) con `ANTHROPIC_MODEL` configurable. Valor por defecto: `claude-haiku-4-5-20251001`
 - **Streaming:** Server-Sent Events (SSE)
 

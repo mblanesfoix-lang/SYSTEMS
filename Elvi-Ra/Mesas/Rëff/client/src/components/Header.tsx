@@ -46,13 +46,10 @@ export function HeaderComponent({ user, activeAgent }: HeaderProps) {
         display: 'flex',
         alignItems: 'center',
         gap: 8,
-        fontFamily: "'IBM Plex Mono', ui-monospace, monospace",
-        fontSize: '0.72rem',
+        fontSize: '0.8rem',
         color: '#5a6170',
-        letterSpacing: '0.08em',
-        textTransform: 'uppercase',
       }}>
-        <span>MESA</span>
+        <span>Mesa</span>
         <span style={{ opacity: 0.35 }}>/</span>
         <span style={{ color: '#0e1116', fontWeight: 600 }}>RËFF</span>
         {activeAgent && (
@@ -66,10 +63,8 @@ export function HeaderComponent({ user, activeAgent }: HeaderProps) {
       {/* Controls */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
         <span style={{
-          fontFamily: "'IBM Plex Mono', ui-monospace, monospace",
-          fontSize: '0.72rem',
+          fontSize: '0.8rem',
           color: '#5a6170',
-          letterSpacing: '0.06em',
         }}>
           {user.displayName}
         </span>

@@ -1,0 +1,618 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SYSTEMS · OPHS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
+  <style>
+    html, body { height: 100%; margin: 0; overflow: hidden; }
+    .op-layout {
+      display: flex; flex-direction: column; height: 100vh;
+      background:
+        radial-gradient(ellipse 80% 60% at 60% 40%, rgba(0,113,227,0.06) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 80% at 85% 90%, rgba(0,145,179,0.04) 0%, transparent 55%),
+        linear-gradient(180deg, var(--bg-elevated) 0%, var(--bg-void) 100%);
+    }
+    .op-nav {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 32px; height: 52px; min-height: 52px;
+      background: rgba(246,247,249,0.78);
+      backdrop-filter: saturate(140%) blur(18px);
+      -webkit-backdrop-filter: saturate(140%) blur(18px);
+      border-bottom: 1px solid var(--border);
+      position: relative; z-index: 10;
+    }
+    .op-nav .brand {
+      display: flex; align-items: center; gap: 10px;
+      font-family: var(--font-display); font-size: 1rem; font-weight: 700;
+      letter-spacing: -0.01em; color: var(--text-primary); cursor: pointer;
+    }
+    .op-nav .brand .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--accent-green); box-shadow: 0 0 12px var(--accent-green);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    .op-nav .breadcrumb {
+      display: flex; align-items: center; gap: 8px;
+      font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted);
+      letter-spacing: 0.02em;
+    }
+    .op-nav .breadcrumb .active { color: var(--text-primary); font-weight: 600; }
+    .op-nav .breadcrumb a { color: inherit; text-decoration: none; }
+    .op-nav .breadcrumb a:hover { color: var(--text-primary); }
+    .op-nav .controls { display: flex; align-items: center; gap: 14px; }
+    .op-nav .controls .mono { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); }
+    /* Tabs */
+    .op-tabs {
+      display: flex; gap: 4px; padding: 10px 32px 0;
+      border-bottom: 1px solid var(--border);
+      background: rgba(246,247,249,0.5);
+    }
+    .op-tab {
+      font-family: var(--font-mono); font-size: 0.74rem; letter-spacing: 0.02em;
+      padding: 10px 18px 12px;
+      border: none; background: none; cursor: pointer;
+      color: var(--text-muted); border-bottom: 2px solid transparent;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .op-tab:hover { color: var(--text-primary); }
+    .op-tab.active { color: var(--text-primary); border-bottom-color: var(--accent-blue); font-weight: 600; }
+    .op-doctrine {
+      font-family: var(--font-mono); font-size: 0.64rem; letter-spacing: 0.02em;
+      color: var(--text-muted); opacity: 0.75;
+      margin-left: auto; align-self: center; padding-bottom: 4px;
+    }
+    .op-body { flex: 1; min-height: 0; position: relative; display: flex; }
+
+    /* ============ COCKPIT (OPS + PAIA + Herzog + Sentinel) ============ */
+    .cockpit-wrap { flex: 1; overflow-y: auto; padding: 24px 32px; }
+    .cockpit-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
+    .cockpit-kpi { border: 1px solid var(--border); border-radius: var(--radius); background: #fff; padding: 14px 16px; }
+    .cockpit-kpi .kicker { display: block; margin-bottom: 8px; }
+    .cockpit-kpi .ck-main { font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; color: var(--text-primary); }
+    .cockpit-kpi .ck-sub { font-family: var(--font-mono); font-size: 0.66rem; color: var(--text-muted); margin-top: 4px; }
+    .cockpit-kpi.warn .ck-main { color: #d99a06; }
+    .cockpit-kpi.crit .ck-main { color: #d80300; }
+    .cockpit-cols { display: flex; gap: 20px; align-items: flex-start; }
+    .cockpit-col { flex: 1; min-width: 0; }
+    .cockpit-col h3 { font-family: var(--font-display); font-size: 0.92rem; margin: 0 0 10px; color: var(--text-primary); }
+    .ops-node-row {
+      border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff;
+      padding: 10px 12px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s;
+    }
+    .ops-node-row:hover { border-color: var(--accent-blue); }
+    .ops-node-row.selected { border-color: var(--accent-blue); background: rgba(0,113,227,0.05); }
+    .ops-node-row .onr-head { display: flex; align-items: center; justify-content: space-between; }
+    .ops-node-row .onr-name { font-size: 0.82rem; font-weight: 600; color: var(--text-primary); }
+    .ops-node-row .onr-state { font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.02em; padding: 2px 8px; border-radius: var(--radius-pill); }
+    .onr-state.nominal { background: rgba(0,168,120,0.12); color: var(--accent-green); }
+    .onr-state.degradado { background: rgba(217,154,6,0.15); color: #a87605; }
+    .onr-state.parada { background: rgba(216,3,0,0.12); color: #d80300; }
+    .onr-state.mantenimiento { background: rgba(0,152,199,0.12); color: #0098c7; }
+    .ops-readings { display: flex; gap: 10px; margin-top: 12px; }
+    .ops-readings input {
+      width: 90px; padding: 7px 9px; border: 1px solid var(--border-mid); border-radius: var(--radius-sm);
+      font-family: var(--font-mono); font-size: 0.72rem; box-sizing: border-box;
+    }
+    .cockpit-btn {
+      font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.02em;
+      padding: 8px 14px; background: var(--accent-blue); color: #fff;
+      border: none; border-radius: var(--radius-sm); cursor: pointer;
+    }
+    .cockpit-btn:disabled { opacity: 0.5; cursor: default; }
+    .cockpit-btn--ghost { background: none; border: 1px solid var(--border-mid); color: var(--text-muted); }
+    .paia-findings { margin-top: 12px; }
+    .paia-finding { border-left: 2px solid #d99a06; padding: 6px 10px; margin-bottom: 6px; font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-primary); }
+    .paia-insight { margin-top: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: rgba(246,247,249,0.6); font-size: 0.82rem; line-height: 1.55; color: var(--text-primary); }
+    .cockpit-empty { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); padding: 10px 0; }
+
+    /* ============ GRID INTERLINK (Volumen 3) ============ */
+    .grid-wrap { flex: 1; overflow-y: auto; padding: 24px 32px; }
+    .grid-doctrine {
+      font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-muted);
+      border: 1px solid var(--border); border-left: 3px solid var(--accent-blue);
+      border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 20px; line-height: 1.6;
+      background: rgba(246,247,249,0.6);
+    }
+    .grid-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 16px; }
+    .grid-card { border: 1px solid var(--border); border-radius: var(--radius); background: #fff; padding: 16px 18px; }
+    .grid-card .gc-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .grid-card .gc-country { font-family: var(--font-display); font-size: 1.05rem; font-weight: 700; color: var(--text-primary); }
+    .grid-card .gc-tso { font-family: var(--font-mono); font-size: 0.62rem; color: var(--text-muted); letter-spacing: 0.02em; }
+    .gc-state { font-family: var(--font-mono); font-size: 0.58rem; letter-spacing: 0.02em; padding: 3px 9px; border-radius: var(--radius-pill); white-space: nowrap; }
+    .gc-state.activo { background: rgba(0,168,120,0.12); color: var(--accent-green); }
+    .gc-state.caido { background: rgba(216,3,0,0.12); color: #d80300; }
+    .gc-state.congelado { background: rgba(217,154,6,0.15); color: #a87605; }
+    .gc-state.parado { background: rgba(120,120,130,0.14); color: #6a6a72; }
+    .grid-card .gc-freq { font-family: var(--font-display); font-size: 1.9rem; font-weight: 800; letter-spacing: -0.03em; color: var(--text-primary); }
+    .grid-card .gc-freq.alerta { color: #a87605; }
+    .grid-card .gc-freq.critico { color: #d80300; }
+    .grid-card .gc-freq small { font-size: 0.8rem; font-weight: 500; color: var(--text-muted); }
+    .grid-card .gc-rows { font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-muted); margin: 10px 0 12px; line-height: 1.7; }
+    .grid-card .gc-rows b { color: var(--text-primary); font-weight: 600; }
+    .grid-card .gc-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+  <div class="op-layout">
+    <div class="op-nav">
+      <div class="brand" id="brandLogo"><div class="dot"></div> SYSTEMS</div>
+      <div class="breadcrumb">
+        <a href="/pages/dashboard.html">Systems</a><span class="sep">/</span><span class="active">OPHS</span>
+      </div>
+      <div class="controls">
+        <span class="mono" id="userTag"></span>
+        <button class="btn btn--ghost" id="backBtn" style="font-size:0.72rem;padding:0 14px;height:32px;">&lt; Dashboard</button>
+        <button class="btn btn--ghost" id="logoutBtn" style="font-size:0.72rem;padding:0 14px;height:32px;">logout</button>
+      </div>
+    </div>
+
+    <div class="op-tabs">
+      <button class="op-tab active" data-tab="cockpit">Cockpit</button>
+      <button class="op-tab" data-tab="grid">Grid Interlink</button>
+      <span class="op-doctrine">Consola Soberana · OPS + PAIA + Herzog + Sentinel</span>
+    </div>
+
+    <div class="op-body">
+      <!-- ============ COCKPIT (OPS + PAIA + Herzog + Sentinel) ============ -->
+      <div class="cockpit-wrap" id="panelCockpit">
+          <div class="cockpit-kpis" id="cockpitKpis">
+            <div class="cockpit-kpi"><span class="kicker">OPS · nodos</span><div class="ck-main">—</div><div class="ck-sub">cargando…</div></div>
+            <div class="cockpit-kpi"><span class="kicker">OPS · breaches 1h</span><div class="ck-main">—</div><div class="ck-sub"></div></div>
+            <div class="cockpit-kpi"><span class="kicker">PAIA · análisis 24h</span><div class="ck-main">—</div><div class="ck-sub"></div></div>
+            <div class="cockpit-kpi"><span class="kicker">Sentinel · cola revisión</span><div class="ck-main">—</div><div class="ck-sub"></div></div>
+          </div>
+
+          <div class="cockpit-cols">
+            <div class="cockpit-col" style="max-width:340px;">
+              <h3>OPS · nodos monitorizados</h3>
+              <div id="opsNodeList" class="cockpit-empty">Cargando nodos…</div>
+              <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--border);">
+                <span class="kicker" style="display:block; margin-bottom:8px;">Registrar nodo nuevo</span>
+                <input id="newNodeId" placeholder="ID (ej. BCN-1234)" style="width:100%; padding:8px 10px; margin-bottom:6px; border:1px solid var(--border-mid); border-radius:var(--radius-sm); font-family:var(--font-mono); font-size:0.72rem; box-sizing:border-box;">
+                <input id="newNodeLabel" placeholder="Nombre (opcional)" style="width:100%; padding:8px 10px; margin-bottom:6px; border:1px solid var(--border-mid); border-radius:var(--radius-sm); font-family:var(--font-mono); font-size:0.72rem; box-sizing:border-box;">
+                <div style="display:flex; gap:6px; margin-bottom:8px;">
+                  <input id="newNodeLat" placeholder="lat (opcional)" type="number" step="0.0001" style="flex:1; min-width:0; padding:8px 10px; border:1px solid var(--border-mid); border-radius:var(--radius-sm); font-family:var(--font-mono); font-size:0.72rem; box-sizing:border-box;">
+                  <input id="newNodeLng" placeholder="lng (opcional)" type="number" step="0.0001" style="flex:1; min-width:0; padding:8px 10px; border:1px solid var(--border-mid); border-radius:var(--radius-sm); font-family:var(--font-mono); font-size:0.72rem; box-sizing:border-box;">
+                </div>
+                <button class="cockpit-btn cockpit-btn--ghost" id="addNodeBtn" style="width:100%;">Registrar</button>
+                <p class="cockpit-empty" style="padding:6px 0 0; font-size:0.62rem;">Lat/lng opcional, para georreferenciar el nodo.</p>
+              </div>
+            </div>
+
+            <div class="cockpit-col">
+              <h3 id="opsDetailTitle">OPS · telemetría</h3>
+              <div id="opsDetailEmpty" class="cockpit-empty">Selecciona un nodo para ver lecturas y análisis PAIA.</div>
+              <div id="opsDetail" hidden>
+                <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
+                  <div style="flex:1; min-width:140px;">
+                    <label style="display:block; font-family:var(--font-mono); font-size:0.62rem; color:var(--text-muted); margin-bottom:4px;">Nombre</label>
+                    <input id="editNodeLabel" style="width:100%; padding:7px 9px; border:1px solid var(--border-mid); border-radius:var(--radius-sm); font-family:var(--font-mono); font-size:0.72rem; box-sizing:border-box;">
+                  </div>
+                  <div style="width:100px;">
+                    <label style="display:block; font-family:var(--font-mono); font-size:0.62rem; color:var(--text-muted); margin-bottom:4px;">Lat</label>
+                    <input id="editNodeLat" type="number" step="0.0001" style="width:100%; padding:7px 9px; border:1px solid var(--border-mid); border-radius:var(--radius-sm); font-family:var(--font-mono); font-size:0.72rem; box-sizing:border-box;">
+                  </div>
+                  <div style="width:100px;">
+                    <label style="display:block; font-family:var(--font-mono); font-size:0.62rem; color:var(--text-muted); margin-bottom:4px;">Lng</label>
+                    <input id="editNodeLng" type="number" step="0.0001" style="width:100%; padding:7px 9px; border:1px solid var(--border-mid); border-radius:var(--radius-sm); font-family:var(--font-mono); font-size:0.72rem; box-sizing:border-box;">
+                  </div>
+                  <button class="cockpit-btn cockpit-btn--ghost" id="saveNodeBtn">Guardar</button>
+                  <button class="cockpit-btn" id="deleteNodeBtn" style="background:#d80300;">Eliminar nodo</button>
+                </div>
+                <div id="editNodeMsg" class="cockpit-empty" style="margin-top:6px;"></div>
+
+                <div class="ops-readings" style="margin-top:16px;">
+                  <input id="rdPressure" placeholder="bar" type="number" step="0.1">
+                  <input id="rdFlow" placeholder="l/min" type="number" step="0.1">
+                  <input id="rdTemp" placeholder="°C" type="number" step="0.1">
+                  <input id="rdRpm" placeholder="rpm" type="number" step="1">
+                  <button class="cockpit-btn" id="submitReadingBtn">Registrar lectura</button>
+                </div>
+                <div id="lastReadings" class="cockpit-empty" style="margin-top:10px;"></div>
+
+                <h3 style="margin-top:22px;">PAIA · análisis predictivo</h3>
+                <div style="display:flex; gap:8px;">
+                  <button class="cockpit-btn cockpit-btn--ghost" id="analyzeBtn">Analizar telemetría</button>
+                  <button class="cockpit-btn cockpit-btn--ghost" id="insightBtn">Generar insight</button>
+                </div>
+                <div id="paiaFindings" class="paia-findings"></div>
+                <div id="paiaInsight" class="paia-insight" hidden></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      <!-- ============ GRID INTERLINK (Volumen 3) ============ -->
+      <div class="grid-wrap" id="panelGrid" hidden>
+        <div class="grid-doctrine">
+          <b>Aislamiento de carga:</b> cada país corre en un worker thread propio con sandbox de memoria (resourceLimits).
+          El colapso del servidor de datos de un TSO (DDOS, fallo masivo) mata solo su tubería: los demás países siguen al 100%.
+          El Kernel consume el payload GridSignal estandarizado, agnóstico del operador nacional.
+          <span id="gridMeta" style="display:block; margin-top:4px; opacity:0.8;"></span>
+        </div>
+        <div class="grid-cards" id="gridCards">
+          <p class="cockpit-empty">Cargando países…</p>
+        </div>
+        <div style="margin-top:22px; padding-top:16px; border-top:1px solid var(--border); max-width:720px;">
+          <span class="kicker" style="display:block; margin-bottom:8px;">Registrar país nuevo (Grid Abstraction Layer)</span>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <input id="gcNewCode" placeholder="ISO-2 (IT)" maxlength="2" style="width:80px; padding:8px 10px; border:1px solid var(--border-mid); border-radius:var(--radius-sm); font-family:var(--font-mono); font-size:0.72rem;">
+            <input id="gcNewTso" placeholder="TSO (Terna)" style="width:120px; padding:8px 10px; border:1px solid var(--border-mid); border-radius:var(--radius-sm); font-family:var(--font-mono); font-size:0.72rem;">
+            <input id="gcNewLabel" placeholder="Nombre (opcional)" style="flex:1; min-width:160px; padding:8px 10px; border:1px solid var(--border-mid); border-radius:var(--radius-sm); font-family:var(--font-mono); font-size:0.72rem;">
+            <input id="gcNewUrl" placeholder="URL live (opcional, sin URL = sim)" style="flex:1; min-width:200px; padding:8px 10px; border:1px solid var(--border-mid); border-radius:var(--radius-sm); font-family:var(--font-mono); font-size:0.72rem;">
+            <button class="cockpit-btn cockpit-btn--ghost" id="gcAddBtn">Registrar</button>
+          </div>
+          <div id="gridMsg" class="cockpit-empty" style="padding-top:8px;"></div>
+        </div>
+      </div>
+      </div>
+    </div>
+
+  <script type="module">
+    import { getUser, clearSession, requireAuth, api, getToken } from '/js/api.js';
+    import { mountAdminNotifications } from '/js/notifications.js';
+    requireAuth();
+    mountAdminNotifications(document.querySelector('.op-nav .controls'));
+
+    // Mesa guard: OPHS es dominio propio (mesa 'ophs')
+    await fetch('/api/me/permissions', { headers: { Authorization: `Bearer ${getToken()}` } })
+      .then(r => r.json())
+      .then(p => { if (!(p.mesas || []).includes('ophs')) location.href = '/pages/dashboard.html'; })
+      .catch(() => {});
+
+    document.getElementById('userTag').textContent = getUser() || '';
+    document.getElementById('brandLogo').addEventListener('click', () => location.href = '/pages/dashboard.html');
+    document.getElementById('backBtn').addEventListener('click', () => location.href = '/pages/dashboard.html');
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      try { await api.logout(); } catch {}
+      clearSession();
+      location.href = '/pages/login.html';
+    });
+
+    const authHeaders = () => ({ Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' });
+    async function jfetch(url, init = {}) {
+      const r = await fetch(url, { ...init, headers: { ...authHeaders(), ...(init.headers || {}) } });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+      return data;
+    }
+
+    /* ============================================================
+       COCKPIT · OPHS Framework (OPS + PAIA + Herzog + Sentinel)
+       Solo lectura/propuesta — ninguna accion se ejecuta desde aqui,
+       doctrina: el humano autoriza, el sistema ejecuta.
+       ============================================================ */
+    let selectedNodeId = null;
+    let cockpitLoaded = false;
+
+    async function refreshCockpitKpis() {
+      const kpis = document.getElementById('cockpitKpis').children;
+      try {
+        const s = await jfetch('/api/ophs-cockpit/summary');
+        kpis[0].querySelector('.ck-main').textContent = s.ops.nodesTotal;
+        kpis[0].querySelector('.ck-sub').textContent = `${s.ops.nodesNominal} nominal · ${s.ops.nodesDegradado} degradado · ${s.ops.nodesParada} parada`;
+        kpis[0].classList.toggle('warn', s.ops.nodesDegradado > 0);
+        kpis[0].classList.toggle('crit', s.ops.nodesParada > 0);
+
+        kpis[1].querySelector('.ck-main').textContent = s.ops.breachesUltimaHora;
+        kpis[1].querySelector('.ck-sub').textContent = 'lecturas fuera de umbral';
+        kpis[1].classList.toggle('warn', s.ops.breachesUltimaHora > 0);
+
+        kpis[2].querySelector('.ck-main').textContent = s.paia.analysesConHallazgos24h;
+        kpis[2].querySelector('.ck-sub').textContent = `de ${s.paia.analysesTotal} análisis totales`;
+
+        kpis[3].querySelector('.ck-main').textContent = s.sentinel.colaRevisionPendiente;
+        kpis[3].querySelector('.ck-sub').textContent = 'IPs pendientes de decisión Admin';
+        kpis[3].classList.toggle('warn', s.sentinel.colaRevisionPendiente > 0);
+      } catch (ex) {
+        for (const k of kpis) { k.querySelector('.ck-main').textContent = '—'; k.querySelector('.ck-sub').textContent = 'sin datos'; }
+      }
+    }
+
+    let opsNodesCache = [];
+
+    async function refreshOpsNodeList() {
+      const box = document.getElementById('opsNodeList');
+      try {
+        const nodes = await jfetch('/api/ops/nodes');
+        opsNodesCache = nodes;
+        if (!nodes.length) {
+          box.innerHTML = '<p class="cockpit-empty">Sin nodos registrados. Registra el primero abajo.</p>';
+          return;
+        }
+        box.innerHTML = '';
+        for (const n of nodes) {
+          const row = document.createElement('div');
+          row.className = 'ops-node-row' + (n.nodeId === selectedNodeId ? ' selected' : '');
+          row.innerHTML = `
+            <div class="onr-head"><span class="onr-name"></span><span class="onr-state"></span></div>`;
+          row.querySelector('.onr-name').textContent = n.label || n.nodeId;
+          const stateEl = row.querySelector('.onr-state');
+          stateEl.textContent = n.circuitState;
+          stateEl.classList.add(n.circuitState);
+          row.addEventListener('click', () => selectOpsNode(n.nodeId));
+          box.appendChild(row);
+        }
+      } catch {
+        box.innerHTML = '<p class="cockpit-empty">OPS sin conexión.</p>';
+      }
+    }
+
+    function selectOpsNode(nodeId) {
+      selectedNodeId = nodeId;
+      const node = opsNodesCache.find(n => n.nodeId === nodeId);
+      const label = node?.label || nodeId;
+      document.getElementById('opsDetailTitle').textContent = `OPS · telemetría · ${label}`;
+      document.getElementById('opsDetailEmpty').hidden = true;
+      document.getElementById('opsDetail').hidden = false;
+      document.getElementById('paiaFindings').innerHTML = '';
+      document.getElementById('paiaInsight').hidden = true;
+      document.getElementById('editNodeMsg').textContent = '';
+      document.getElementById('editNodeLabel').value = label;
+      document.getElementById('editNodeLat').value = node?.lat ?? '';
+      document.getElementById('editNodeLng').value = node?.lng ?? '';
+      refreshOpsNodeList();
+      refreshLastReadings();
+    }
+
+    async function refreshLastReadings() {
+      if (!selectedNodeId) return;
+      const box = document.getElementById('lastReadings');
+      try {
+        const readings = await jfetch(`/api/ops/nodes/${encodeURIComponent(selectedNodeId)}/readings?limit=5`);
+        if (!readings.length) { box.textContent = 'Sin lecturas registradas todavía.'; return; }
+        box.innerHTML = readings.map(r =>
+          `${new Date(r.ts).toLocaleTimeString('es-ES')} · ${r.pressureBar} bar · ${r.flowLpm} l/min · ${r.tempC} °C · ${r.rpm} rpm` +
+          (r.breaches.length ? ' · ⚠ fuera de umbral' : '')
+        ).join('<br>');
+      } catch {
+        box.textContent = 'Error al leer lecturas.';
+      }
+    }
+
+    document.getElementById('addNodeBtn').addEventListener('click', async () => {
+      const idInput = document.getElementById('newNodeId');
+      const labelInput = document.getElementById('newNodeLabel');
+      const latInput = document.getElementById('newNodeLat');
+      const lngInput = document.getElementById('newNodeLng');
+      const nodeId = idInput.value.trim();
+      if (!nodeId) return;
+      const body = { nodeId, label: labelInput.value.trim() || nodeId };
+      if (latInput.value !== '' || lngInput.value !== '') {
+        body.lat = Number(latInput.value);
+        body.lng = Number(lngInput.value);
+      }
+      try {
+        await jfetch('/api/ops/nodes', { method: 'POST', body: JSON.stringify(body) });
+        idInput.value = ''; labelInput.value = ''; latInput.value = ''; lngInput.value = '';
+        refreshOpsNodeList();
+        refreshCockpitKpis();
+      } catch (ex) {
+        alert(`No se pudo registrar el nodo: ${ex.message}`);
+      }
+    });
+
+    document.getElementById('saveNodeBtn').addEventListener('click', async () => {
+      if (!selectedNodeId) return;
+      const msg = document.getElementById('editNodeMsg');
+      const label = document.getElementById('editNodeLabel').value.trim();
+      const latRaw = document.getElementById('editNodeLat').value;
+      const lngRaw = document.getElementById('editNodeLng').value;
+      const body = { label };
+      if (latRaw !== '' || lngRaw !== '') {
+        body.lat = Number(latRaw);
+        body.lng = Number(lngRaw);
+      }
+      try {
+        await jfetch(`/api/ops/nodes/${encodeURIComponent(selectedNodeId)}`, { method: 'PATCH', body: JSON.stringify(body) });
+        msg.textContent = 'Guardado.';
+        refreshOpsNodeList();
+      } catch (ex) {
+        msg.textContent = `Error: ${ex.message}`;
+      }
+    });
+
+    document.getElementById('deleteNodeBtn').addEventListener('click', async () => {
+      if (!selectedNodeId) return;
+      const node = opsNodesCache.find(n => n.nodeId === selectedNodeId);
+      if (!confirm(`Eliminar nodo "${node?.label || selectedNodeId}" y todas sus lecturas? Esta acción no se puede deshacer.`)) return;
+      try {
+        await jfetch(`/api/ops/nodes/${encodeURIComponent(selectedNodeId)}`, { method: 'DELETE' });
+        selectedNodeId = null;
+        document.getElementById('opsDetail').hidden = true;
+        document.getElementById('opsDetailEmpty').hidden = false;
+        document.getElementById('opsDetailTitle').textContent = 'OPS · telemetría';
+        refreshOpsNodeList();
+        refreshCockpitKpis();
+      } catch (ex) {
+        alert(`No se pudo eliminar el nodo: ${ex.message}`);
+      }
+    });
+
+    document.getElementById('submitReadingBtn').addEventListener('click', async () => {
+      if (!selectedNodeId) return;
+      const b = {
+        pressureBar: Number(document.getElementById('rdPressure').value),
+        flowLpm: Number(document.getElementById('rdFlow').value),
+        tempC: Number(document.getElementById('rdTemp').value),
+        rpm: Number(document.getElementById('rdRpm').value),
+      };
+      if (Object.values(b).some(v => !Number.isFinite(v))) { alert('Completa los 4 valores.'); return; }
+      try {
+        await jfetch(`/api/ops/nodes/${encodeURIComponent(selectedNodeId)}/readings`, { method: 'POST', body: JSON.stringify(b) });
+        ['rdPressure', 'rdFlow', 'rdTemp', 'rdRpm'].forEach(id => document.getElementById(id).value = '');
+        refreshLastReadings();
+        refreshOpsNodeList();
+        refreshCockpitKpis();
+      } catch (ex) {
+        alert(`No se pudo registrar la lectura: ${ex.message}`);
+      }
+    });
+
+    document.getElementById('analyzeBtn').addEventListener('click', async () => {
+      if (!selectedNodeId) return;
+      const btn = document.getElementById('analyzeBtn');
+      btn.disabled = true;
+      try {
+        const r = await jfetch(`/api/paia/nodes/${encodeURIComponent(selectedNodeId)}/analyze`, { method: 'POST' });
+        const box = document.getElementById('paiaFindings');
+        if (r.note) { box.innerHTML = `<p class="cockpit-empty">${r.note}</p>`; return; }
+        if (!r.findings.length) { box.innerHTML = '<p class="cockpit-empty">Sin anomalías detectadas.</p>'; return; }
+        box.innerHTML = r.findings.map(f => {
+          const detail = f.type === 'anomalia_estadistica'
+            ? `z-score ${f.zScore} · último ${f.lastValue} · media ventana ${f.windowMean}`
+            : `pendiente ${f.direction} (${f.slope})`;
+          return `<div class="paia-finding">${f.metric.toUpperCase()} · ${f.type.replace('_', ' ')} · ${detail}</div>`;
+        }).join('');
+        refreshCockpitKpis();
+      } catch (ex) {
+        alert(`Análisis PAIA falló: ${ex.message}`);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById('insightBtn').addEventListener('click', async () => {
+      if (!selectedNodeId) return;
+      const btn = document.getElementById('insightBtn');
+      btn.disabled = true;
+      try {
+        const r = await jfetch(`/api/paia/nodes/${encodeURIComponent(selectedNodeId)}/insight`, { method: 'POST' });
+        const box = document.getElementById('paiaInsight');
+        box.textContent = r.insight;
+        box.hidden = false;
+      } catch (ex) {
+        alert(`Insight PAIA no disponible: ${ex.message}`);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    function refreshCockpit() {
+      refreshCockpitKpis();
+      refreshOpsNodeList();
+      if (!cockpitLoaded) {
+        cockpitLoaded = true;
+        setInterval(refreshCockpitKpis, 20000);
+        setInterval(refreshOpsNodeList, 20000);
+      }
+    }
+    refreshCockpit();
+
+    /* ============================================================
+       GRID INTERLINK · redes electricas transnacionales (Volumen 3)
+       Un worker sandboxed por pais: chaos aqui demuestra que el
+       colapso de un TSO no toca a los demas. Reflejo PAIA = solo
+       aviso Admin, ninguna accion automatica sobre nodos.
+       ============================================================ */
+    const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    let gridVisible = false;
+
+    document.querySelectorAll('.op-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.op-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        gridVisible = tab.dataset.tab === 'grid';
+        document.getElementById('panelCockpit').hidden = gridVisible;
+        document.getElementById('panelGrid').hidden = !gridVisible;
+        if (gridVisible) refreshGrid();
+      });
+    });
+
+    function gcStateClass(state) {
+      if (state === 'activo') return 'activo';
+      if (state.startsWith('caido') || state.startsWith('error')) return 'caido';
+      if (state.includes('congelado') || state.includes('señal')) return 'congelado';
+      return 'parado';
+    }
+
+    async function refreshGrid() {
+      const box = document.getElementById('gridCards');
+      try {
+        const s = await jfetch('/api/grid/status');
+        document.getElementById('gridMeta').textContent =
+          `${s.countries.length} países · autostart ${s.autostart ? 'ON' : 'OFF'} · actualizado ${new Date(s.generatedAt).toLocaleTimeString('es-ES')}`;
+        if (!s.countries.length) { box.innerHTML = '<p class="cockpit-empty">Sin países registrados.</p>'; return; }
+        box.innerHTML = s.countries.map(c => {
+          const last = c.lastSignal;
+          const freq = last?.frequencyHz;
+          const alert = last?.alertLevel || 'sin_dato';
+          return `<div class="grid-card" data-code="${esc(c.code)}">
+            <div class="gc-head">
+              <div>
+                <div class="gc-country">${esc(c.code)} · ${esc(c.tso)}</div>
+                <div class="gc-tso">${esc(c.label || '')} · modo ${esc(c.mode)}</div>
+              </div>
+              <span class="gc-state ${gcStateClass(c.workerState)}">${esc(c.workerState)}</span>
+            </div>
+            <div class="gc-freq ${alert === 'critico' ? 'critico' : alert === 'alerta' ? 'alerta' : ''}">
+              ${freq != null ? freq.toFixed(3) : '—'} <small>Hz · ${esc(alert)}</small>
+            </div>
+            <div class="gc-rows">
+              demanda <b>${last?.demandMw != null ? last.demandMw.toLocaleString('es-ES') + ' MW' : '—'}</b> ·
+              gen <b>${last?.generationMw != null ? last.generationMw.toLocaleString('es-ES') + ' MW' : '—'}</b><br>
+              renovable <b>${last?.renewablePct != null ? last.renewablePct + '%' : '—'}</b> ·
+              precio <b>${last?.priceEurMwh != null ? last.priceEurMwh + ' €/MWh' : '—'}</b><br>
+              reinicios <b>${c.restarts}</b> · última señal <b>${c.lastSignalAt ? new Date(c.lastSignalAt).toLocaleTimeString('es-ES') : '—'}</b><br>
+              sandbox <b>${c.sandbox.maxOldGenerationSizeMb} MB</b> heap
+            </div>
+            <div class="gc-actions">
+              <button class="cockpit-btn cockpit-btn--ghost gc-restart" style="padding:6px 10px; font-size:0.6rem;">Reiniciar</button>
+              <button class="cockpit-btn cockpit-btn--ghost gc-chaos" data-mode="crash" style="padding:6px 10px; font-size:0.6rem; color:#d80300; border-color:rgba(216,3,0,0.35);">Chaos crash</button>
+              <button class="cockpit-btn cockpit-btn--ghost gc-chaos" data-mode="stall" style="padding:6px 10px; font-size:0.6rem; color:#a87605; border-color:rgba(217,154,6,0.4);">Stall</button>
+              <button class="cockpit-btn cockpit-btn--ghost gc-chaos" data-mode="flood" style="padding:6px 10px; font-size:0.6rem; color:#a87605; border-color:rgba(217,154,6,0.4);">Flood</button>
+            </div>
+          </div>`;
+        }).join('');
+        box.querySelectorAll('.grid-card').forEach(card => {
+          const code = card.dataset.code;
+          card.querySelector('.gc-restart').addEventListener('click', async () => {
+            try { await jfetch(`/api/grid/countries/${encodeURIComponent(code)}/restart`, { method: 'POST' }); refreshGrid(); }
+            catch (ex) { document.getElementById('gridMsg').textContent = `Error: ${ex.message}`; }
+          });
+          card.querySelectorAll('.gc-chaos').forEach(btn => {
+            btn.addEventListener('click', async () => {
+              const mode = btn.dataset.mode;
+              if (!confirm(`Inyectar colapso "${mode}" en ${code}? Solo cae ese país; verifica que el resto sigue emitiendo.`)) return;
+              try {
+                const r = await jfetch(`/api/grid/countries/${encodeURIComponent(code)}/chaos`, { method: 'POST', body: JSON.stringify({ mode }) });
+                document.getElementById('gridMsg').textContent = r.note || `Chaos ${mode} inyectado en ${code}.`;
+                setTimeout(refreshGrid, 1500);
+              } catch (ex) { document.getElementById('gridMsg').textContent = `Error: ${ex.message}`; }
+            });
+          });
+        });
+      } catch (ex) {
+        box.innerHTML = `<p class="cockpit-empty">Grid Interlink sin conexión: ${esc(ex.message)}</p>`;
+      }
+    }
+
+    document.getElementById('gcAddBtn').addEventListener('click', async () => {
+      const msg = document.getElementById('gridMsg');
+      const code = document.getElementById('gcNewCode').value.trim().toUpperCase();
+      const tso = document.getElementById('gcNewTso').value.trim();
+      if (!code || !tso) { msg.textContent = 'code ISO-2 y TSO requeridos.'; return; }
+      try {
+        await jfetch('/api/grid/countries', {
+          method: 'POST',
+          body: JSON.stringify({
+            code, tso,
+            label: document.getElementById('gcNewLabel').value.trim() || undefined,
+            url: document.getElementById('gcNewUrl').value.trim() || undefined,
+          }),
+        });
+        ['gcNewCode', 'gcNewTso', 'gcNewLabel', 'gcNewUrl'].forEach(id => document.getElementById(id).value = '');
+        msg.textContent = `País ${code} registrado.`;
+        refreshGrid();
+      } catch (ex) { msg.textContent = `Error: ${ex.message}`; }
+    });
+
+    setInterval(() => { if (gridVisible) refreshGrid(); }, 4000);
+  </script>
+</body>
+</html>

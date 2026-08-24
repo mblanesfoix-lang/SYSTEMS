@@ -1,6 +1,6 @@
 # Elvi-Ra · Boceto v0.1
 
-Plataforma interna S-NFI Corp. Boceto inicial: Login + Dashboard + Customer Management.
+Plataforma interna S-NFI Corp. Boceto inicial: Login + Dashboard + Rëff.
 
 ## Estructura
 
@@ -13,7 +13,6 @@ app/
     pages/
       login.html
       dashboard.html
-      customer-management.html
 ```
 
 ## Arranque
@@ -35,4 +34,4 @@ Ver `app/backend/.env.example`. Tras primer arranque, hashes viven en `data/user
 
 - Sesión vía token en memoria (8h). Para producción: JWT + DB.
 - `customers.json` es por usuario; cada cuenta opera su propia hoja.
-- Otras mesas (Buscador de Empresas, Data Inteligente, LinkedIn, Email Creator) quedan marcadas como "próximamente" en el Dashboard.
+- Otras mesas (S-NFI U2, Observer) integradas en el mismo backend/puerto.

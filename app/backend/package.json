@@ -14,14 +14,12 @@
     "fresh": "npm run kill-port && npm run dev"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.98.0",
     "bcrypt": "^6.0.0",
-    "better-sqlite3": "^12.10.0",
     "cors": "^2.8.5",
     "express": "^4.19.2",
     "express-rate-limit": "^8.5.2",
     "geoip-lite": "^2.0.3",
-    "jsonwebtoken": "^9.0.3",
-    "mongodb": "^7.3.0"
+    "mongodb": "^7.3.0",
+    "pdfkit": "^0.19.1"
   }
 }

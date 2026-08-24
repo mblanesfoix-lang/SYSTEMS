@@ -1,0 +1,551 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>S-NFI M&amp;A · S-NFI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
+  <style>
+    .mna-hero {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px 40px;
+      margin-bottom: 24px;
+    }
+    .mna-hero__title {
+      font-family: var(--font-display);
+      font-size: clamp(1.8rem, 3.4vw, 2.6rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin: 0 0 10px;
+    }
+    .mna-hero__sub {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      max-width: 640px;
+      line-height: 1.65;
+      margin: 0;
+    }
+    .mode-tabs {
+      display: flex; gap: 0; margin-bottom: 24px;
+      border: 1px solid var(--border-mid); border-radius: var(--radius-sm); width: fit-content; overflow: hidden;
+    }
+    .mode-tab {
+      padding: 10px 24px; font-family: var(--font-mono); font-size: 0.65rem;
+      letter-spacing: 0.02em; color: var(--text-muted);
+      background: var(--bg-card); border: none; border-right: 1px solid var(--border-mid);
+      cursor: pointer; transition: background 0.18s var(--ease), color 0.18s var(--ease);
+    }
+    .mode-tab:last-child { border-right: none; }
+    .mode-tab.active { background: var(--accent-blue); color: #fff; font-weight: 600; }
+    .mode-tab:hover:not(.active) { color: var(--text-primary); }
+    .mode-tab:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    .kpi-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 0;
+      border: 1px solid var(--border-mid); border-radius: var(--radius); overflow: hidden; margin-bottom: 24px; background: var(--bg-card);
+    }
+    @media (max-width: 900px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+    .kpi-cell { padding: 20px 22px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); position: relative; }
+    .kpi-cell:nth-child(4n) { border-right: none; }
+    .kpi-cell.alert::before { content: ''; position: absolute; top: 0; left: 0; width: 3px; height: 100%; background: #d80300; }
+    .kpi-label { font-family: var(--font-mono); font-size: 0.55rem; letter-spacing: 0.04em; color: var(--text-muted); margin-bottom: 10px; }
+    .kpi-val { font-family: var(--font-display); font-size: 1.8rem; font-weight: 800; letter-spacing: -0.03em; }
+    .kpi-val.warn { color: #d80300; }
+
+    .mna-panel { display: none; }
+    .mna-panel.active { display: block; }
+
+    .add-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; align-items: flex-end; }
+    .add-row .sf { display: flex; flex-direction: column; gap: 4px; }
+    .add-row .sf label { font-size: 0.62rem; letter-spacing: -0.005em; color: var(--text-muted); font-family: var(--font-mono); }
+    .add-row .input { min-width: 120px; }
+
+    .status-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.02em;
+      padding: 3px 10px; border-radius: var(--radius-pill); background: var(--bg-elevated); border: 1px solid var(--border);
+    }
+    .status-dot-sm { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+    .deal-picker {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 18px;
+      padding: 12px 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    }
+    .deal-picker label { font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: -0.005em; color: var(--text-muted); }
+    .deal-picker select { min-width: 260px; }
+    .deal-picker .deal-picker__empty { color: var(--text-muted); font-size: 0.82rem; }
+
+    .valuation-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media (max-width: 900px) { .valuation-grid { grid-template-columns: 1fr; } }
+    .valuation-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; }
+    .valuation-card h4 { margin: 0 0 12px; font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: -0.005em; color: var(--text-muted); }
+    .valuation-card .big-val { font-family: var(--font-display); font-size: 1.6rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 4px; }
+    .valuation-form { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+
+    .empty-row td, .empty-state { text-align: center; color: var(--text-muted); font-size: 0.82rem; padding: 24px !important; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="brand">
+      <img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;">
+      SYSTEMS
+    </div>
+    <div class="row" style="gap:18px;">
+      <span class="mono" id="userTag">...</span>
+      <button class="btn ghost" id="logoutBtn">Cerrar sesión</button>
+    </div>
+  </nav>
+
+  <main class="container">
+    <div class="breadcrumb-row" style="display:flex; align-items:center; gap:8px; font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: -0.005em; color: var(--text-muted); margin-bottom: 22px;">
+      <a href="/pages/dashboard.html" style="color:inherit; text-decoration:none;">Systems</a>
+      <span style="opacity:.35;">/</span>
+      <a href="/pages/reff-dashboard.html" style="color:inherit; text-decoration:none;">Rëff</a>
+      <span style="opacity:.35;">/</span>
+      <span style="color: var(--text-primary); font-weight:600;">S-NFI M&amp;A</span>
+    </div>
+
+    <div class="mna-hero reveal">
+      <span class="kicker">Mesa · Inteligencia corporativa</span>
+      <h1 class="mna-hero__title">S-NFI <em style="font-style:normal;color:var(--accent-blue);">M&amp;A</em></h1>
+      <p class="mna-hero__sub">
+        Modelado financiero para la absorción de empresas competidoras o complementarias, fusiones
+        estratégicas y expansión del perímetro del Holding internacional. Pipeline, valoración
+        (múltiplos + DCF), sinergias y due diligence por candidato.
+      </p>
+    </div>
+
+    <div id="errorBox" style="display:none;" class="mole-error"></div>
+
+    <div class="kpi-grid reveal" id="summaryKpis">
+      <div class="kpi-cell">
+        <div class="kpi-label">Deals activos</div>
+        <div class="kpi-val" id="kpiActiveVal">—</div>
+      </div>
+      <div class="kpi-cell">
+        <div class="kpi-label">En due diligence</div>
+        <div class="kpi-val" id="kpiDdVal">—</div>
+      </div>
+      <div class="kpi-cell">
+        <div class="kpi-label">Valor pipeline</div>
+        <div class="kpi-val" id="kpiPipelineVal">—</div>
+      </div>
+      <div class="kpi-cell" id="kpiRisk">
+        <div class="kpi-label">Ítems DD en riesgo</div>
+        <div class="kpi-val" id="kpiRiskVal">—</div>
+      </div>
+    </div>
+
+    <div class="mode-tabs reveal">
+      <button class="mode-tab active" data-panel="pipeline">Pipeline</button>
+      <button class="mode-tab" data-panel="valuation" id="tabValuation" disabled>Valoración</button>
+      <button class="mode-tab" data-panel="diligence" id="tabDiligence" disabled>Due Diligence</button>
+    </div>
+
+    <!-- PIPELINE -->
+    <div class="mna-panel active card reveal" id="panel-pipeline" style="padding:20px;">
+      <div class="add-row">
+        <div class="sf"><label>Empresa objetivo</label><input class="input" id="dealTarget" placeholder="Ej. Bioresiduos Levante S.L."></div>
+        <div class="sf"><label>Sector</label><input class="input" id="dealSector" placeholder="Gestión residuos"></div>
+        <div class="sf"><label>Ubicación</label><input class="input" id="dealLocation" placeholder="Valencia"></div>
+        <div class="sf"><label>Tipo</label>
+          <select class="input" id="dealType">
+            <option value="adquisicion">Adquisición</option>
+            <option value="fusion">Fusión</option>
+            <option value="jv">Joint Venture</option>
+          </select>
+        </div>
+        <div class="sf"><label>Owner</label><input class="input" id="dealOwner" placeholder="Opcional"></div>
+        <button class="btn sage" id="dealAddBtn">Añadir candidato</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="tbl" id="dealTable">
+          <thead><tr><th>Empresa</th><th>Sector / Ubicación</th><th>Tipo</th><th>Fase</th><th>OPHS</th><th>Bloqueo</th><th></th></tr></thead>
+          <tbody id="dealBody"><tr class="empty-row"><td colspan="7">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- VALORACION + SINERGIAS -->
+    <div class="mna-panel card reveal" id="panel-valuation" style="padding:20px;">
+      <div class="deal-picker">
+        <label>Deal seleccionado</label>
+        <select id="valDealSelect"></select>
+      </div>
+      <div class="valuation-grid">
+        <div class="valuation-card">
+          <h4>Múltiplos EBITDA</h4>
+          <div class="valuation-form">
+            <div class="sf"><label>EBITDA (€)</label><input class="input" id="valEbitda" style="width:120px;" placeholder="500000"></div>
+            <div class="sf"><label>Múltiplo</label><input class="input" id="valMultiple" style="width:80px;" placeholder="6"></div>
+          </div>
+          <div class="big-val" id="valMultiplesResult">—</div>
+          <span style="font-size:0.75rem; color:var(--text-muted);">Valor implícito por múltiplos</span>
+        </div>
+        <div class="valuation-card">
+          <h4>DCF (auto-proyectado)</h4>
+          <div class="valuation-form">
+            <div class="sf"><label>Growth anual</label><input class="input" id="valGrowth" style="width:90px;" placeholder="0.05"></div>
+            <div class="sf"><label>WACC</label><input class="input" id="valWacc" style="width:90px;" placeholder="0.10"></div>
+            <div class="sf"><label>Growth terminal</label><input class="input" id="valTerminalGrowth" style="width:100px;" placeholder="0.02"></div>
+            <div class="sf"><label>Horizonte (años)</label><input class="input" id="valHorizon" style="width:100px;" placeholder="5"></div>
+          </div>
+          <div class="big-val" id="valDcfResult">—</div>
+          <span style="font-size:0.75rem; color:var(--text-muted);">Valor implícito DCF (flujos auto-generados desde EBITDA)</span>
+        </div>
+      </div>
+      <div class="valuation-card" style="margin-top:20px;">
+        <h4>Estructura de pago</h4>
+        <div class="valuation-form">
+          <div class="sf"><label>Cash %</label><input class="input" id="valCashPct" style="width:80px;" placeholder="60"></div>
+          <div class="sf"><label>Stock %</label><input class="input" id="valStockPct" style="width:80px;" placeholder="30"></div>
+          <div class="sf"><label>Earnout %</label><input class="input" id="valEarnoutPct" style="width:80px;" placeholder="10"></div>
+          <div class="sf"><label>Earnout horizonte (meses)</label><input class="input" id="valEarnoutHorizon" style="width:120px;" placeholder="24"></div>
+        </div>
+        <div class="sf" style="max-width:100%;"><label>Condiciones earnout</label><input class="input" id="valEarnoutConditions" style="width:100%;" placeholder="Opcional"></div>
+        <button class="btn sage" id="valSaveBtn" style="margin-top:12px;">Guardar valoración</button>
+      </div>
+      <div class="valuation-card" style="margin-top:20px;">
+        <h4>Sinergias</h4>
+        <div class="valuation-form">
+          <div class="sf"><label>Sinergia coste anual (€)</label><input class="input" id="synCost" style="width:140px;" placeholder="0"></div>
+          <div class="sf"><label>Sinergia ingreso anual (€)</label><input class="input" id="synRevenue" style="width:140px;" placeholder="0"></div>
+          <div class="sf"><label>Coste integración (one-off, €)</label><input class="input" id="synOneOff" style="width:160px;" placeholder="0"></div>
+          <button class="btn sage" id="synSaveBtn">Guardar sinergias</button>
+        </div>
+        <div id="synPayback" style="font-size:0.85rem; color:var(--text-muted);"></div>
+      </div>
+    </div>
+
+    <!-- DUE DILIGENCE -->
+    <div class="mna-panel card reveal" id="panel-diligence" style="padding:20px;">
+      <div class="deal-picker">
+        <label>Deal seleccionado</label>
+        <select id="ddDealSelect"></select>
+      </div>
+      <div class="add-row">
+        <div class="sf"><label>Categoría nueva</label><input class="input" id="ddCategoryName" placeholder="Legal / Financiero / CNMC..."></div>
+        <button class="btn ghost" id="ddCategoryAddBtn">Añadir categoría</button>
+      </div>
+      <div class="add-row">
+        <div class="sf"><label>Ítem</label><input class="input" id="ddItemText" placeholder="Contratos laborales vigentes"></div>
+        <div class="sf"><label>Categoría</label>
+          <select class="input" id="ddItemCategory"><option value="">Sin categoría</option></select>
+        </div>
+        <div class="sf"><label>Auditor</label><input class="input" id="ddItemAuditor" placeholder="Opcional"></div>
+        <button class="btn sage" id="ddItemAddBtn">Añadir ítem</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="tbl" id="ddTable">
+          <thead><tr><th>Ítem</th><th>Categoría</th><th>Estado</th><th>Auditor</th><th></th></tr></thead>
+          <tbody id="ddBody"><tr class="empty-row"><td colspan="5">Selecciona un deal.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script type="module">
+    import { api, getUser, requireAuth, clearSession, toast, escapeHtml } from '/js/api.js';
+    import { mountOfficeBg } from '/js/office-bg.js';
+    requireAuth();
+    mountOfficeBg();
+    document.getElementById('userTag').textContent = getUser() || '';
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      try { await api.logout(); } catch {}
+      clearSession();
+      location.href = '/pages/login.html';
+    });
+
+    function showError(msg) {
+      const box = document.getElementById('errorBox');
+      box.textContent = msg;
+      box.style.display = msg ? 'block' : 'none';
+    }
+
+    let deals = [];
+    let selectedDealId = null;
+
+    // ---- Tabs ----
+    document.querySelectorAll('.mode-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        if (tab.disabled) return;
+        document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.mna-panel').forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(`panel-${tab.dataset.panel}`).classList.add('active');
+      });
+    });
+
+    function refreshDealTabsState() {
+      const hasDeals = deals.length > 0;
+      document.getElementById('tabValuation').disabled = !hasDeals;
+      document.getElementById('tabDiligence').disabled = !hasDeals;
+    }
+
+    function syncDealSelects() {
+      const options = deals.map(d => `<option value="${d.id}">${escapeHtml(d.targetName)}</option>`).join('');
+      ['valDealSelect', 'ddDealSelect'].forEach(selId => {
+        const sel = document.getElementById(selId);
+        const prev = sel.value;
+        sel.innerHTML = options || '<option value="">Sin candidatos</option>';
+        if (deals.some(d => d.id === prev)) sel.value = prev;
+        else if (deals[0]) sel.value = deals[0].id;
+      });
+      selectedDealId = document.getElementById('valDealSelect').value || null;
+    }
+
+    // ---- Summary KPIs ----
+    async function loadSummary() {
+      try {
+        const s = await api.mnaSummary();
+        document.getElementById('kpiActiveVal').textContent = s.activeDeals ?? 0;
+        document.getElementById('kpiDdVal').textContent = s.inDiligence ?? 0;
+        document.getElementById('kpiPipelineVal').textContent = `€${(s.totalPipelineValue ?? 0).toLocaleString('es-ES')}`;
+        document.getElementById('kpiRiskVal').textContent = s.dealsAtRisk ?? 0;
+        document.getElementById('kpiRisk').classList.toggle('alert', (s.dealsAtRisk ?? 0) > 0);
+        document.getElementById('kpiRiskVal').classList.toggle('warn', (s.dealsAtRisk ?? 0) > 0);
+      } catch (ex) { showError(ex.message || 'Error al cargar resumen'); }
+    }
+
+    const DEAL_TYPES = { adquisicion: 'Adquisición', fusion: 'Fusión', jv: 'Joint Venture' };
+    const DEAL_STAGES = { screening: 'Screening', nda: 'NDA', dd: 'Due Diligence', loi: 'LOI', cierre: 'Cierre' };
+    const DD_STATUSES = {
+      pendiente: { label: 'Pendiente', color: '#8a8a8a' },
+      en_curso: { label: 'En curso', color: '#0071e3' },
+      ok: { label: 'OK', color: '#00a878' },
+      riesgo: { label: 'Riesgo', color: '#d80300' },
+    };
+
+    function selectHtml(options, current, cls) {
+      return `<select class="input ${cls}" style="font-size:0.72rem; padding:4px 6px;">` +
+        Object.entries(options).map(([k, v]) => `<option value="${k}" ${k === current ? 'selected' : ''}>${typeof v === 'string' ? v : v.label}</option>`).join('') +
+        `</select>`;
+    }
+    function pill(label, color) {
+      return `<span class="status-pill"><span class="status-dot-sm" style="background:${color};"></span>${escapeHtml(label)}</span>`;
+    }
+
+    // ---- Pipeline ----
+    async function loadDeals() {
+      const body = document.getElementById('dealBody');
+      try {
+        deals = await api.mnaDealsList();
+        refreshDealTabsState();
+        syncDealSelects();
+        if (deals.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="7">Sin candidatos registrados.</td></tr>'; return; }
+        body.innerHTML = deals.map(d => `<tr data-id="${d.id}">
+          <td>${escapeHtml(d.targetName)}</td>
+          <td>${escapeHtml(d.sector || '—')} / ${escapeHtml(d.location || '—')}</td>
+          <td>${DEAL_TYPES[d.dealType] || d.dealType}</td>
+          <td>${selectHtml(DEAL_STAGES, d.stage, 'deal-stage')}</td>
+          <td class="mono">${d.ophsScore != null ? d.ophsScore : '—'}</td>
+          <td style="color:#d80300; font-size:0.8rem;">${escapeHtml(d.blockerNote || '')}</td>
+          <td><button class="btn ghost btn--sm deal-del">Eliminar</button></td>
+        </tr>`).join('');
+        body.querySelectorAll('tr[data-id]').forEach(tr => {
+          const id = tr.dataset.id;
+          tr.querySelector('.deal-stage').addEventListener('change', async (e) => {
+            try { await api.mnaDealPatch(id, { stage: e.target.value }); loadSummary(); loadDeals(); } catch (ex) { showError(ex.message); }
+          });
+          tr.querySelector('.deal-del').addEventListener('click', async () => {
+            if (!confirm('¿Eliminar candidato? Se borrará valoración, sinergias y due diligence asociada.')) return;
+            try { await api.mnaDealDelete(id); loadDeals(); loadSummary(); } catch (ex) { showError(ex.message); }
+          });
+        });
+      } catch (ex) { showError(ex.message || 'Error al cargar pipeline'); }
+    }
+    document.getElementById('dealAddBtn').addEventListener('click', async () => {
+      showError('');
+      const targetName = document.getElementById('dealTarget').value.trim();
+      if (!targetName) return showError('Indica la empresa objetivo');
+      try {
+        await api.mnaDealAdd({
+          targetName,
+          sector: document.getElementById('dealSector').value.trim() || null,
+          location: document.getElementById('dealLocation').value.trim() || null,
+          dealType: document.getElementById('dealType').value,
+          owner: document.getElementById('dealOwner').value.trim() || null,
+        });
+        document.getElementById('dealTarget').value = '';
+        document.getElementById('dealSector').value = '';
+        document.getElementById('dealLocation').value = '';
+        document.getElementById('dealOwner').value = '';
+        loadDeals(); loadSummary();
+      } catch (ex) { showError(ex.message || 'Error al crear candidato'); }
+    });
+
+    // ---- Valoracion ----
+    async function loadValuation() {
+      const dealId = document.getElementById('valDealSelect').value;
+      if (!dealId) return;
+      try {
+        const v = await api.mnaValuationGet(dealId);
+        if (v) {
+          document.getElementById('valEbitda').value = v.ebitda;
+          document.getElementById('valMultiple').value = v.multipleUsed;
+          document.getElementById('valGrowth').value = v.growthRate;
+          document.getElementById('valWacc').value = v.wacc;
+          document.getElementById('valTerminalGrowth').value = v.terminalGrowthRate;
+          document.getElementById('valHorizon').value = v.horizonYears;
+          document.getElementById('valCashPct').value = v.structure?.cashPct ?? '';
+          document.getElementById('valStockPct').value = v.structure?.stockPct ?? '';
+          document.getElementById('valEarnoutPct').value = v.structure?.earnoutPct ?? '';
+          document.getElementById('valEarnoutHorizon').value = v.structure?.earnoutHorizonMonths ?? '';
+          document.getElementById('valEarnoutConditions').value = v.structure?.earnoutConditions ?? '';
+          document.getElementById('valMultiplesResult').textContent = `€${v.impliedValueMultiples.toLocaleString('es-ES')}`;
+          document.getElementById('valDcfResult').textContent = `€${v.impliedValueDCF.toLocaleString('es-ES')}`;
+        } else {
+          ['valEbitda','valMultiple','valGrowth','valWacc','valTerminalGrowth','valHorizon','valCashPct','valStockPct','valEarnoutPct','valEarnoutHorizon','valEarnoutConditions'].forEach(id => document.getElementById(id).value = '');
+          document.getElementById('valMultiplesResult').textContent = '—';
+          document.getElementById('valDcfResult').textContent = '—';
+        }
+      } catch (ex) { showError(ex.message || 'Error al cargar valoración'); }
+
+      try {
+        const s = await api.mnaSynergiesGet(dealId);
+        if (s) {
+          document.getElementById('synCost').value = s.costSynergiesAnnual;
+          document.getElementById('synRevenue').value = s.revenueSynergiesAnnual;
+          document.getElementById('synOneOff').value = s.oneOffIntegrationCost;
+          document.getElementById('synPayback').textContent = s.paybackMonths != null ? `Payback: ${s.paybackMonths} meses` : 'Sin payback calculable (sinergias anuales = 0)';
+        } else {
+          document.getElementById('synCost').value = '';
+          document.getElementById('synRevenue').value = '';
+          document.getElementById('synOneOff').value = '';
+          document.getElementById('synPayback').textContent = '';
+        }
+      } catch (ex) { showError(ex.message || 'Error al cargar sinergias'); }
+    }
+    document.getElementById('valDealSelect').addEventListener('change', loadValuation);
+
+    document.getElementById('valSaveBtn').addEventListener('click', async () => {
+      showError('');
+      const dealId = document.getElementById('valDealSelect').value;
+      if (!dealId) return showError('Selecciona un deal');
+      try {
+        const v = await api.mnaValuationSet(dealId, {
+          ebitda: Number(document.getElementById('valEbitda').value),
+          multipleUsed: Number(document.getElementById('valMultiple').value),
+          growthRate: Number(document.getElementById('valGrowth').value),
+          wacc: Number(document.getElementById('valWacc').value),
+          terminalGrowthRate: Number(document.getElementById('valTerminalGrowth').value),
+          horizonYears: Number(document.getElementById('valHorizon').value) || 5,
+          cashPct: Number(document.getElementById('valCashPct').value) || 0,
+          stockPct: Number(document.getElementById('valStockPct').value) || 0,
+          earnoutPct: Number(document.getElementById('valEarnoutPct').value) || 0,
+          earnoutHorizonMonths: Number(document.getElementById('valEarnoutHorizon').value) || null,
+          earnoutConditions: document.getElementById('valEarnoutConditions').value.trim() || null,
+        });
+        document.getElementById('valMultiplesResult').textContent = `€${v.impliedValueMultiples.toLocaleString('es-ES')}`;
+        document.getElementById('valDcfResult').textContent = `€${v.impliedValueDCF.toLocaleString('es-ES')}`;
+        toast('Valoración guardada');
+        loadSummary();
+      } catch (ex) { showError(ex.message || 'Error al guardar valoración'); }
+    });
+
+    document.getElementById('synSaveBtn').addEventListener('click', async () => {
+      showError('');
+      const dealId = document.getElementById('valDealSelect').value;
+      if (!dealId) return showError('Selecciona un deal');
+      try {
+        const s = await api.mnaSynergiesSet(dealId, {
+          costSynergiesAnnual: Number(document.getElementById('synCost').value) || 0,
+          revenueSynergiesAnnual: Number(document.getElementById('synRevenue').value) || 0,
+          oneOffIntegrationCost: Number(document.getElementById('synOneOff').value) || 0,
+        });
+        document.getElementById('synPayback').textContent = s.paybackMonths != null ? `Payback: ${s.paybackMonths} meses` : 'Sin payback calculable (sinergias anuales = 0)';
+        toast('Sinergias guardadas');
+      } catch (ex) { showError(ex.message || 'Error al guardar sinergias'); }
+    });
+
+    // ---- Due diligence ----
+    async function loadDiligenceCategories() {
+      const dealId = document.getElementById('ddDealSelect').value;
+      const catSelect = document.getElementById('ddItemCategory');
+      if (!dealId) { catSelect.innerHTML = '<option value="">Sin categoría</option>'; return; }
+      try {
+        const cats = await api.mnaDiligenceCategoriesList(dealId);
+        catSelect.innerHTML = '<option value="">Sin categoría</option>' + cats.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+      } catch (ex) { showError(ex.message || 'Error al cargar categorías'); }
+    }
+
+    async function loadDiligenceItems() {
+      const dealId = document.getElementById('ddDealSelect').value;
+      const body = document.getElementById('ddBody');
+      if (!dealId) { body.innerHTML = '<tr class="empty-row"><td colspan="5">Selecciona un deal.</td></tr>'; return; }
+      try {
+        const [items, cats] = await Promise.all([api.mnaDiligenceItemsList(dealId), api.mnaDiligenceCategoriesList(dealId)]);
+        const catName = new Map(cats.map(c => [c.id, c.name]));
+        if (items.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="5">Sin ítems de due diligence.</td></tr>'; return; }
+        body.innerHTML = items.map(i => `<tr data-id="${i.id}">
+          <td>${escapeHtml(i.item)}</td>
+          <td>${escapeHtml(catName.get(i.categoryId) || '—')}</td>
+          <td>${selectHtml(DD_STATUSES, i.status, 'dd-status')}</td>
+          <td>${escapeHtml(i.auditor || '—')}</td>
+          <td><button class="btn ghost btn--sm dd-del">Eliminar</button></td>
+        </tr>`).join('');
+        body.querySelectorAll('tr[data-id]').forEach(tr => {
+          const id = tr.dataset.id;
+          tr.querySelector('.dd-status').addEventListener('change', async (e) => {
+            try { await api.mnaDiligenceItemPatch(id, { status: e.target.value }); loadSummary(); } catch (ex) { showError(ex.message); }
+          });
+          tr.querySelector('.dd-del').addEventListener('click', async () => {
+            try { await api.mnaDiligenceItemDelete(id); loadDiligenceItems(); loadSummary(); } catch (ex) { showError(ex.message); }
+          });
+        });
+      } catch (ex) { showError(ex.message || 'Error al cargar due diligence'); }
+    }
+
+    document.getElementById('ddDealSelect').addEventListener('change', () => { loadDiligenceCategories(); loadDiligenceItems(); });
+
+    document.getElementById('ddCategoryAddBtn').addEventListener('click', async () => {
+      showError('');
+      const dealId = document.getElementById('ddDealSelect').value;
+      const name = document.getElementById('ddCategoryName').value.trim();
+      if (!dealId) return showError('Selecciona un deal');
+      if (!name) return showError('Indica el nombre de la categoría');
+      try {
+        await api.mnaDiligenceCategoryAdd(dealId, { name });
+        document.getElementById('ddCategoryName').value = '';
+        loadDiligenceCategories();
+      } catch (ex) { showError(ex.message || 'Error al crear categoría'); }
+    });
+
+    document.getElementById('ddItemAddBtn').addEventListener('click', async () => {
+      showError('');
+      const dealId = document.getElementById('ddDealSelect').value;
+      const item = document.getElementById('ddItemText').value.trim();
+      if (!dealId) return showError('Selecciona un deal');
+      if (!item) return showError('Indica el ítem');
+      try {
+        await api.mnaDiligenceItemAdd(dealId, {
+          item,
+          categoryId: document.getElementById('ddItemCategory').value || null,
+          auditor: document.getElementById('ddItemAuditor').value.trim() || null,
+        });
+        document.getElementById('ddItemText').value = '';
+        document.getElementById('ddItemAuditor').value = '';
+        loadDiligenceItems(); loadSummary();
+      } catch (ex) { showError(ex.message || 'Error al crear ítem'); }
+    });
+
+    // ---- Init ----
+    (async () => {
+      await loadDeals();
+      loadSummary();
+      if (deals.length > 0) {
+        loadValuation();
+        loadDiligenceCategories();
+        loadDiligenceItems();
+      }
+    })();
+  </script>
+</body>
+</html>

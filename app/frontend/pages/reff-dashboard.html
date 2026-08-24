@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rëff · S-NFI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
+</head>
+<body>
+  <nav class="nav">
+    <div class="brand">
+      <a href="/pages/dashboard.html" style="color:inherit; text-decoration:none;">
+        <img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;"> SYSTEMS
+      </a>
+      <span class="mono" style="opacity:0.5; margin:0 8px;">/</span>
+      <span>Rëff</span>
+    </div>
+    <div class="row" style="gap:18px;">
+      <div class="user-menu" id="userMenu">
+        <button class="user-menu__trigger mono" id="userTag" aria-haspopup="true" aria-expanded="false">…</button>
+        <div class="user-menu__dropdown" id="userDropdown" hidden>
+          <div class="user-menu__section">
+            <span class="user-menu__label">Cambiar contraseña</span>
+            <input class="user-menu__input" type="password" id="pwdCurrent" placeholder="Contraseña actual" autocomplete="current-password">
+            <input class="user-menu__input" type="password" id="pwdNew" placeholder="Nueva contraseña" autocomplete="new-password">
+            <input class="user-menu__input" type="password" id="pwdConfirm" placeholder="Confirmar nueva" autocomplete="new-password">
+            <p class="user-menu__error" id="pwdError" hidden></p>
+            <button class="btn sage" id="pwdSubmit" style="width:100%;margin-top:4px;">Actualizar</button>
+          </div>
+          <div class="user-menu__divider"></div>
+          <button class="user-menu__item user-menu__item--danger" id="logoutBtn">Cerrar sesión</button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <style>
+    .user-menu { position: relative; }
+    .user-menu__trigger {
+      background: none; border: none; cursor: pointer;
+      padding: 6px 10px; border-radius: var(--radius-sm);
+      font-size: 0.82rem; color: var(--text-2);
+      transition: background 0.15s;
+    }
+    .user-menu__trigger:hover { background: rgba(20,24,32,0.06); color: var(--text-1); }
+    .user-menu__dropdown {
+      position: absolute; right: 0; top: calc(100% + 8px);
+      background: #fff; border: 1px solid var(--border);
+      border-radius: var(--radius); box-shadow: 0 8px 32px rgba(0,0,0,0.10);
+      min-width: 240px; padding: 12px 0; z-index: 100;
+    }
+    .user-menu__section { padding: 4px 14px 8px; display: flex; flex-direction: column; gap: 6px; }
+    .user-menu__label { font-size: 0.72rem; font-family: var(--font-mono); color: var(--text-3); letter-spacing: -0.005em; margin-bottom: 2px; }
+    .user-menu__input {
+      width: 100%; padding: 7px 10px; border: 1px solid var(--border);
+      border-radius: var(--radius-sm); font-size: 0.82rem; font-family: var(--font-sans);
+      background: var(--bg); color: var(--text-1); outline: none; box-sizing: border-box;
+    }
+    .user-menu__input:focus { border-color: var(--accent-blue); }
+    .user-menu__error { font-size: 0.78rem; color: #c0392b; margin: 2px 0 0; }
+    .user-menu__divider { height: 1px; background: var(--border); margin: 4px 0; }
+    .user-menu__item {
+      display: block; width: 100%; text-align: left;
+      padding: 9px 14px; background: none; border: none; cursor: pointer;
+      font-size: 0.85rem; font-family: var(--font-sans); color: var(--text-1);
+      transition: background 0.12s;
+    }
+    .user-menu__item:hover { background: rgba(20,24,32,0.04); }
+    .user-menu__item--danger { color: #c0392b; }
+    .user-menu__item--danger:hover { background: rgba(192,57,43,0.06); }
+    /* Above the background canvas but below .nav (z-index 30 in theme.css),
+       so the notifications dropdown inside the nav receives clicks */
+    main.container { position: relative; z-index: 1; }
+  </style>
+
+  <main class="container">
+    <header class="reveal">
+      <span class="kicker">Dominio Rëff · Cerebro de datos</span>
+      <h1>Rëff</h1>
+      <p style="max-width:640px; margin-top:8px;">
+        Inteligencia comercial y científica en tiempo real. Rëff analiza, audita y valida; nunca ejecuta.
+      </p>
+    </header>
+
+    <section class="reveal delay-1">
+      <span class="kicker">Mesas</span>
+      <div class="tiles" style="margin-top:12px;">
+        <a class="tile reveal delay-2" href="/pages/reff.html" data-mesa="reff" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
+          <h3>Rëff</h3>
+          <p>CRM de inteligencia comercial S-NFI. Deep Research, scoring OPHS, auditoría Herzog, LI Contacts, Finder y Email Creator.</p>
+          <p class="mono" style="margin-top:10px;">acceso directo →</p>
+        </a>
+
+        <a class="tile reveal delay-3" href="/pages/snfi-u2.html" data-mesa="snfiu2" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
+          <h3>S-NFI U2</h3>
+          <p>Energía desperdiciada en el sistema eléctrico español. Horas precio 0&nbsp;EUR/MWh, GWh curtailed, comparativa histórica 2023-2026. Dato vivo vía REE.</p>
+          <p class="mono" style="margin-top:10px;">acceso directo →</p>
+        </a>
+
+        <a class="tile reveal delay-4" href="/pages/factory.html" data-mesa="factory" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
+          <h3>S-NFI Factory</h3>
+          <p>Control de la cadena de suministro industrial: ensamblaje BioHybrid™, logística de materiales, inventario de componentes mecánicos y mantenimiento de nodos desplegados.</p>
+          <p class="mono" style="margin-top:10px;">acceso directo →</p>
+        </a>
+
+        <a class="tile reveal delay-4" href="/pages/finance.html" data-mesa="finance" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
+          <h3>S-NFI Finance</h3>
+          <p>Control financiero y valoración de activos reales: tesorería, flujos de caja proyectados, contabilidad analítica interna y pasarela cifrada para la asesoría contable externa.</p>
+          <p class="mono" style="margin-top:10px;">acceso directo →</p>
+        </a>
+
+        <a class="tile reveal delay-4" href="/pages/fl.html" data-mesa="fl" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
+          <h3>S-NFI F&amp;L</h3>
+          <p>Custodia legal del Holding: NDAs, contratos mercantiles y laborales, cesión de licencias y expediente técnico-jurídico para el Modelo de Utilidad ante la OEPM.</p>
+          <p class="mono" style="margin-top:10px;">acceso directo →</p>
+        </a>
+
+        <a class="tile reveal delay-4" href="/pages/mna.html" data-mesa="mna" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
+          <h3>S-NFI M&amp;A</h3>
+          <p>Inteligencia corporativa para el crecimiento fractal: modelado financiero para la absorción de empresas competidoras o complementarias, fusiones estratégicas y expansión del perímetro del Holding.</p>
+          <p class="mono" style="margin-top:10px;">acceso directo →</p>
+        </a>
+
+        <a class="tile reveal delay-4" href="/pages/pactum-viridi.html" data-mesa="pactvm" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
+          <h3>Pactvm Viridi</h3>
+          <p>Guardián doctrinal, científico y de cumplimiento bio-ambiental: certificado CIBE, políticas medioambientales, condiciones de acceso y auditoría automatizada vía Herzog.</p>
+          <p class="mono" style="margin-top:10px;">acceso directo →</p>
+        </a>
+
+        <a class="tile reveal delay-4" href="/pages/gob-share.html" data-mesa="reff" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
+          <h3>Gob Share</h3>
+          <p>Portales de registro gubernamentales por país (UE-27 + EEUU + China + Marruecos). Globo 3D interactivo con acceso directo a cada portal oficial.</p>
+          <p class="mono" style="margin-top:10px;">acceso directo →</p>
+        </a>
+      </div>
+    </section>
+
+    <div class="hr"></div>
+
+    <section class="reveal">
+      <span class="kicker">Estado de las Mesas</span>
+      <h2 style="margin-top:4px;">Health Check</h2>
+      <div class="mesa-status-grid" id="mesaStatusGrid">
+        <div class="mesa-status-card" data-mesa="reff">
+          <div class="mesa-status-head">
+            <span class="mesa-status-name">Rëff</span>
+            <span class="mesa-status-dot checking"></span>
+          </div>
+          <span class="mesa-status-label">comprobando...</span>
+          <span class="mesa-status-detail"></span>
+          <span class="mesa-status-error"></span>
+        </div>
+        <div class="mesa-status-card" data-mesa="snfiu2">
+          <div class="mesa-status-head">
+            <span class="mesa-status-name">S-NFI U2</span>
+            <span class="mesa-status-dot checking"></span>
+          </div>
+          <span class="mesa-status-label">comprobando...</span>
+          <span class="mesa-status-detail"></span>
+          <span class="mesa-status-error"></span>
+        </div>
+        <div class="mesa-status-card" data-mesa="factory">
+          <div class="mesa-status-head">
+            <span class="mesa-status-name">S-NFI Factory</span>
+            <span class="mesa-status-dot checking"></span>
+          </div>
+          <span class="mesa-status-label">comprobando...</span>
+          <span class="mesa-status-detail"></span>
+          <span class="mesa-status-error"></span>
+        </div>
+        <div class="mesa-status-card" data-mesa="finance">
+          <div class="mesa-status-head">
+            <span class="mesa-status-name">S-NFI Finance</span>
+            <span class="mesa-status-dot checking"></span>
+          </div>
+          <span class="mesa-status-label">comprobando...</span>
+          <span class="mesa-status-detail"></span>
+          <span class="mesa-status-error"></span>
+        </div>
+        <div class="mesa-status-card" data-mesa="fl">
+          <div class="mesa-status-head">
+            <span class="mesa-status-name">S-NFI F&amp;L</span>
+            <span class="mesa-status-dot checking"></span>
+          </div>
+          <span class="mesa-status-label">comprobando...</span>
+          <span class="mesa-status-detail"></span>
+          <span class="mesa-status-error"></span>
+        </div>
+        <div class="mesa-status-card" data-mesa="mna">
+          <div class="mesa-status-head">
+            <span class="mesa-status-name">S-NFI M&amp;A</span>
+            <span class="mesa-status-dot checking"></span>
+          </div>
+          <span class="mesa-status-label">comprobando...</span>
+          <span class="mesa-status-detail"></span>
+          <span class="mesa-status-error"></span>
+        </div>
+        <div class="mesa-status-card" data-mesa="pactvm">
+          <div class="mesa-status-head">
+            <span class="mesa-status-name">Pactvm Viridi</span>
+            <span class="mesa-status-dot checking"></span>
+          </div>
+          <span class="mesa-status-label">comprobando...</span>
+          <span class="mesa-status-detail"></span>
+          <span class="mesa-status-error"></span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module">
+    import { api, getUser, getToken, clearSession, requireAuth, toast } from '/js/api.js';
+    import { mountAdminNotifications } from '/js/notifications.js';
+    import { mountOfficeBg, mountSphereBg } from '/js/office-bg.js';
+    requireAuth();
+    mountOfficeBg();
+    mountSphereBg();
+    const user = getUser() || '';
+    document.getElementById('userTag').textContent = user;
+    mountAdminNotifications(document.querySelector('nav.nav .row'));
+
+    // Apply mesa permissions — hide tiles + health cards not accessible; redirect if no access at all
+    try {
+      const perms = await fetch('/api/me/permissions', {
+        headers: { Authorization: `Bearer ${getToken()}` }
+      }).then(r => r.json());
+      const allowed = new Set(perms.mesas || []);
+      const domainMesas = ['reff', 'snfiu2', 'factory', 'finance', 'fl', 'mna', 'pactvm'];
+      if (!domainMesas.some(m => allowed.has(m))) {
+        location.href = '/pages/dashboard.html';
+      }
+      document.querySelectorAll('.tile[data-mesa]').forEach(el => {
+        if (!allowed.has(el.dataset.mesa)) el.style.display = 'none';
+      });
+      document.querySelectorAll('.mesa-status-card[data-mesa]').forEach(el => {
+        if (!allowed.has(el.dataset.mesa)) el.style.display = 'none';
+      });
+    } catch {}
+
+    // User menu dropdown
+    const trigger = document.getElementById('userTag');
+    const dropdown = document.getElementById('userDropdown');
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = !dropdown.hidden;
+      dropdown.hidden = open;
+      trigger.setAttribute('aria-expanded', String(!open));
+    });
+    document.addEventListener('click', (e) => {
+      if (!document.getElementById('userMenu').contains(e.target)) {
+        dropdown.hidden = true;
+        trigger.setAttribute('aria-expanded', 'false');
+      }
+    });
+
+    // Change password
+    document.getElementById('pwdSubmit').addEventListener('click', async () => {
+      const cur = document.getElementById('pwdCurrent').value;
+      const neu = document.getElementById('pwdNew').value;
+      const con = document.getElementById('pwdConfirm').value;
+      const errEl = document.getElementById('pwdError');
+      errEl.hidden = true;
+      if (!cur || !neu || !con) { errEl.textContent = 'Rellena todos los campos'; errEl.hidden = false; return; }
+      if (neu !== con) { errEl.textContent = 'Las contraseñas no coinciden'; errEl.hidden = false; return; }
+      try {
+        await api.changePassword(cur, neu);
+        toast('Contraseña actualizada');
+        dropdown.hidden = true;
+        trigger.setAttribute('aria-expanded', 'false');
+        ['pwdCurrent','pwdNew','pwdConfirm'].forEach(id => document.getElementById(id).value = '');
+      } catch (ex) {
+        errEl.textContent = ex.message || 'Error al cambiar contraseña';
+        errEl.hidden = false;
+      }
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      try { await api.logout(); } catch {}
+      clearSession();
+      location.href = '/pages/login.html';
+    });
+
+    // ---- Health check ----
+    function setMesaStatus(mesa, state, label, detail, error) {
+      const card = document.querySelector(`.mesa-status-card[data-mesa="${mesa}"]`);
+      if (!card) return;
+      const dot = card.querySelector('.mesa-status-dot');
+      const lbl = card.querySelector('.mesa-status-label');
+      const det = card.querySelector('.mesa-status-detail');
+      const err = card.querySelector('.mesa-status-error');
+      dot.className = `mesa-status-dot ${state}`;
+      lbl.className = `mesa-status-label ${state}`;
+      lbl.textContent = label;
+      det.textContent = detail || '';
+      err.textContent = error || '';
+    }
+
+    async function checkMesa(mesa, url, { okLabel = 'operativo', parse } = {}) {
+      const t0 = performance.now();
+      try {
+        const headers = {};
+        const token = getToken();
+        if (token) headers.Authorization = `Bearer ${token}`;
+        const r = await fetch(url, { headers });
+        const ms = Math.round(performance.now() - t0);
+        if (!r.ok) {
+          let msg = `HTTP ${r.status}`;
+          try { const j = await r.json(); if (j.error) msg = j.error; } catch {}
+          setMesaStatus(mesa, 'bad', 'error', `${url} · ${ms} ms`, msg);
+          return;
+        }
+        const data = await r.json().catch(() => ({}));
+        const extra = parse ? parse(data) : '';
+        setMesaStatus(mesa, 'ok', okLabel, `${ms} ms${extra ? ' · ' + extra : ''}`, '');
+      } catch (ex) {
+        const ms = Math.round(performance.now() - t0);
+        setMesaStatus(mesa, 'bad', 'sin conexión', `${url} · ${ms} ms`, ex.message || 'fallo de red');
+      }
+    }
+
+    function refreshMesaStatus() {
+      checkMesa('reff', '/api/reff-health', {
+        parse: d => d.service ? `service: ${d.service}` : ''
+      });
+      checkMesa('snfiu2', '/api/snfi-u2/live', {
+        parse: d => d.snapshot?.precio_actual_eur_mwh != null ? `${d.snapshot.precio_actual_eur_mwh} EUR/MWh` : ''
+      });
+      checkMesa('factory', '/api/factory/summary', {
+        parse: d => `${d.assemblyActive ?? 0} ensamblajes activos`
+      });
+      checkMesa('finance', '/api/finance/summary', {
+        parse: d => `${d.accountsCount ?? 0} cuentas`
+      });
+      checkMesa('fl', '/api/fl/summary', {
+        parse: d => `${d.ndasCount ?? 0} NDAs · ${d.contractsCount ?? 0} contratos`
+      });
+      checkMesa('mna', '/api/mna/summary', {
+        parse: d => `${d.activeDeals ?? 0} deals activos`
+      });
+      checkMesa('pactvm', '/api/pactvm/summary', {
+        parse: d => `${d.cibeEmitidos ?? 0} CIBE emitidos`
+      });
+    }
+
+    refreshMesaStatus();
+    setInterval(refreshMesaStatus, 30000);
+  </script>
+</body>
+</html>

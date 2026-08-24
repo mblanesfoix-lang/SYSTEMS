@@ -1,4 +1,5 @@
-import { Router, Request, Response } from 'express';
+import express, { Router, Request, Response } from 'express';
+import { GridFSBucket, ObjectId } from 'mongodb';
 import { getReffDb, nextSeq } from '../mongo.js';
 import { authMiddleware } from '../auth.js';
 
@@ -178,7 +179,132 @@ router.delete('/companies/:id', async (req: Request, res: Response) => {
   const id = Number(req.params.id);
   const row = await getUserCompany(id, req.user.id);
   if (!row) return res.status(404).json({ error: 'Empresa no encontrada' });
+  // Purga las imágenes GridFS de la empresa antes de borrar el doc
+  const files = await getReffDb().collection('company_images.files')
+    .find({ 'metadata.company_id': id }).project({ _id: 1 }).toArray();
+  for (const f of files) {
+    await imagesBucket().delete(f._id as ObjectId).catch(() => {});
+  }
   await getReffDb().collection<CompanyDoc>('companies').deleteOne({ _id: id });
+  res.json({ ok: true });
+});
+
+/* ---------- imágenes y PDFs por empresa (GridFS, bucket company_images) ---------- */
+
+const FILE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+const MAX_FILES_PER_COMPANY = 30;
+
+function imagesBucket(): GridFSBucket {
+  return new GridFSBucket(getReffDb(), { bucketName: 'company_images' });
+}
+
+interface ImageFileDoc {
+  _id: ObjectId;
+  filename: string;
+  length: number;
+  uploadDate: Date;
+  metadata?: { company_id?: number; uploaded_by?: string; uploaded_at?: string; content_type?: string };
+}
+
+function serializeImage(f: ImageFileDoc) {
+  return {
+    id: f._id.toString(),
+    filename: f.filename,
+    contentType: f.metadata?.content_type || 'application/octet-stream',
+    size: f.length,
+    uploadedAt: f.metadata?.uploaded_at || f.uploadDate?.toISOString?.() || null,
+  };
+}
+
+router.get('/companies/:id/images', async (req: Request, res: Response) => {
+  const companyId = Number(req.params.id);
+  const company = await getUserCompany(companyId, req.user.id);
+  if (!company) return res.status(404).json({ error: 'Empresa no encontrada' });
+
+  const files = await getReffDb().collection<ImageFileDoc>('company_images.files')
+    .find({ 'metadata.company_id': companyId })
+    .sort({ uploadDate: -1 })
+    .toArray();
+  res.json({ images: files.map(serializeImage) });
+});
+
+// Subida raw: el cliente hace fetch(url, { body: file }) con Content-Type del
+// archivo y X-Filename. Sin multipart, sin multer.
+router.post(
+  '/companies/:id/images',
+  express.raw({ type: FILE_TYPES, limit: '16mb' }),
+  async (req: Request, res: Response) => {
+    const companyId = Number(req.params.id);
+    const company = await getUserCompany(companyId, req.user.id);
+    if (!company) return res.status(404).json({ error: 'Empresa no encontrada' });
+
+    const contentType = String(req.headers['content-type'] || '');
+    if (!FILE_TYPES.includes(contentType)) {
+      return res.status(415).json({ error: 'Formato no permitido. Solo JPG, PNG, WebP o PDF.' });
+    }
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      return res.status(400).json({ error: 'Archivo vacío o ilegible' });
+    }
+    const count = await getReffDb().collection('company_images.files')
+      .countDocuments({ 'metadata.company_id': companyId });
+    if (count >= MAX_FILES_PER_COMPANY) {
+      return res.status(400).json({ error: `Máximo ${MAX_FILES_PER_COMPANY} archivos por empresa` });
+    }
+
+    let filename = 'archivo';
+    try { filename = decodeURIComponent(String(req.headers['x-filename'] || 'archivo')); } catch {}
+    filename = filename.slice(0, 180);
+
+    const uploadedAt = new Date().toISOString();
+    const upload = imagesBucket().openUploadStream(filename, {
+      metadata: { company_id: companyId, uploaded_by: req.user.id, uploaded_at: uploadedAt, content_type: contentType },
+    });
+    upload.on('error', () => {
+      if (!res.headersSent) res.status(500).json({ error: 'Error al guardar la imagen' });
+    });
+    upload.on('finish', () => {
+      res.status(201).json({
+        image: {
+          id: upload.id.toString(),
+          filename,
+          contentType,
+          size: (req.body as Buffer).length,
+          uploadedAt,
+        },
+      });
+    });
+    upload.end(req.body as Buffer);
+  },
+);
+
+router.get('/images/:fileId', async (req: Request, res: Response) => {
+  let oid: ObjectId;
+  try { oid = new ObjectId(String(req.params.fileId)); } catch { return res.status(400).json({ error: 'Id de imagen inválido' }); }
+
+  const file = await getReffDb().collection<ImageFileDoc>('company_images.files').findOne({ _id: oid });
+  if (!file) return res.status(404).json({ error: 'Imagen no encontrada' });
+  const owned = await getUserCompany(Number(file.metadata?.company_id), req.user.id);
+  if (!owned) return res.status(403).json({ error: 'Acceso denegado' });
+
+  res.setHeader('Content-Type', file.metadata?.content_type || 'application/octet-stream');
+  res.setHeader('Content-Length', String(file.length));
+  res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(file.filename)}`);
+  res.setHeader('Cache-Control', 'private, max-age=3600');
+  const stream = imagesBucket().openDownloadStream(oid);
+  stream.on('error', () => res.destroy());
+  stream.pipe(res);
+});
+
+router.delete('/images/:fileId', async (req: Request, res: Response) => {
+  let oid: ObjectId;
+  try { oid = new ObjectId(String(req.params.fileId)); } catch { return res.status(400).json({ error: 'Id de imagen inválido' }); }
+
+  const file = await getReffDb().collection<ImageFileDoc>('company_images.files').findOne({ _id: oid });
+  if (!file) return res.status(404).json({ error: 'Imagen no encontrada' });
+  const owned = await getUserCompany(Number(file.metadata?.company_id), req.user.id);
+  if (!owned) return res.status(403).json({ error: 'Acceso denegado' });
+
+  await imagesBucket().delete(oid);
   res.json({ ok: true });
 });
 

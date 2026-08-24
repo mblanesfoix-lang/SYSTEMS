@@ -1,7 +1,7 @@
 import type { CompanyStatus } from './api';
 
 export const STATUS_META: Record<CompanyStatus, { label: string; color: string }> = {
-  estrategico: { label: 'Estratégico', color: '#00a878' },
+  estrategico: { label: 'Estratégico', color: '#1fa855' },
   operativo: { label: 'Operativo', color: '#0071e3' },
   pendiente: { label: 'Pendiente', color: '#c9a84c' },
   no_candidato: { label: 'No candidato', color: '#b3322c' },

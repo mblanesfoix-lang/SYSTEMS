@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Elvi-Ra · Rëff</title>
+  <title>SYSTEMS · Rëff</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Syne:wght@600;700;800&family=Inter:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap">
   <link rel="stylesheet" href="/css/theme.css">
   <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
   <style>
@@ -20,8 +20,8 @@
       flex-direction: column;
       height: 100vh;
       background-image:
-        radial-gradient(ellipse 80% 60% at 60% 40%, rgba(0,168,120,0.08) 0%, transparent 60%),
-        radial-gradient(ellipse 60% 80% at 85% 90%, rgba(0,152,199,0.05) 0%, transparent 55%),
+        radial-gradient(ellipse 80% 60% at 60% 40%, rgba(0,113,227,0.07) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 80% at 85% 90%, rgba(0,113,227,0.04) 0%, transparent 55%),
         radial-gradient(ellipse 40% 40% at 0% 100%, rgba(216,3,0,0.03) 0%, transparent 60%),
         linear-gradient(180deg, var(--bg-elevated) 0%, var(--bg-void) 100%);
     }
@@ -66,8 +66,7 @@
       font-family: var(--font-mono);
       font-size: 0.72rem;
       color: var(--text-muted);
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
+      letter-spacing: 0.02em;
     }
     .reff-nav .breadcrumb .sep {
       opacity: 0.35;
@@ -75,6 +74,13 @@
     .reff-nav .breadcrumb .active {
       color: var(--text-primary);
       font-weight: 600;
+    }
+    .reff-nav .breadcrumb a {
+      color: inherit;
+      text-decoration: none;
+    }
+    .reff-nav .breadcrumb a:hover {
+      color: var(--text-primary);
     }
     .reff-nav .controls {
       display: flex;
@@ -85,7 +91,7 @@
       font-family: var(--font-mono);
       font-size: 0.72rem;
       color: var(--text-muted);
-      letter-spacing: 0.06em;
+      letter-spacing: 0.03em;
     }
     .reff-frame-wrapper {
       flex: 1;
@@ -99,8 +105,8 @@
       position: absolute;
       top: 0; left: 0; right: 0;
       height: 1px;
-      background: linear-gradient(90deg, transparent, var(--accent-green), transparent);
-      opacity: 0.45;
+      background: linear-gradient(90deg, transparent, var(--accent-blue), transparent);
+      opacity: 0.35;
       z-index: 2;
       pointer-events: none;
       animation: metric-sweep 6s ease-in-out infinite;
@@ -131,7 +137,7 @@
       color: var(--text-muted);
       text-align: center;
       line-height: 1.7;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.02em;
     }
     .reff-offline h3 {
       font-family: var(--font-display);
@@ -146,7 +152,7 @@
       background: var(--bg-elevated);
       border: 1px solid var(--border-mid);
       padding: 2px 7px;
-      color: var(--accent-green);
+      color: var(--accent-blue-text);
     }
     .status-dot {
       width: 7px;
@@ -170,12 +176,12 @@
     <div class="reff-nav">
       <div class="brand" id="brandLogo">
         <div class="dot"></div>
-        Elvi-Ra
+        SYSTEMS
       </div>
       <div class="breadcrumb">
-        <span>MESA</span>
+        <a href="/pages/reff-dashboard.html">Rëff</a>
         <span class="sep">/</span>
-        <span class="active">RËFF</span>
+        <span class="active">Mesa Rëff</span>
         <span class="sep">·</span>
         <span class="status-dot" id="statusDot"></span>
         <span id="statusLabel">comprobando...</span>
@@ -203,7 +209,9 @@
 
   <script type="module">
     import { getUser, clearSession, requireAuth, api, getToken } from '/js/api.js';
+    import { mountAdminNotifications } from '/js/notifications.js';
     requireAuth();
+    mountAdminNotifications(document.querySelector('.reff-nav .controls'));
 
     // Mesa guard
     await fetch('/api/me/permissions', { headers: { Authorization: `Bearer ${getToken()}` } })
@@ -215,11 +223,11 @@
     document.getElementById('userTag').textContent = user;
 
     document.getElementById('brandLogo').addEventListener('click', () => {
-      location.href = '/pages/dashboard.html';
+      location.href = '/pages/reff-dashboard.html';
     });
 
     document.getElementById('backBtn').addEventListener('click', () => {
-      location.href = '/pages/dashboard.html';
+      location.href = '/pages/reff-dashboard.html';
     });
 
     document.getElementById('logoutBtn').addEventListener('click', async () => {

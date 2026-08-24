@@ -1,0 +1,616 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>S-NFI F&amp;L · S-NFI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
+  <style>
+    .fl-hero {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px 40px;
+      margin-bottom: 24px;
+    }
+    .fl-hero__title {
+      font-family: var(--font-display);
+      font-size: clamp(1.8rem, 3.4vw, 2.6rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin: 0 0 10px;
+    }
+    .fl-hero__sub {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      max-width: 680px;
+      line-height: 1.65;
+      margin: 0;
+    }
+    .mode-tabs {
+      display: flex; gap: 0; margin-bottom: 24px;
+      border: 1px solid var(--border-mid); border-radius: var(--radius-sm); width: fit-content; overflow: hidden;
+    }
+    .mode-tab {
+      padding: 10px 24px; font-family: var(--font-mono); font-size: 0.65rem;
+      letter-spacing: 0.02em; color: var(--text-muted);
+      background: var(--bg-card); border: none; border-right: 1px solid var(--border-mid);
+      cursor: pointer; transition: background 0.18s var(--ease), color 0.18s var(--ease);
+    }
+    .mode-tab:last-child { border-right: none; }
+    .mode-tab.active { background: var(--accent-blue); color: #fff; font-weight: 600; }
+    .mode-tab:hover:not(.active) { color: var(--text-primary); }
+
+    .kpi-grid {
+      display: grid; grid-template-columns: repeat(5, 1fr); gap: 0;
+      border: 1px solid var(--border-mid); border-radius: var(--radius); overflow: hidden; margin-bottom: 24px; background: var(--bg-card);
+    }
+    @media (max-width: 1000px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+    .kpi-cell { padding: 20px 22px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .kpi-cell:nth-child(5n) { border-right: none; }
+    .kpi-label { font-family: var(--font-mono); font-size: 0.55rem; letter-spacing: 0.04em; color: var(--text-muted); margin-bottom: 10px; }
+    .kpi-val { font-family: var(--font-display); font-size: 1.8rem; font-weight: 800; letter-spacing: -0.03em; }
+    .kpi-val.warn { color: #d80300; }
+
+    .fl-panel { display: none; }
+    .fl-panel.active { display: block; }
+
+    .add-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; align-items: flex-end; }
+    .add-row .sf { display: flex; flex-direction: column; gap: 4px; }
+    .add-row .sf label { font-size: 0.62rem; letter-spacing: -0.005em; color: var(--text-muted); font-family: var(--font-mono); }
+    .add-row .input { min-width: 120px; }
+
+    .status-pill { font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.02em; padding: 3px 10px; border-radius: var(--radius-pill); display: inline-block; }
+    .status-activo { background: rgba(0,168,120,0.12); color: #00a878; }
+    .status-vencido { background: rgba(216,3,0,0.10); color: #d80300; }
+    .status-rescindido { background: rgba(120,120,120,0.14); color: var(--text-muted); }
+    .status-preparacion { background: rgba(120,120,120,0.14); color: var(--text-muted); }
+    .status-presentado { background: rgba(0,113,227,0.10); color: var(--accent-blue-text); }
+    .status-en_examen { background: rgba(200,150,0,0.12); color: #c89600; }
+    .status-concedido { background: rgba(0,168,120,0.12); color: #00a878; }
+    .status-denegado { background: rgba(216,3,0,0.10); color: #d80300; }
+
+    .piece-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 8px; }
+    @media (max-width: 900px) { .piece-grid { grid-template-columns: repeat(2, 1fr); } }
+    .piece-cell { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; }
+    .piece-cell .piece-name { font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.02em; color: var(--text-muted); margin-bottom: 6px; }
+    .piece-cell select { width: 100%; font-size: 0.78rem; }
+
+    .docs-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .doc-chip { font-family: var(--font-mono); font-size: 0.68rem; background: var(--bg); border: 1px solid var(--border); padding: 3px 10px; border-radius: var(--radius-pill); display: inline-flex; align-items: center; gap: 6px; }
+    .doc-chip button { border: none; background: none; color: var(--text-muted); cursor: pointer; padding: 0; font-size: 0.9rem; line-height: 1; }
+    .doc-chip button:hover { color: #d80300; }
+
+    .empty-row td { text-align: center; color: var(--text-muted); font-size: 0.82rem; padding: 24px !important; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="brand">
+      <img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;">
+      SYSTEMS
+    </div>
+    <div class="row" style="gap:18px;">
+      <span class="mono" id="userTag">...</span>
+      <button class="btn ghost" id="logoutBtn">Cerrar sesión</button>
+    </div>
+  </nav>
+
+  <main class="container">
+    <div class="breadcrumb-row" style="display:flex; align-items:center; gap:8px; font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: -0.005em; color: var(--text-muted); margin-bottom: 22px;">
+      <a href="/pages/dashboard.html" style="color:inherit; text-decoration:none;">Systems</a>
+      <span style="opacity:.35;">/</span>
+      <a href="/pages/reff-dashboard.html" style="color:inherit; text-decoration:none;">Rëff</a>
+      <span style="opacity:.35;">/</span>
+      <span style="color: var(--text-primary); font-weight:600;">S-NFI F&amp;L</span>
+    </div>
+
+    <div class="fl-hero reveal">
+      <span class="kicker">Mesa · Fiscal &amp; Legal</span>
+      <h1 class="fl-hero__title">S-NFI <em style="font-style:normal;color:var(--accent-blue);">F&amp;L</em></h1>
+      <p class="fl-hero__sub">
+        Custodia legal inexpugnable del Holding: almacenamiento y auditoría de NDAs, contratos mercantiles y
+        laborales, estructura de cesión de licencias, y expediente técnico-jurídico de base para la solicitud
+        del Modelo de Utilidad ante la OEPM.
+      </p>
+    </div>
+
+    <div id="errorBox" style="display:none;" class="mole-error"></div>
+
+    <div class="kpi-grid reveal" id="summaryKpis">
+      <div class="kpi-cell">
+        <div class="kpi-label">NDAs</div>
+        <div class="kpi-val" id="kpiNdasVal">—</div>
+      </div>
+      <div class="kpi-cell">
+        <div class="kpi-label">Contratos</div>
+        <div class="kpi-val" id="kpiContractsVal">—</div>
+      </div>
+      <div class="kpi-cell">
+        <div class="kpi-label">Licencias</div>
+        <div class="kpi-val" id="kpiLicensesVal">—</div>
+      </div>
+      <div class="kpi-cell">
+        <div class="kpi-label">Expedientes OEPM</div>
+        <div class="kpi-val" id="kpiOepmVal">—</div>
+      </div>
+      <div class="kpi-cell">
+        <div class="kpi-label">Vencen &lt; 30 días</div>
+        <div class="kpi-val" id="kpiExpiringVal">—</div>
+      </div>
+    </div>
+
+    <div class="mode-tabs reveal">
+      <button class="mode-tab active" data-panel="ndas">NDAs</button>
+      <button class="mode-tab" data-panel="contratos">Contratos</button>
+      <button class="mode-tab" data-panel="licencias">Licencias</button>
+      <button class="mode-tab" data-panel="oepm">Expediente OEPM</button>
+    </div>
+
+    <!-- NDAs -->
+    <div class="fl-panel active card reveal" id="panel-ndas" style="padding:20px;">
+      <div class="add-row">
+        <div class="sf"><label>Contraparte</label><input class="input" id="ndaCounterparty" placeholder="Empresa / persona"></div>
+        <div class="sf"><label>Alcance</label><input class="input" id="ndaScope" placeholder="Objeto de confidencialidad" style="min-width:220px;"></div>
+        <div class="sf"><label>Firmado</label><input class="input" type="date" id="ndaSigned"></div>
+        <div class="sf"><label>Vigente desde</label><input class="input" type="date" id="ndaFrom"></div>
+        <div class="sf"><label>Vigente hasta</label><input class="input" type="date" id="ndaTo"></div>
+        <button class="btn sage" id="ndaAddBtn">Añadir NDA</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="tbl" id="ndaTable">
+          <thead><tr><th>Contraparte</th><th>Vigencia</th><th>Estado</th><th>Documentos</th><th></th></tr></thead>
+          <tbody id="ndaBody"><tr class="empty-row"><td colspan="5">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- CONTRATOS -->
+    <div class="fl-panel card reveal" id="panel-contratos" style="padding:20px;">
+      <div class="add-row">
+        <div class="sf"><label>Tipo</label>
+          <select class="input" id="ctrType">
+            <option value="mercantil">Mercantil</option>
+            <option value="laboral">Laboral</option>
+          </select>
+        </div>
+        <div class="sf"><label>Partes</label><input class="input" id="ctrParties" placeholder="S-NFI Corp. / Proveedor X"></div>
+        <div class="sf"><label>Objeto</label><input class="input" id="ctrObject" placeholder="Objeto del contrato" style="min-width:220px;"></div>
+        <div class="sf"><label>Vigente desde</label><input class="input" type="date" id="ctrFrom"></div>
+        <div class="sf"><label>Vigente hasta</label><input class="input" type="date" id="ctrTo"></div>
+        <button class="btn sage" id="ctrAddBtn">Añadir contrato</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="tbl" id="ctrTable">
+          <thead><tr><th>Tipo</th><th>Partes</th><th>Vigencia</th><th>Estado</th><th>Documentos</th><th></th></tr></thead>
+          <tbody id="ctrBody"><tr class="empty-row"><td colspan="6">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- LICENCIAS -->
+    <div class="fl-panel card reveal" id="panel-licencias" style="padding:20px;">
+      <div class="add-row">
+        <div class="sf"><label>Licenciante</label><input class="input" id="licLicensor" placeholder="S-NFI Corp."></div>
+        <div class="sf"><label>Licenciatario</label><input class="input" id="licLicensee" placeholder="Tercero"></div>
+        <div class="sf"><label>Territorio</label><input class="input" id="licTerritory" placeholder="ES / EU / global"></div>
+        <div class="sf"><label>Exclusiva</label>
+          <select class="input" id="licExclusive">
+            <option value="false">No</option>
+            <option value="true">Sí</option>
+          </select>
+        </div>
+        <div class="sf"><label>Royalties / fee</label><input class="input" id="licFee" placeholder="% o importe"></div>
+        <div class="sf"><label>Contrato vinculado</label><select class="input" id="licContract"><option value="">Ninguno</option></select></div>
+        <div class="sf"><label>Vigente desde</label><input class="input" type="date" id="licFrom"></div>
+        <div class="sf"><label>Vigente hasta</label><input class="input" type="date" id="licTo"></div>
+        <button class="btn sage" id="licAddBtn">Añadir licencia</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="tbl" id="licTable">
+          <thead><tr><th>Licenciante → Licenciatario</th><th>Territorio</th><th>Vigencia</th><th>Estado</th><th>Documentos</th><th></th></tr></thead>
+          <tbody id="licBody"><tr class="empty-row"><td colspan="6">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- EXPEDIENTE OEPM -->
+    <div class="fl-panel card reveal" id="panel-oepm" style="padding:20px;">
+      <p style="font-size:0.82rem; color:var(--text-muted); line-height:1.6; max-width:680px; margin-top:0;">
+        Expediente técnico-jurídico de base para la solicitud del Modelo de Utilidad ante la OEPM. Cada expediente
+        agrupa las cuatro piezas requeridas (memoria descriptiva, reivindicaciones, planos, resumen) con su estado
+        individual, más el número de expediente y fecha de presentación una vez formalizada.
+      </p>
+      <div class="add-row">
+        <div class="sf"><label>Título</label><input class="input" id="oepmTitle" placeholder="Nombre del Modelo de Utilidad" style="min-width:260px;"></div>
+        <div class="sf"><label>Descripción</label><input class="input" id="oepmDescription" placeholder="Opcional" style="min-width:260px;"></div>
+        <button class="btn sage" id="oepmAddBtn">Añadir expediente</button>
+      </div>
+      <div id="oepmList"></div>
+    </div>
+  </main>
+
+  <script type="module">
+    import { api, getUser, requireAuth, clearSession, toast, escapeHtml, uploadFlDoc, downloadFlDoc } from '/js/api.js';
+    import { mountOfficeBg } from '/js/office-bg.js';
+    requireAuth();
+    mountOfficeBg();
+    document.getElementById('userTag').textContent = getUser() || '';
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      try { await api.logout(); } catch {}
+      clearSession();
+      location.href = '/pages/login.html';
+    });
+
+    function showError(msg) {
+      const box = document.getElementById('errorBox');
+      box.textContent = msg;
+      box.style.display = msg ? 'block' : 'none';
+    }
+
+    const PIECE_LABELS = {
+      memoria_descriptiva: 'Memoria descriptiva',
+      reivindicaciones: 'Reivindicaciones',
+      planos: 'Planos',
+      resumen: 'Resumen',
+    };
+    const OEPM_STATUS_LABELS = {
+      preparacion: 'En preparación', presentado: 'Presentado', en_examen: 'En examen',
+      concedido: 'Concedido', denegado: 'Denegado',
+    };
+
+    const today = new Date().toISOString().slice(0, 10);
+    document.getElementById('ndaSigned').value = today;
+    document.getElementById('ndaFrom').value = today;
+    document.getElementById('ctrFrom').value = today;
+    document.getElementById('licFrom').value = today;
+
+    // ---- Tabs ----
+    document.querySelectorAll('.mode-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.fl-panel').forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(`panel-${tab.dataset.panel}`).classList.add('active');
+      });
+    });
+
+    // ---- Summary KPIs ----
+    async function loadSummary() {
+      try {
+        const s = await api.flSummary();
+        document.getElementById('kpiNdasVal').textContent = s.ndasCount ?? 0;
+        document.getElementById('kpiContractsVal').textContent = s.contractsCount ?? 0;
+        document.getElementById('kpiLicensesVal').textContent = s.licensesCount ?? 0;
+        document.getElementById('kpiOepmVal').textContent = s.oepmCount ?? 0;
+        const expEl = document.getElementById('kpiExpiringVal');
+        expEl.textContent = s.expiringSoon ?? 0;
+        expEl.classList.toggle('warn', (s.expiringSoon ?? 0) > 0);
+      } catch (ex) { showError(ex.message || 'Error al cargar resumen'); }
+    }
+
+    function statusPill(status) {
+      return `<span class="status-pill status-${status}">${status.replace('_', ' ')}</span>`;
+    }
+    function vigencia(r) {
+      return `${escapeHtml(r.validFrom)} → ${r.validTo ? escapeHtml(r.validTo) : 'indefinida'}`;
+    }
+
+    // ---- Documentos adjuntos (genérico por kind/id) ----
+    async function renderDocs(kind, entityId, container) {
+      container.innerHTML = 'cargando…';
+      try {
+        const docs = await api.flDocsList(kind, entityId);
+        container.innerHTML = docs.map(d => `
+          <span class="doc-chip" data-doc-id="${d.id}">
+            ${escapeHtml(d.filename)}
+            <button class="doc-dl" title="Descargar">⬇</button>
+            <button class="doc-rm" title="Eliminar">&times;</button>
+          </span>
+        `).join('') || '<span class="mono" style="font-size:0.72rem;color:var(--text-muted);">sin documentos</span>';
+        container.querySelectorAll('.doc-dl').forEach(btn => btn.addEventListener('click', async (e) => {
+          const chip = e.target.closest('.doc-chip');
+          const doc = docs.find(d => d.id === chip.dataset.docId);
+          try { await downloadFlDoc(doc.id, doc.filename); } catch (ex) { showError(ex.message); }
+        }));
+        container.querySelectorAll('.doc-rm').forEach(btn => btn.addEventListener('click', async (e) => {
+          const chip = e.target.closest('.doc-chip');
+          try { await api.flDocDelete(chip.dataset.docId); renderDocs(kind, entityId, container); } catch (ex) { showError(ex.message); }
+        }));
+      } catch (ex) { container.innerHTML = '<span class="mono" style="font-size:0.72rem;color:var(--text-muted);">error al cargar</span>'; }
+    }
+
+    function docsCellHtml(rowId) {
+      return `
+        <div class="docs-row" data-entity-id="${rowId}">
+          <div class="docs-list"></div>
+          <label class="btn ghost btn--sm" style="cursor:pointer; margin:0;">
+            + doc
+            <input type="file" accept=".pdf,.doc,.docx" style="display:none;" class="doc-upload-input">
+          </label>
+        </div>
+      `;
+    }
+    function wireDocsCell(row, kind, entityId) {
+      const container = row.querySelector('.docs-list');
+      renderDocs(kind, entityId, container);
+      const input = row.querySelector('.doc-upload-input');
+      input.addEventListener('change', async () => {
+        const file = input.files[0];
+        if (!file) return;
+        try { await uploadFlDoc(kind, entityId, file); renderDocs(kind, entityId, container); }
+        catch (ex) { showError(ex.message || 'Error al subir documento'); }
+        input.value = '';
+      });
+    }
+
+    // ---- NDAs ----
+    async function loadNdas() {
+      const body = document.getElementById('ndaBody');
+      try {
+        const rows = await api.flNdasList();
+        if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="5">Sin NDAs registrados.</td></tr>'; return; }
+        body.innerHTML = rows.map(r => `<tr data-id="${r.id}">
+          <td>${escapeHtml(r.counterparty)}${r.scope ? `<div class="mono" style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">${escapeHtml(r.scope)}</div>` : ''}</td>
+          <td class="mono">${vigencia(r)}</td>
+          <td>${statusPill(r.status)}</td>
+          <td>${docsCellHtml(r.id)}</td>
+          <td>
+            <select class="input nda-status" style="font-size:0.72rem;">
+              <option value="activo" ${r.status === 'activo' ? 'selected' : ''}>Activo</option>
+              <option value="rescindido" ${r.status === 'rescindido' ? 'selected' : ''}>Rescindido</option>
+            </select>
+            <button class="btn ghost btn--sm nda-del">Eliminar</button>
+          </td>
+        </tr>`).join('');
+        body.querySelectorAll('tr[data-id]').forEach(tr => wireDocsCell(tr, 'nda', tr.dataset.id));
+        body.querySelectorAll('.nda-status').forEach(sel => sel.addEventListener('change', async (e) => {
+          const id = e.target.closest('tr').dataset.id;
+          try { await api.flNdaPatch(id, { status: e.target.value }); loadNdas(); loadSummary(); } catch (ex) { showError(ex.message); }
+        }));
+        body.querySelectorAll('.nda-del').forEach(btn => btn.addEventListener('click', async (e) => {
+          const id = e.target.closest('tr').dataset.id;
+          try { await api.flNdaDelete(id); loadNdas(); loadSummary(); } catch (ex) { showError(ex.message); }
+        }));
+      } catch (ex) { showError(ex.message || 'Error al cargar NDAs'); }
+    }
+    document.getElementById('ndaAddBtn').addEventListener('click', async () => {
+      showError('');
+      const counterparty = document.getElementById('ndaCounterparty').value.trim();
+      if (!counterparty) return showError('Indica la contraparte');
+      try {
+        await api.flNdaAdd({
+          counterparty,
+          scope: document.getElementById('ndaScope').value.trim(),
+          signedAt: document.getElementById('ndaSigned').value,
+          validFrom: document.getElementById('ndaFrom').value,
+          validTo: document.getElementById('ndaTo').value || null,
+        });
+        document.getElementById('ndaCounterparty').value = '';
+        document.getElementById('ndaScope').value = '';
+        document.getElementById('ndaTo').value = '';
+        loadNdas(); loadSummary();
+      } catch (ex) { showError(ex.message || 'Error al crear NDA'); }
+    });
+
+    // ---- Contratos ----
+    async function loadContracts() {
+      const body = document.getElementById('ctrBody');
+      try {
+        const rows = await api.flContractsList();
+        if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="6">Sin contratos registrados.</td></tr>'; return; }
+        body.innerHTML = rows.map(r => `<tr data-id="${r.id}">
+          <td class="mono">${escapeHtml(r.type)}</td>
+          <td>${escapeHtml(r.parties)}<div class="mono" style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">${escapeHtml(r.objectDesc)}</div></td>
+          <td class="mono">${vigencia(r)}</td>
+          <td>${statusPill(r.status)}</td>
+          <td>${docsCellHtml(r.id)}</td>
+          <td>
+            <select class="input ctr-status" style="font-size:0.72rem;">
+              <option value="activo" ${r.status === 'activo' ? 'selected' : ''}>Activo</option>
+              <option value="rescindido" ${r.status === 'rescindido' ? 'selected' : ''}>Rescindido</option>
+            </select>
+            <button class="btn ghost btn--sm ctr-del">Eliminar</button>
+          </td>
+        </tr>`).join('');
+        body.querySelectorAll('tr[data-id]').forEach(tr => wireDocsCell(tr, 'contract', tr.dataset.id));
+        body.querySelectorAll('.ctr-status').forEach(sel => sel.addEventListener('change', async (e) => {
+          const id = e.target.closest('tr').dataset.id;
+          try { await api.flContractPatch(id, { status: e.target.value }); loadContracts(); loadSummary(); } catch (ex) { showError(ex.message); }
+        }));
+        body.querySelectorAll('.ctr-del').forEach(btn => btn.addEventListener('click', async (e) => {
+          const id = e.target.closest('tr').dataset.id;
+          try { await api.flContractDelete(id); loadContracts(); loadSummary(); loadLicenseContractOptions(); } catch (ex) { showError(ex.message); }
+        }));
+      } catch (ex) { showError(ex.message || 'Error al cargar contratos'); }
+    }
+    document.getElementById('ctrAddBtn').addEventListener('click', async () => {
+      showError('');
+      const parties = document.getElementById('ctrParties').value.trim();
+      const objectDesc = document.getElementById('ctrObject').value.trim();
+      if (!parties) return showError('Indica las partes');
+      if (!objectDesc) return showError('Indica el objeto del contrato');
+      try {
+        await api.flContractAdd({
+          type: document.getElementById('ctrType').value,
+          parties,
+          objectDesc,
+          validFrom: document.getElementById('ctrFrom').value,
+          validTo: document.getElementById('ctrTo').value || null,
+        });
+        document.getElementById('ctrParties').value = '';
+        document.getElementById('ctrObject').value = '';
+        document.getElementById('ctrTo').value = '';
+        loadContracts(); loadSummary(); loadLicenseContractOptions();
+      } catch (ex) { showError(ex.message || 'Error al crear contrato'); }
+    });
+
+    // ---- Licencias ----
+    async function loadLicenseContractOptions() {
+      try {
+        const rows = await api.flContractsList();
+        const sel = document.getElementById('licContract');
+        const keep = sel.value;
+        sel.innerHTML = '<option value="">Ninguno</option>' + rows.map(r => `<option value="${r.id}">${escapeHtml(r.parties)} (${escapeHtml(r.type)})</option>`).join('');
+        sel.value = keep;
+      } catch {}
+    }
+    async function loadLicenses() {
+      const body = document.getElementById('licBody');
+      try {
+        const rows = await api.flLicensesList();
+        if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="6">Sin licencias registradas.</td></tr>'; return; }
+        body.innerHTML = rows.map(r => `<tr data-id="${r.id}">
+          <td>${escapeHtml(r.licensor)} → ${escapeHtml(r.licensee)}${r.exclusive ? ' <span class="mono" style="font-size:0.65rem;color:var(--accent-blue);">Exclusiva</span>' : ''}${r.royaltyFee ? `<div class="mono" style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">${escapeHtml(r.royaltyFee)}</div>` : ''}</td>
+          <td class="mono">${escapeHtml(r.territory || '—')}</td>
+          <td class="mono">${vigencia(r)}</td>
+          <td>${statusPill(r.status)}</td>
+          <td>${docsCellHtml(r.id)}</td>
+          <td>
+            <select class="input lic-status" style="font-size:0.72rem;">
+              <option value="activo" ${r.status === 'activo' ? 'selected' : ''}>Activo</option>
+              <option value="rescindido" ${r.status === 'rescindido' ? 'selected' : ''}>Rescindido</option>
+            </select>
+            <button class="btn ghost btn--sm lic-del">Eliminar</button>
+          </td>
+        </tr>`).join('');
+        body.querySelectorAll('tr[data-id]').forEach(tr => wireDocsCell(tr, 'license', tr.dataset.id));
+        body.querySelectorAll('.lic-status').forEach(sel => sel.addEventListener('change', async (e) => {
+          const id = e.target.closest('tr').dataset.id;
+          try { await api.flLicensePatch(id, { status: e.target.value }); loadLicenses(); loadSummary(); } catch (ex) { showError(ex.message); }
+        }));
+        body.querySelectorAll('.lic-del').forEach(btn => btn.addEventListener('click', async (e) => {
+          const id = e.target.closest('tr').dataset.id;
+          try { await api.flLicenseDelete(id); loadLicenses(); loadSummary(); } catch (ex) { showError(ex.message); }
+        }));
+      } catch (ex) { showError(ex.message || 'Error al cargar licencias'); }
+    }
+    document.getElementById('licAddBtn').addEventListener('click', async () => {
+      showError('');
+      const licensor = document.getElementById('licLicensor').value.trim();
+      const licensee = document.getElementById('licLicensee').value.trim();
+      if (!licensor) return showError('Indica el licenciante');
+      if (!licensee) return showError('Indica el licenciatario');
+      try {
+        await api.flLicenseAdd({
+          licensor,
+          licensee,
+          territory: document.getElementById('licTerritory').value.trim(),
+          exclusive: document.getElementById('licExclusive').value === 'true',
+          royaltyFee: document.getElementById('licFee').value.trim(),
+          contractId: document.getElementById('licContract').value || null,
+          validFrom: document.getElementById('licFrom').value,
+          validTo: document.getElementById('licTo').value || null,
+        });
+        document.getElementById('licLicensor').value = '';
+        document.getElementById('licLicensee').value = '';
+        document.getElementById('licTerritory').value = '';
+        document.getElementById('licFee').value = '';
+        document.getElementById('licTo').value = '';
+        loadLicenses(); loadSummary();
+      } catch (ex) { showError(ex.message || 'Error al crear licencia'); }
+    });
+
+    // ---- Expediente OEPM ----
+    async function loadOepm() {
+      const list = document.getElementById('oepmList');
+      try {
+        const rows = await api.flOepmList();
+        if (rows.length === 0) { list.innerHTML = '<p class="mono" style="color:var(--text-muted);font-size:0.82rem;">Sin expedientes registrados.</p>'; return; }
+        list.innerHTML = rows.map(r => `
+          <div class="card" style="padding:16px 18px; margin-bottom:14px;" data-id="${r.id}">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+              <div>
+                <strong>${escapeHtml(r.title)}</strong>
+                ${r.description ? `<div class="mono" style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">${escapeHtml(r.description)}</div>` : ''}
+              </div>
+              <div style="display:flex; gap:8px; align-items:center;">
+                ${statusPill(r.status)}
+                <button class="btn ghost btn--sm oepm-del">Eliminar</button>
+              </div>
+            </div>
+            <div class="add-row" style="margin-top:12px; margin-bottom:8px;">
+              <div class="sf"><label>Estado expediente</label>
+                <select class="input oepm-status" style="font-size:0.72rem;">
+                  ${Object.entries(OEPM_STATUS_LABELS).map(([k, v]) => `<option value="${k}" ${r.status === k ? 'selected' : ''}>${v}</option>`).join('')}
+                </select>
+              </div>
+              <div class="sf"><label>Nº expediente OEPM</label><input class="input oepm-filing" value="${escapeHtml(r.filingNumber || '')}" placeholder="ES..." style="width:140px;"></div>
+              <div class="sf"><label>Fecha presentación</label><input class="input oepm-filed" type="date" value="${r.filedAt || ''}"></div>
+              <button class="btn ghost btn--sm oepm-save">Guardar</button>
+            </div>
+            <div class="piece-grid">
+              ${OEPM_PIECE_KEYS_HTML(r)}
+            </div>
+            <div style="margin-top:10px;">
+              <span class="kicker" style="font-size:0.6rem;">Documentos</span>
+              ${docsCellHtml(r.id)}
+            </div>
+          </div>
+        `).join('');
+        list.querySelectorAll('[data-id]').forEach(card => {
+          const id = card.dataset.id;
+          wireDocsCell(card, 'oepm', id);
+          card.querySelector('.oepm-del').addEventListener('click', async () => {
+            try { await api.flOepmDelete(id); loadOepm(); loadSummary(); } catch (ex) { showError(ex.message); }
+          });
+          card.querySelector('.oepm-save').addEventListener('click', async () => {
+            try {
+              await api.flOepmPatch(id, {
+                status: card.querySelector('.oepm-status').value,
+                filingNumber: card.querySelector('.oepm-filing').value.trim() || null,
+                filedAt: card.querySelector('.oepm-filed').value || null,
+              });
+              toast('Expediente actualizado');
+              loadOepm();
+            } catch (ex) { showError(ex.message || 'Error al guardar'); }
+          });
+          card.querySelectorAll('.piece-cell select').forEach(sel => sel.addEventListener('change', async (e) => {
+            try {
+              await api.flOepmPatch(id, { pieceKey: e.target.dataset.pieceKey, pieceStatus: e.target.value });
+              loadOepm();
+            } catch (ex) { showError(ex.message || 'Error al actualizar pieza'); }
+          }));
+        });
+      } catch (ex) { showError(ex.message || 'Error al cargar expedientes OEPM'); }
+    }
+    function OEPM_PIECE_KEYS_HTML(r) {
+      return Object.keys(PIECE_LABELS).map(key => {
+        const piece = r.pieces?.[key] || { status: 'pendiente' };
+        return `
+          <div class="piece-cell">
+            <div class="piece-name">${PIECE_LABELS[key]}</div>
+            <select data-piece-key="${key}">
+              <option value="pendiente" ${piece.status === 'pendiente' ? 'selected' : ''}>Pendiente</option>
+              <option value="borrador" ${piece.status === 'borrador' ? 'selected' : ''}>Borrador</option>
+              <option value="listo" ${piece.status === 'listo' ? 'selected' : ''}>Listo</option>
+            </select>
+          </div>
+        `;
+      }).join('');
+    }
+    document.getElementById('oepmAddBtn').addEventListener('click', async () => {
+      showError('');
+      const title = document.getElementById('oepmTitle').value.trim();
+      if (!title) return showError('Indica el título del expediente');
+      try {
+        await api.flOepmAdd({ title, description: document.getElementById('oepmDescription').value.trim() });
+        document.getElementById('oepmTitle').value = '';
+        document.getElementById('oepmDescription').value = '';
+        loadOepm(); loadSummary();
+      } catch (ex) { showError(ex.message || 'Error al crear expediente'); }
+    });
+
+    // ---- Init ----
+    loadSummary();
+    loadNdas();
+    loadContracts().then(loadLicenseContractOptions);
+    loadLicenses();
+    loadOepm();
+  </script>
+</body>
+</html>

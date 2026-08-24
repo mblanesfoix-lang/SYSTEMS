@@ -121,7 +121,7 @@ export function Globe3D({ cities, onHoverCity }: Props) {
     // Atmosphere glow.
     const glowGeometry = new THREE.SphereGeometry(GLOBE_RADIUS * 1.04, 64, 64);
     const glowMaterial = new THREE.MeshBasicMaterial({
-      color: 0x00a878,
+      color: 0x0071e3,
       transparent: true,
       opacity: 0.06,
       side: THREE.BackSide,

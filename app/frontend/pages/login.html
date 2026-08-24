@@ -3,140 +3,418 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Elvi-Ra · Acceso</title>
+  <title>SYSTEMS · Acceso</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Syne:wght@600;700;800&family=Inter:wght@300;400;500;600;700&display=swap">
-  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap">
   <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
-  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <style>
+    :root {
+      --bg: #050607;
+      --bg-2: #0a0c0e;
+      --ink: #f5f6f7;
+      --ink-soft: rgba(245,246,247,0.56);
+      --ink-dim: rgba(245,246,247,0.44);
+      --line: rgba(255,255,255,0.09);
+      --line-soft: rgba(255,255,255,0.06);
+      --accent: #3dffd2;
+      --accent-dim: rgba(61,255,210,0.5);
+      --font-body: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+      --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: var(--bg);
+      font-family: var(--font-body);
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+    }
+    body { overflow: hidden; }
+
+    .stage {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      grid-template-columns: 1.15fr 1fr;
+    }
+    @media (max-width: 880px) {
+      .stage { grid-template-columns: 1fr; grid-template-rows: 44vh 1fr; }
+    }
+
+    /* ---------- Hero (left) ---------- */
+    .hero {
+      position: relative;
+      overflow: hidden;
+      background:
+        radial-gradient(ellipse 70% 60% at 50% 46%, rgba(61,255,210,0.08) 0%, transparent 65%),
+        var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+      background-size: 64px 64px;
+      mask-image: radial-gradient(ellipse 60% 55% at 50% 46%, #000 0%, transparent 72%);
+      -webkit-mask-image: radial-gradient(ellipse 60% 55% at 50% 46%, #000 0%, transparent 72%);
+    }
+    #heroCanvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .hero-copy {
+      position: relative;
+      z-index: 2;
+      text-align: center;
+      pointer-events: none;
+      padding: 0 40px;
+      transform: translateY(19%);
+    }
+    .hero-copy .mark {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      letter-spacing: 0.02em;
+      color: var(--accent-dim);
+      opacity: 0;
+      animation: rise 0.8s 0.9s var(--ease) forwards;
+    }
+    .hero-copy h1 {
+      margin: 14px 0 0;
+      font-size: clamp(1.6rem, 2.6vw, 2.15rem);
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      line-height: 1.18;
+      color: var(--ink);
+      opacity: 0;
+      animation: rise 0.8s 1.05s var(--ease) forwards;
+    }
+    .hero-copy p {
+      margin: 12px auto 0;
+      max-width: 380px;
+      font-size: 0.9rem;
+      line-height: 1.6;
+      color: var(--ink-soft);
+      font-weight: 300;
+      opacity: 0;
+      animation: rise 0.8s 1.2s var(--ease) forwards;
+    }
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @media (max-width: 880px) {
+      .hero-copy { transform: translateY(30%); padding: 0 24px; }
+      .hero-copy p { display: none; }
+    }
+
+    /* ---------- Panel (right) ---------- */
+    .panel {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-2);
+      border-left: 1px solid var(--line-soft);
+    }
+    .panel::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 70% 50% at 50% 0%, rgba(255,255,255,0.03) 0%, transparent 60%);
+      pointer-events: none;
+    }
+    @media (max-width: 880px) { .panel { border-left: none; border-top: 1px solid var(--line-soft); } }
+
+    .card {
+      position: relative;
+      z-index: 2;
+      width: min(340px, calc(100vw - 56px));
+      opacity: 0;
+      transform: translateY(10px);
+      animation: cardIn 0.7s 0.35s var(--ease) forwards;
+    }
+    .card.leaving { opacity: 0; transform: translateY(-6px); transition: opacity 0.5s var(--ease), transform 0.5s var(--ease); }
+    @keyframes cardIn { to { opacity: 1; transform: translateY(0); } }
+
+    .card .kicker {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      letter-spacing: 0.02em;
+      color: var(--ink-dim);
+    }
+    .card h2 {
+      margin: 8px 0 32px;
+      font-size: 1.3rem;
+      font-weight: 600;
+      letter-spacing: -0.015em;
+      color: var(--ink);
+    }
+
+    .field { margin-bottom: 12px; }
+    .field-label {
+      display: block;
+      font-family: var(--font-body);
+      font-weight: 600;
+      font-size: 0.76rem;
+      letter-spacing: -0.005em;
+      color: var(--ink-dim);
+      margin-bottom: 7px;
+    }
+    .field-wrap {
+      display: flex;
+      align-items: center;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      transition: border-color 0.2s var(--ease), background 0.2s var(--ease), box-shadow 0.2s var(--ease);
+    }
+    .field-wrap:focus-within {
+      border-color: var(--accent-dim);
+      background: rgba(255,255,255,0.045);
+      box-shadow: 0 0 0 3px rgba(61,255,210,0.08);
+    }
+    .field-input {
+      flex: 1;
+      min-width: 0;
+      background: transparent;
+      border: none;
+      outline: none;
+      padding: 13px 14px;
+      font-family: var(--font-body);
+      font-size: 0.92rem;
+      font-weight: 400;
+      color: var(--ink);
+      caret-color: var(--accent);
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .field-input::placeholder { color: var(--ink-dim); }
+    .field-input:-webkit-autofill,
+    .field-input:-webkit-autofill:hover,
+    .field-input:-webkit-autofill:focus {
+      -webkit-text-fill-color: var(--ink);
+      -webkit-box-shadow: 0 0 0 1000px #0d1012 inset;
+      caret-color: var(--accent);
+      border-radius: 10px;
+      transition: background-color 9999s ease-in-out 0s;
+    }
+    .field-suffix {
+      font-family: var(--font-mono);
+      font-size: 0.76rem;
+      color: var(--ink-dim);
+      padding-right: 14px;
+      user-select: none;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+
+    .submit {
+      width: 100%;
+      margin-top: 20px;
+      padding: 13px 0;
+      border: none;
+      border-radius: 10px;
+      background: var(--ink);
+      color: var(--bg);
+      font-family: var(--font-body);
+      font-size: 0.88rem;
+      font-weight: 600;
+      letter-spacing: -0.005em;
+      cursor: pointer;
+      transition: opacity 0.2s var(--ease), transform 0.15s var(--ease);
+    }
+    .submit:hover:not(:disabled) { opacity: 0.88; }
+    .submit:active:not(:disabled) { transform: scale(0.99); }
+    .submit:disabled { opacity: 0.45; cursor: default; }
+
+    .err {
+      min-height: 16px;
+      margin: 12px 0 0;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: #ff6b5e;
+      letter-spacing: 0.02em;
+    }
+
+    .card-foot {
+      margin-top: 28px;
+      padding-top: 20px;
+      border-top: 1px solid var(--line-soft);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      letter-spacing: 0.01em;
+      color: var(--ink-dim);
+    }
+    .card-foot .dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent);
+      display: inline-block;
+      margin-right: 7px;
+      vertical-align: middle;
+      animation: pulse 2.2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* ---------- Exit fade ---------- */
+    .fade {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      background: var(--bg);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.7s var(--ease);
+    }
+    .fade.on { opacity: 1; }
+
+    @media (prefers-reduced-motion: reduce) {
+      #heroCanvas { display: none; }
+      .hero-copy .mark, .hero-copy h1, .hero-copy p, .card { animation: none; opacity: 1; transform: none; }
+    }
+  </style>
 </head>
 <body>
-  <main class="login-shell" id="loginShell">
-    <canvas id="hero-webgl" class="login-shell__canvas" aria-hidden="true"></canvas>
-    <div class="login-shell__grid" aria-hidden="true"></div>
-    <div class="login-shell__scan" aria-hidden="true"></div>
-
-    <div class="login-shell__bracket login-shell__bracket--tl" aria-hidden="true"></div>
-    <div class="login-shell__bracket login-shell__bracket--tr" aria-hidden="true"></div>
-    <div class="login-shell__bracket login-shell__bracket--bl" aria-hidden="true"></div>
-    <div class="login-shell__bracket login-shell__bracket--br" aria-hidden="true"></div>
-
-    <div class="login-shell__hud-top" aria-hidden="true">
-      <div class="login-shell__hud-cell"><span class="k">NODE</span><span class="v">ELVI-RA/01·NAVARRA</span></div>
-      <div class="login-shell__hud-cell"><span class="k">UPLINK</span><span class="v"><i class="dot"></i> LIVE</span></div>
-      <div class="login-shell__hud-cell"><span class="k">UTC</span><span class="v" id="hero-clock">--:--:--</span></div>
-      <div class="login-shell__hud-cell"><span class="k">CYCLE</span><span class="v">PLATFORM·v0.1</span></div>
-    </div>
-
-    <div class="login-shell__coord login-shell__coord--l" aria-hidden="true">
-      <span>42°48'N</span><span>01°38'W</span><span>ELEV 449m</span>
-    </div>
-    <div class="login-shell__coord login-shell__coord--r" aria-hidden="true">
-      <span>OEM-MOD</span><span>STD-S</span><span>REV 0.1</span>
-    </div>
-
-    <section class="login-card reveal">
-      <img src="/assets/logo-snfi.png" alt="S-NFI" style="height:40px;width:auto;margin-bottom:20px;display:block;">
-      <span class="kicker">S-NFI · Elvi-Ra · Acceso</span>
-      <h1>Bienvenida a la<br><em>Infraestructura</em></h1>
-
-      <form id="loginForm" class="stack" autocomplete="off" style="margin-top: 28px;">
-        <div>
-          <label for="username">Correo</label>
-          <input class="input" id="username" name="username" type="email" placeholder="nombre@snficorp.com" required autocomplete="username">
-        </div>
-        <div>
-          <label for="password">Contraseña</label>
-          <input class="input" id="password" name="password" type="password" required autocomplete="current-password">
-        </div>
-        <div class="error-msg" id="err"></div>
-        <button class="btn sage" type="submit" id="submitBtn">Entrar →</button>
-      </form>
-
-      <p class="mono" style="margin-top:28px; opacity:.7;">
-        v0.1 · boceto · Navarra
-      </p>
+  <div class="stage">
+    <section class="hero" aria-hidden="true">
+      <canvas id="heroCanvas"></canvas>
+      <div class="hero-copy">
+        <div class="mark">South Navarre Fresh Innovations</div>
+        <h1>Infraestructura industrial<br>bajo gobierno soberano.</h1>
+        <p>OEM deep-tech. Optimización adaptativa y control centralizado sobre la red física S-NFI BioHybrid.</p>
+      </div>
     </section>
-  </main>
 
-  <script>
-    // ---- Hero WebGL: orbital sphere with mouse tracking (ported from SNFI) ----
-    (function initHeroWebGL() {
+    <section class="panel">
+      <div class="card" id="loginCard">
+        <div class="kicker">Systems</div>
+        <h2>Acceso al panel</h2>
+        <form id="loginForm" autocomplete="off">
+          <div class="field">
+            <label class="field-label" for="username">Usuario</label>
+            <div class="field-wrap">
+              <input class="field-input" id="username" name="username" type="password" placeholder="nombre" required autocomplete="username" spellcheck="false">
+              <span class="field-suffix" id="domainSuffix">@snficorp.com</span>
+            </div>
+          </div>
+          <div class="field">
+            <label class="field-label" for="password">Contraseña</label>
+            <div class="field-wrap">
+              <input class="field-input" id="password" name="password" type="password" placeholder="••••••••" required autocomplete="current-password">
+            </div>
+          </div>
+          <button class="submit" type="submit" id="submitBtn">Entrar</button>
+          <p class="err" id="err"></p>
+        </form>
+        <div class="card-foot">
+          <span><span class="dot"></span>Enlace seguro</span>
+          <span>S-NFI Corp.</span>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="fade" id="fadeLayer" aria-hidden="true"></div>
+
+  <script type="module">
+    // ---- Hero: distorted chrome sphere, three.js (sovereign local vendor) ----
+    (async function hero() {
       const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const canvas = document.getElementById('heroCanvas');
       if (reduced) return;
-      const canvas = document.getElementById('hero-webgl');
-      if (!canvas || typeof THREE === 'undefined') return;
-      const parent = canvas.parentElement;
-      let w = parent.clientWidth;
-      let h = parent.clientHeight;
+
+      let THREE;
+      try {
+        THREE = await import('/vendor/three.module.min.js');
+      } catch {
+        return;
+      }
+
+      const host = canvas.parentElement;
+      let w = host.clientWidth, h = host.clientHeight;
+
       const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
       renderer.setSize(w, h, false);
+
       const scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 100);
-      camera.position.z = 4.2;
+      const camera = new THREE.PerspectiveCamera(38, w / h, 0.1, 100);
+      camera.position.set(0, 0, 5.2);
 
-      const sphereFill = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(1.0, 4),
-        new THREE.MeshBasicMaterial({ color: 0x00a878, transparent: true, opacity: 0.08 })
-      );
-      scene.add(sphereFill);
+      // Key + rim lights for a soft chrome/glass read without an HDR environment map
+      scene.add(new THREE.AmbientLight(0x8fa8a2, 0.55));
+      const key = new THREE.DirectionalLight(0xffffff, 1.4);
+      key.position.set(3, 4, 5);
+      scene.add(key);
+      const rim = new THREE.DirectionalLight(0x3dffd2, 1.1);
+      rim.position.set(-4, -2, -3);
+      scene.add(rim);
+      const rim2 = new THREE.DirectionalLight(0x0098c7, 0.6);
+      rim2.position.set(2, -3, 2);
+      scene.add(rim2);
 
-      const wire = new THREE.WireframeGeometry(new THREE.IcosahedronGeometry(1.0, 3));
-      const mesh = new THREE.LineSegments(
-        wire,
-        new THREE.LineBasicMaterial({ color: 0x00875a, transparent: true, opacity: 0.85 })
-      );
+      // Base geometry — icosphere, displaced per-vertex with layered noise for an organic,
+      // liquid-metal silhouette (snficorp.com hero reference) instead of a plain sphere.
+      const geo = new THREE.IcosahedronGeometry(1.35, 24);
+      const pos = geo.attributes.position;
+      const v = new THREE.Vector3();
+      const base = new Float32Array(pos.count * 3);
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i);
+        base[i * 3] = v.x; base[i * 3 + 1] = v.y; base[i * 3 + 2] = v.z;
+      }
+
+      function noise3(x, y, z, t) {
+        return (
+          Math.sin(x * 1.8 + t) * Math.cos(y * 1.6 - t * 0.7) +
+          Math.sin(y * 2.4 - t * 0.5) * Math.cos(z * 2.0 + t * 0.9) +
+          Math.sin(z * 1.5 + t * 1.1) * Math.cos(x * 2.2 - t * 0.6)
+        ) / 3;
+      }
+
+      const material = new THREE.MeshPhysicalMaterial({
+        color: 0xc8ccd0,
+        metalness: 0.92,
+        roughness: 0.18,
+        clearcoat: 0.6,
+        clearcoatRoughness: 0.25,
+        reflectivity: 1,
+        envMapIntensity: 1.1,
+      });
+      const mesh = new THREE.Mesh(geo, material);
       scene.add(mesh);
 
-      const core = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(0.45, 1),
-        new THREE.MeshBasicMaterial({ color: 0x0098c7, wireframe: true, transparent: true, opacity: 0.65 })
+      // Faint wireframe shell for depth, matching the dashboard sphere's language
+      const wire = new THREE.LineSegments(
+        new THREE.WireframeGeometry(new THREE.IcosahedronGeometry(1.62, 2)),
+        new THREE.LineBasicMaterial({ color: 0x3dffd2, transparent: true, opacity: 0.14 })
       );
-      scene.add(core);
-
-      const PTS = 420;
-      const positions = new Float32Array(PTS * 3);
-      for (let i = 0; i < PTS; i++) {
-        const r = 1.25 + Math.random() * 0.5;
-        const t = Math.random() * Math.PI * 2;
-        const p = Math.acos(2 * Math.random() - 1);
-        positions[i * 3]     = r * Math.sin(p) * Math.cos(t);
-        positions[i * 3 + 1] = r * Math.sin(p) * Math.sin(t);
-        positions[i * 3 + 2] = r * Math.cos(p);
-      }
-      const ptsGeo = new THREE.BufferGeometry();
-      ptsGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-      const points = new THREE.Points(
-        ptsGeo,
-        new THREE.PointsMaterial({ color: 0x006e4d, size: 0.022, transparent: true, opacity: 1.0 })
-      );
-      scene.add(points);
-
-      function makeRing(rIn, rOut, opacity, color, rotX, rotY) {
-        const r = new THREE.Mesh(
-          new THREE.RingGeometry(rIn, rOut, 128),
-          new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, transparent: true, opacity })
-        );
-        r.rotation.x = rotX;
-        r.rotation.y = rotY;
-        return r;
-      }
-      const ring1 = makeRing(1.32, 1.34, 0.55, 0x00a878, Math.PI / 2.3, 0);
-      const ring2 = makeRing(1.45, 1.46, 0.35, 0x0098c7, Math.PI / 2.8, Math.PI / 6);
-      const ring3 = makeRing(1.60, 1.605, 0.25, 0x00875a, Math.PI / 1.9, -Math.PI / 8);
-      scene.add(ring1); scene.add(ring2); scene.add(ring3);
+      scene.add(wire);
 
       let mx = 0, my = 0, tmx = 0, tmy = 0;
-      window.addEventListener('mousemove', e => {
-        tmx = (e.clientX / window.innerWidth  - 0.5) * 0.6;
-        tmy = (e.clientY / window.innerHeight - 0.5) * 0.6;
+      window.addEventListener('mousemove', (e) => {
+        const r = host.getBoundingClientRect();
+        tmx = ((e.clientX - r.left) / r.width - 0.5) * 0.5;
+        tmy = ((e.clientY - r.top) / r.height - 0.5) * 0.5;
       }, { passive: true });
 
       function resize() {
-        w = parent.clientWidth;
-        h = parent.clientHeight;
+        w = host.clientWidth; h = host.clientHeight;
         renderer.setSize(w, h, false);
         camera.aspect = w / h;
         camera.updateProjectionMatrix();
@@ -147,38 +425,29 @@
       document.addEventListener('visibilitychange', () => { running = !document.hidden; });
 
       function frame(t) {
-        if (running) {
-          mx += (tmx - mx) * 0.05;
-          my += (tmy - my) * 0.05;
-          sphereFill.rotation.y = t * 0.00018 + mx;
-          sphereFill.rotation.x = t * 0.00012 + my;
-          mesh.rotation.y = t * 0.00018 + mx;
-          mesh.rotation.x = t * 0.00012 + my;
-          core.rotation.y = -t * 0.0004;
-          core.rotation.x =  t * 0.00025;
-          points.rotation.y =  t * 0.00009 + mx * 0.5;
-          points.rotation.x = -t * 0.00006 + my * 0.5;
-          ring1.rotation.z =  t * 0.00020;
-          ring2.rotation.z = -t * 0.00015;
-          ring3.rotation.z =  t * 0.00012;
-          renderer.render(scene, camera);
-        }
         requestAnimationFrame(frame);
+        if (!running) return;
+        const time = t * 0.00035;
+
+        for (let i = 0; i < pos.count; i++) {
+          const bx = base[i * 3], by = base[i * 3 + 1], bz = base[i * 3 + 2];
+          const n = noise3(bx, by, bz, time);
+          const disp = 1 + n * 0.10;
+          pos.setXYZ(i, bx * disp, by * disp, bz * disp);
+        }
+        pos.needsUpdate = true;
+        geo.computeVertexNormals();
+
+        mx += (tmx - mx) * 0.04;
+        my += (tmy - my) * 0.04;
+        mesh.rotation.y = time * 0.6 + mx;
+        mesh.rotation.x = my * 0.6;
+        wire.rotation.y = -time * 0.35 + mx * 0.5;
+        wire.rotation.x = time * 0.2 + my * 0.5;
+
+        renderer.render(scene, camera);
       }
       requestAnimationFrame(frame);
-    })();
-
-    // ---- HUD clock ----
-    (function clock() {
-      const el = document.getElementById('hero-clock');
-      if (!el) return;
-      function tick() {
-        const d = new Date();
-        const pad = n => String(n).padStart(2, '0');
-        el.textContent = `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
-      }
-      tick();
-      setInterval(tick, 1000);
     })();
   </script>
 
@@ -187,24 +456,34 @@
     if (getToken()) location.href = '/pages/dashboard.html';
 
     const form = document.getElementById('loginForm');
-    const err  = document.getElementById('err');
-    const btn  = document.getElementById('submitBtn');
+    const err = document.getElementById('err');
+    const btn = document.getElementById('submitBtn');
+    const userInput = document.getElementById('username');
+    const suffix = document.getElementById('domainSuffix');
+
+    userInput.addEventListener('input', () => {
+      suffix.style.visibility = userInput.value.includes('@') ? 'hidden' : 'visible';
+    });
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       err.textContent = '';
       btn.disabled = true;
-      btn.textContent = 'Verificando…';
-      const username = document.getElementById('username').value.trim();
+      btn.textContent = 'Verificando';
+      let username = userInput.value.trim();
+      if (username && !username.includes('@')) username += '@snficorp.com';
       const password = document.getElementById('password').value;
       try {
         const r = await api.login(username, password);
-        setSession(r.token, r.user);
-        location.href = '/pages/dashboard.html';
+        setSession(r.token, r.user, r.role);
+        sessionStorage.setItem('systemsEntry', '1');
+        document.getElementById('loginCard').classList.add('leaving');
+        document.getElementById('fadeLayer').classList.add('on');
+        setTimeout(() => { location.href = '/pages/dashboard.html'; }, 650);
       } catch (ex) {
         err.textContent = ex.message || 'Error de acceso';
         btn.disabled = false;
-        btn.textContent = 'Entrar →';
+        btn.textContent = 'Entrar';
       }
     });
   </script>

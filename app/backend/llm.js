@@ -7,11 +7,13 @@
  * ANTHROPIC_API_KEY / ANTHROPIC_MODEL   (when provider=anthropic)
  */
 
-const PROVIDER       = process.env.LLM_PROVIDER    || 'anthropic';
-const OLLAMA_URL     = process.env.OLLAMA_URL       || 'http://ollama:11434';
-const OLLAMA_MODEL   = process.env.OLLAMA_MODEL     || 'llama3:70b';
-const ANTHROPIC_KEY  = process.env.ANTHROPIC_API_KEY || '';
-const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-opus-4-7';
+// Leidos perezosamente en cada llamada: server.js inyecta el .env de Rëff
+// (ANTHROPIC_API_KEY) DESPUES de importar este modulo.
+const PROVIDER       = () => process.env.LLM_PROVIDER    || 'anthropic';
+const OLLAMA_URL     = () => process.env.OLLAMA_URL      || 'http://ollama:11434';
+const OLLAMA_MODEL   = () => process.env.OLLAMA_MODEL    || 'llama3:70b';
+const ANTHROPIC_KEY  = () => process.env.ANTHROPIC_API_KEY || '';
+const ANTHROPIC_MODEL = () => process.env.ANTHROPIC_MODEL || 'claude-opus-4-7';
 
 // Pricing per 1M tokens (only relevant for Anthropic — Ollama is $0)
 export const PRICE_INPUT_PER_M  = 15;
@@ -28,24 +30,24 @@ export { ANTHROPIC_MODEL };
  * @returns {{ text: string, inputTokens: number, outputTokens: number }}
  */
 export async function callLLM(systemPrompt, userPrompt, maxTokens = 4096) {
-  if (PROVIDER === 'ollama') {
+  if (PROVIDER() === 'ollama') {
     return _callOllama(systemPrompt, userPrompt, maxTokens);
   }
   return _callAnthropic(systemPrompt, userPrompt, maxTokens);
 }
 
 async function _callAnthropic(systemPrompt, userPrompt, maxTokens) {
-  if (!ANTHROPIC_KEY) throw new Error('ANTHROPIC_API_KEY no configurada');
+  if (!ANTHROPIC_KEY()) throw new Error('ANTHROPIC_API_KEY no configurada');
 
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      'x-api-key': ANTHROPIC_KEY,
+      'x-api-key': ANTHROPIC_KEY(),
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: ANTHROPIC_MODEL,
+      model: ANTHROPIC_MODEL(),
       max_tokens: maxTokens,
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
@@ -68,11 +70,11 @@ async function _callAnthropic(systemPrompt, userPrompt, maxTokens) {
 
 async function _callOllama(systemPrompt, userPrompt, maxTokens) {
   // Ollama /api/chat — OpenAI-compatible messages format
-  const r = await fetch(`${OLLAMA_URL}/api/chat`, {
+  const r = await fetch(`${OLLAMA_URL()}/api/chat`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
-      model: OLLAMA_MODEL,
+      model: OLLAMA_MODEL(),
       stream: false,
       options: { num_predict: maxTokens },
       messages: [

@@ -3,16 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Elvi-Ra · Dashboard</title>
+  <title>SYSTEMS · S-NFI</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Syne:wght@600;700;800&family=Inter:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="/css/theme.css">
   <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
 </head>
 <body>
   <nav class="nav">
-    <div class="brand"><img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;"> Elvi-Ra</div>
+    <div class="brand"><img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;"> SYSTEMS</div>
     <div class="row" style="gap:18px;">
       <div class="user-menu" id="userMenu">
         <button class="user-menu__trigger mono" id="userTag" aria-haspopup="true" aria-expanded="false">…</button>
@@ -48,7 +48,7 @@
       min-width: 240px; padding: 12px 0; z-index: 100;
     }
     .user-menu__section { padding: 4px 14px 8px; display: flex; flex-direction: column; gap: 6px; }
-    .user-menu__label { font-size: 0.72rem; font-family: var(--font-mono); color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 2px; }
+    .user-menu__label { font-size: 0.76rem; font-family: var(--font-body); font-weight: 600; color: var(--text-3); letter-spacing: -0.005em; margin-bottom: 2px; }
     .user-menu__input {
       width: 100%; padding: 7px 10px; border: 1px solid var(--border);
       border-radius: 6px; font-size: 0.82rem; font-family: var(--font-sans);
@@ -66,52 +66,50 @@
     .user-menu__item:hover { background: rgba(20,24,32,0.04); }
     .user-menu__item--danger { color: #c0392b; }
     .user-menu__item--danger:hover { background: rgba(192,57,43,0.06); }
+    /* Above the background canvas but below .nav (z-index 30 in theme.css),
+       so the notifications dropdown inside the nav receives clicks */
+    main.container { position: relative; z-index: 1; }
   </style>
 
   <main class="container">
-    <header class="reveal">
-      <span class="kicker">Mesas de trabajo</span>
-      <h1>Dashboard</h1>
+    <header class="reveal" style="position:relative;">
+      <div style="display:flex; align-items:baseline; gap:14px;">
+        <h1 style="font-size:clamp(3rem,7vw,5.5rem); line-height:1;">S-NFI</h1>
+        <span class="kicker">Systems</span>
+      </div>
       <p style="max-width:640px; margin-top:8px;">
-        Elige una mesa para empezar. Cada mesa agrupa los agentes y herramientas necesarias para una operación concreta.
+        Fuente de verdad de S-NFI. Dos dominios operativos: Rëff analiza y conoce, Elvi-Ra acciona bajo consentimiento humano. Systems custodia variables y métricas de toda la corporación.
       </p>
+      <span class="mono" style="position:absolute; right:-24px; bottom:0; font-size:0.72rem; color:var(--text-3); letter-spacing:0.04em;">Nodriza</span>
     </header>
 
-    <section class="tiles">
-      <a class="tile reveal delay-1" href="/pages/elvi-ra.html" data-mesa="elvira" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
-        <div class="emoji">◆</div>
-        <h3>ELVI-RA</h3>
-        <p>Centro de mando. Sistemas, OPHS, T'Controler, Sentinel + Herzog bridges. Solo Admin.</p>
-        <p class="mono" style="margin-top:10px;">acceso directo →</p>
-      </a>
+    <section class="reveal delay-1">
+      <span class="kicker">Dominios</span>
+      <div class="tiles" style="margin-top:12px;">
+        <a class="tile reveal delay-2" href="/pages/ophs.html" data-domain="ophs" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
+          <h3>OPHS</h3>
+          <p>Consola Soberana: Cockpit que fusiona OPS (telemetría), PAIA (analítica predictiva), Herzog (cumplimiento) y Sentinel, más Grid Interlink.</p>
+          <p class="mono" style="margin-top:10px;">entrar al dominio →</p>
+        </a>
 
-      <a class="tile reveal delay-2" href="/pages/reff.html" data-mesa="reff" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
-        <div class="emoji">◈</div>
-        <h3>Rëff</h3>
-        <p>CRM de inteligencia comercial S-NFI. Deep Research, scoring OPHS, auditoría Herzog, LI Contacts, Finder y Email Creator.</p>
-        <p class="mono" style="margin-top:10px;">acceso directo →</p>
-      </a>
+        <a class="tile reveal delay-2" href="/pages/reff-dashboard.html" data-domain="reff" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
+          <h3>Rëff</h3>
+          <p>Cerebro de datos. Mesas: Rëff (CRM inteligencia comercial) y S-NFI U2 (energía desperdiciada sistema eléctrico).</p>
+          <p class="mono" style="margin-top:10px;">entrar al dominio →</p>
+        </a>
 
-      <a class="tile reveal delay-4" href="/pages/snfi-u2.html" data-mesa="snfiu2" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
-        <div class="emoji">◎</div>
-        <h3>S-NFI U2</h3>
-        <p>Energía desperdiciada en el sistema eléctrico español. Horas precio 0&nbsp;EUR/MWh, GWh curtailed, comparativa histórica 2023-2026. Dato vivo vía REE.</p>
-        <p class="mono" style="margin-top:10px;">acceso directo →</p>
-      </a>
+        <a class="tile reveal delay-3" href="/pages/elvira-dashboard.html" data-domain="elvira" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
+          <h3>Elvi-Ra</h3>
+          <p>Palanca de acción. Mesas: Elvi-Ra (Central), Data Foundry (doctrina de ingesta) y Sentinel (seguridad y telemetría forense).</p>
+          <p class="mono" style="margin-top:10px;">entrar al dominio →</p>
+        </a>
 
-      <div class="tile reveal delay-5" data-mesa="ophs" style="opacity:0.6; cursor:default;">
-        <div class="emoji">◇</div>
-        <h3>OPHS</h3>
-        <p>Capa de ejecución física S-NFI Systems. Recibe Dictamen de Soberanía validado por Rëff y autoriza acciones bajo Pactvm Viridi.</p>
-        <p class="mono" style="margin-top:10px;">pendiente de conexión</p>
+        <a class="tile reveal delay-4" href="/pages/pactum-viridi.html" data-domain="pactvm" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
+          <h3>Pactvm Viridi</h3>
+          <p>Guardián doctrinal y de cumplimiento bio-ambiental. Conectado únicamente a S-NFI U-2 (optimización según demanda real) y a Herzog en OPHS (auditorías y sello CIBE).</p>
+          <p class="mono" style="margin-top:10px;">entrar al dominio →</p>
+        </a>
       </div>
-
-      <a class="tile reveal delay-6" href="/pages/sentinel.html" data-mesa="sentinel" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
-        <div class="emoji">⛨</div>
-        <h3>Sentinel</h3>
-        <p>Seguridad y telemetría. Trazabilidad forense de IPs, hash chain inmutable, rate limiting en rutas sensibles, cola de revisión y bloqueo manual. Solo Admin.</p>
-        <p class="mono" style="margin-top:10px;">acceso directo →</p>
-      </a>
     </section>
 
     <div class="hr"></div>
@@ -132,7 +130,7 @@
         <div class="card">
           <span class="mono">Data Base</span>
           <h2 style="margin-top:8px;">OK</h2>
-          <p class="mono">Elvi-Ra alimentando agentes</p>
+          <p class="mono">Systems alimentando mesas</p>
         </div>
       </div>
     </section>
@@ -173,15 +171,24 @@
         <div class="mesa-status-card" data-mesa="ophs">
           <div class="mesa-status-head">
             <span class="mesa-status-name">OPHS</span>
-            <span class="mesa-status-dot warn"></span>
+            <span class="mesa-status-dot checking"></span>
           </div>
-          <span class="mesa-status-label warn">pendiente de conexión</span>
-          <span class="mesa-status-detail">puerto reservado · sin endpoint asignado</span>
+          <span class="mesa-status-label">comprobando...</span>
+          <span class="mesa-status-detail"></span>
           <span class="mesa-status-error"></span>
         </div>
         <div class="mesa-status-card" data-mesa="sentinel">
           <div class="mesa-status-head">
             <span class="mesa-status-name">Sentinel</span>
+            <span class="mesa-status-dot checking"></span>
+          </div>
+          <span class="mesa-status-label">comprobando...</span>
+          <span class="mesa-status-detail"></span>
+          <span class="mesa-status-error"></span>
+        </div>
+        <div class="mesa-status-card" data-mesa="pactvm">
+          <div class="mesa-status-head">
+            <span class="mesa-status-name">Pactvm Viridi</span>
             <span class="mesa-status-dot checking"></span>
           </div>
           <span class="mesa-status-label">comprobando...</span>
@@ -194,19 +201,27 @@
 
   <script type="module">
     import { api, getUser, getToken, clearSession, requireAuth, toast } from '/js/api.js';
+    import { mountAdminNotifications } from '/js/notifications.js';
+    import { mountOfficeBg, mountSphereBg, playSystemsEntry } from '/js/office-bg.js';
     requireAuth();
+    mountOfficeBg();
+    mountSphereBg();
+    playSystemsEntry();
     const user = getUser() || '';
     document.getElementById('userTag').textContent = user;
+    mountAdminNotifications(document.querySelector('nav.nav .row'));
 
-    // Apply mesa permissions — hide tiles + health cards not accessible
+    // Apply domain permissions — hide domain tiles + health cards not accessible
     try {
       const perms = await fetch('/api/me/permissions', {
         headers: { Authorization: `Bearer ${getToken()}` }
       }).then(r => r.json());
       const allowed = new Set(perms.mesas || []);
-      // Tiles
-      document.querySelectorAll('.tile[data-mesa]').forEach(el => {
-        if (!allowed.has(el.dataset.mesa)) el.style.display = 'none';
+      const domainMesas = { ophs: ['ophs'], reff: ['reff', 'snfiu2'], elvira: ['elvira', 'sentinel', 'foundry'], pactvm: ['pactvm'] };
+      // Domain tiles: visible if at least one mesa of the domain is allowed
+      document.querySelectorAll('.tile[data-domain]').forEach(el => {
+        const mesas = domainMesas[el.dataset.domain] || [];
+        if (!mesas.some(m => allowed.has(m))) el.style.display = 'none';
       });
       // Health check cards
       document.querySelectorAll('.mesa-status-card[data-mesa]').forEach(el => {
@@ -331,8 +346,14 @@
       checkMesa('snfiu2', '/api/snfi-u2/live', {
         parse: d => d.snapshot?.precio_actual_eur_mwh != null ? `${d.snapshot.precio_actual_eur_mwh} EUR/MWh` : ''
       });
+      checkMesa('ophs', '/api/ophs-cockpit/summary', {
+        parse: d => `${d.ops?.nodesTotal ?? 0} nodos OPS · ${d.sentinel?.colaRevisionPendiente ?? 0} en cola Sentinel`
+      });
       checkMesa('sentinel', '/api/sentinel/ip-stats', {
         parse: d => `${Array.isArray(d) ? d.length : 0} IPs monitorizadas`
+      });
+      checkMesa('pactvm', '/api/pactvm/summary', {
+        parse: d => `${d.cibeEmitidos ?? 0} CIBE emitidos`
       });
     }
 

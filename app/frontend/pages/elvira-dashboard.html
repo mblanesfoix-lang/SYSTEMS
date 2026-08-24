@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Elvi-Ra · S-NFI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
+</head>
+<body>
+  <nav class="nav">
+    <div class="brand">
+      <a href="/pages/dashboard.html" style="color:inherit; text-decoration:none;">
+        <img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;"> SYSTEMS
+      </a>
+      <span class="mono" style="opacity:0.5; margin:0 8px;">/</span>
+      <span>Elvi-Ra</span>
+    </div>
+    <div class="row" style="gap:18px;">
+      <div class="user-menu" id="userMenu">
+        <button class="user-menu__trigger mono" id="userTag" aria-haspopup="true" aria-expanded="false">…</button>
+        <div class="user-menu__dropdown" id="userDropdown" hidden>
+          <div class="user-menu__section">
+            <span class="user-menu__label">Cambiar contraseña</span>
+            <input class="user-menu__input" type="password" id="pwdCurrent" placeholder="Contraseña actual" autocomplete="current-password">
+            <input class="user-menu__input" type="password" id="pwdNew" placeholder="Nueva contraseña" autocomplete="new-password">
+            <input class="user-menu__input" type="password" id="pwdConfirm" placeholder="Confirmar nueva" autocomplete="new-password">
+            <p class="user-menu__error" id="pwdError" hidden></p>
+            <button class="btn sage" id="pwdSubmit" style="width:100%;margin-top:4px;">Actualizar</button>
+          </div>
+          <div class="user-menu__divider"></div>
+          <button class="user-menu__item user-menu__item--danger" id="logoutBtn">Cerrar sesión</button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <style>
+    .user-menu { position: relative; }
+    .user-menu__trigger {
+      background: none; border: none; cursor: pointer;
+      padding: 6px 10px; border-radius: var(--radius-sm);
+      font-size: 0.82rem; color: var(--text-2);
+      transition: background 0.15s;
+    }
+    .user-menu__trigger:hover { background: rgba(20,24,32,0.06); color: var(--text-1); }
+    .user-menu__dropdown {
+      position: absolute; right: 0; top: calc(100% + 8px);
+      background: #fff; border: 1px solid var(--border);
+      border-radius: var(--radius); box-shadow: 0 8px 32px rgba(0,0,0,0.10);
+      min-width: 240px; padding: 12px 0; z-index: 100;
+    }
+    .user-menu__section { padding: 4px 14px 8px; display: flex; flex-direction: column; gap: 6px; }
+    .user-menu__label { font-size: 0.72rem; font-family: var(--font-mono); color: var(--text-3); letter-spacing: -0.005em; margin-bottom: 2px; }
+    .user-menu__input {
+      width: 100%; padding: 7px 10px; border: 1px solid var(--border);
+      border-radius: var(--radius-sm); font-size: 0.82rem; font-family: var(--font-sans);
+      background: var(--bg); color: var(--text-1); outline: none; box-sizing: border-box;
+    }
+    .user-menu__input:focus { border-color: var(--accent-blue); }
+    .user-menu__error { font-size: 0.78rem; color: #c0392b; margin: 2px 0 0; }
+    .user-menu__divider { height: 1px; background: var(--border); margin: 4px 0; }
+    .user-menu__item {
+      display: block; width: 100%; text-align: left;
+      padding: 9px 14px; background: none; border: none; cursor: pointer;
+      font-size: 0.85rem; font-family: var(--font-sans); color: var(--text-1);
+      transition: background 0.12s;
+    }
+    .user-menu__item:hover { background: rgba(20,24,32,0.04); }
+    .user-menu__item--danger { color: #c0392b; }
+    .user-menu__item--danger:hover { background: rgba(192,57,43,0.06); }
+    /* Above the background canvas but below .nav (z-index 30 in theme.css),
+       so the notifications dropdown inside the nav receives clicks */
+    main.container { position: relative; z-index: 1; }
+  </style>
+
+  <main class="container">
+    <header class="reveal">
+      <span class="kicker">Dominio Elvi-Ra · Palanca de acción</span>
+      <h1>Elvi-Ra</h1>
+      <p style="max-width:640px; margin-top:8px;">
+        IA de acción de S-NFI, siempre con consentimiento humano. Sentinel vigila y audita el propio sistema.
+      </p>
+    </header>
+
+    <section class="reveal delay-1">
+      <span class="kicker">Mesas</span>
+      <div class="tiles" style="margin-top:12px;">
+        <a class="tile reveal delay-2" href="/pages/elvi-ra.html" data-mesa="elvira" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
+          <h3>ELVI-RA</h3>
+          <p>IA de acción de S-NFI. Central: chat conocedor de todo el sistema, siempre con consentimiento humano. Solo Admin.</p>
+          <p class="mono" style="margin-top:10px;">acceso directo →</p>
+        </a>
+
+        <a class="tile reveal delay-4" href="/pages/sentinel.html" data-mesa="sentinel" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
+          <h3>Sentinel</h3>
+          <p>Seguridad y telemetría. Trazabilidad forense de IPs, hash chain inmutable, rate limiting en rutas sensibles, cola de revisión y bloqueo manual. Solo Admin.</p>
+          <p class="mono" style="margin-top:10px;">acceso directo →</p>
+        </a>
+
+        <a class="tile reveal delay-4" href="/pages/foundry.html" data-mesa="foundry" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
+          <h3>Data Foundry</h3>
+          <p>Mesa doctrinal: litografía de datos ASML + fundición TSMC. Ingesta asíncrona en salas limpias (OPS, PAIA, Herzog, U-2), circuit breakers y métricas de pipeline. Solo Admin.</p>
+          <p class="mono" style="margin-top:10px;">acceso directo →</p>
+        </a>
+      </div>
+    </section>
+
+    <div class="hr"></div>
+
+    <section class="reveal">
+      <span class="kicker">Estado de las Mesas</span>
+      <h2 style="margin-top:4px;">Health Check</h2>
+      <div class="mesa-status-grid" id="mesaStatusGrid">
+        <div class="mesa-status-card" data-mesa="elvira">
+          <div class="mesa-status-head">
+            <span class="mesa-status-name">Elvi-Ra</span>
+            <span class="mesa-status-dot checking"></span>
+          </div>
+          <span class="mesa-status-label">comprobando...</span>
+          <span class="mesa-status-detail"></span>
+          <span class="mesa-status-error"></span>
+        </div>
+        <div class="mesa-status-card" data-mesa="sentinel">
+          <div class="mesa-status-head">
+            <span class="mesa-status-name">Sentinel</span>
+            <span class="mesa-status-dot checking"></span>
+          </div>
+          <span class="mesa-status-label">comprobando...</span>
+          <span class="mesa-status-detail"></span>
+          <span class="mesa-status-error"></span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module">
+    import { api, getUser, getToken, clearSession, requireAuth, toast } from '/js/api.js';
+    import { mountAdminNotifications } from '/js/notifications.js';
+    import { mountOfficeBg, mountSphereBg } from '/js/office-bg.js';
+    requireAuth();
+    mountOfficeBg();
+    mountSphereBg();
+    const user = getUser() || '';
+    document.getElementById('userTag').textContent = user;
+    mountAdminNotifications(document.querySelector('nav.nav .row'));
+
+    // Apply mesa permissions — hide tiles + health cards not accessible; redirect if no access at all
+    try {
+      const perms = await fetch('/api/me/permissions', {
+        headers: { Authorization: `Bearer ${getToken()}` }
+      }).then(r => r.json());
+      const allowed = new Set(perms.mesas || []);
+      const domainMesas = ['elvira', 'sentinel', 'foundry'];
+      if (!domainMesas.some(m => allowed.has(m))) {
+        location.href = '/pages/dashboard.html';
+      }
+      document.querySelectorAll('.tile[data-mesa]').forEach(el => {
+        if (!allowed.has(el.dataset.mesa)) el.style.display = 'none';
+      });
+      document.querySelectorAll('.mesa-status-card[data-mesa]').forEach(el => {
+        if (!allowed.has(el.dataset.mesa)) el.style.display = 'none';
+      });
+    } catch {}
+
+    // User menu dropdown
+    const trigger = document.getElementById('userTag');
+    const dropdown = document.getElementById('userDropdown');
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = !dropdown.hidden;
+      dropdown.hidden = open;
+      trigger.setAttribute('aria-expanded', String(!open));
+    });
+    document.addEventListener('click', (e) => {
+      if (!document.getElementById('userMenu').contains(e.target)) {
+        dropdown.hidden = true;
+        trigger.setAttribute('aria-expanded', 'false');
+      }
+    });
+
+    // Change password
+    document.getElementById('pwdSubmit').addEventListener('click', async () => {
+      const cur = document.getElementById('pwdCurrent').value;
+      const neu = document.getElementById('pwdNew').value;
+      const con = document.getElementById('pwdConfirm').value;
+      const errEl = document.getElementById('pwdError');
+      errEl.hidden = true;
+      if (!cur || !neu || !con) { errEl.textContent = 'Rellena todos los campos'; errEl.hidden = false; return; }
+      if (neu !== con) { errEl.textContent = 'Las contraseñas no coinciden'; errEl.hidden = false; return; }
+      try {
+        await api.changePassword(cur, neu);
+        toast('Contraseña actualizada');
+        dropdown.hidden = true;
+        trigger.setAttribute('aria-expanded', 'false');
+        ['pwdCurrent','pwdNew','pwdConfirm'].forEach(id => document.getElementById(id).value = '');
+      } catch (ex) {
+        errEl.textContent = ex.message || 'Error al cambiar contraseña';
+        errEl.hidden = false;
+      }
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      try { await api.logout(); } catch {}
+      clearSession();
+      location.href = '/pages/login.html';
+    });
+
+    // ---- Health check ----
+    function setMesaStatus(mesa, state, label, detail, error) {
+      const card = document.querySelector(`.mesa-status-card[data-mesa="${mesa}"]`);
+      if (!card) return;
+      const dot = card.querySelector('.mesa-status-dot');
+      const lbl = card.querySelector('.mesa-status-label');
+      const det = card.querySelector('.mesa-status-detail');
+      const err = card.querySelector('.mesa-status-error');
+      dot.className = `mesa-status-dot ${state}`;
+      lbl.className = `mesa-status-label ${state}`;
+      lbl.textContent = label;
+      det.textContent = detail || '';
+      err.textContent = error || '';
+    }
+
+    async function checkMesa(mesa, url, { okLabel = 'operativo', parse } = {}) {
+      const t0 = performance.now();
+      try {
+        const headers = {};
+        const token = getToken();
+        if (token) headers.Authorization = `Bearer ${token}`;
+        const r = await fetch(url, { headers });
+        const ms = Math.round(performance.now() - t0);
+        if (!r.ok) {
+          let msg = `HTTP ${r.status}`;
+          try { const j = await r.json(); if (j.error) msg = j.error; } catch {}
+          setMesaStatus(mesa, 'bad', 'error', `${url} · ${ms} ms`, msg);
+          return;
+        }
+        const data = await r.json().catch(() => ({}));
+        const extra = parse ? parse(data) : '';
+        setMesaStatus(mesa, 'ok', okLabel, `${ms} ms${extra ? ' · ' + extra : ''}`, '');
+      } catch (ex) {
+        const ms = Math.round(performance.now() - t0);
+        setMesaStatus(mesa, 'bad', 'sin conexión', `${url} · ${ms} ms`, ex.message || 'fallo de red');
+      }
+    }
+
+    function refreshMesaStatus() {
+      checkMesa('elvira', '/api/elvira/overview', {
+        parse: d => `${d.metrics?.totalCompanies ?? 0} empresas`
+      });
+      checkMesa('sentinel', '/api/sentinel/ip-stats', {
+        parse: d => `${Array.isArray(d) ? d.length : 0} IPs monitorizadas`
+      });
+    }
+
+    refreshMesaStatus();
+    setInterval(refreshMesaStatus, 30000);
+  </script>
+</body>
+</html>

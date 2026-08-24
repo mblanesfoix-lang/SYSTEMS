@@ -40,6 +40,31 @@ async function ensureIndexes() {
   await elviraDb.collection('rate_limits').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
   await elviraDb.collection('ip_excess_log').createIndex({ ip: 1, path: 1, ts: -1 });
   await elviraDb.collection('ip_review_queue').createIndex({ ip: 1 }, { unique: true });
+
+  // S-NFI Factory · cadena de suministro industrial
+  await elviraDb.collection('factory_assembly').createIndex({ status: 1 });
+  await elviraDb.collection('factory_logistics').createIndex({ status: 1 });
+  await elviraDb.collection('factory_inventory').createIndex({ category: 1 });
+  await elviraDb.collection('factory_maintenance').createIndex({ status: 1, scheduledAt: 1 });
+
+  // S-NFI F&L · custodia legal (NDAs, contratos, licencias, expediente OEPM)
+  await elviraDb.collection('fl_ndas').createIndex({ status: 1, validTo: 1 });
+  await elviraDb.collection('fl_contracts').createIndex({ status: 1, validTo: 1 });
+  await elviraDb.collection('fl_licenses').createIndex({ status: 1, validTo: 1 });
+  await elviraDb.collection('fl_documents.files').createIndex({ 'metadata.entity_kind': 1, 'metadata.entity_id': 1 });
+
+  // Pactvm Viridi · cumplimiento bio-ambiental (certificado CIBE, politicas, accesos)
+  await elviraDb.collection('pactvm_cibe').createIndex({ status: 1 });
+  await elviraDb.collection('pactvm_policies').createIndex({ category: 1, active: 1 });
+  await elviraDb.collection('pactvm_access_rules').createIndex({ status: 1, scope: 1 });
+
+  // Data Foundry · pipeline de ingesta asincrona (gateway HMAC + salas limpias)
+  await elviraDb.collection('foundry_nodes').createIndex({ nodeId: 1 }, { unique: true });
+  await elviraDb.collection('foundry_log').createIndex({ seq: 1 }, { unique: true });
+  await elviraDb.collection('foundry_herzog_records').createIndex({ seq: 1 }, { unique: true });
+  await elviraDb.collection('foundry_herzog_records').createIndex({ nodeId: 1, recordedAt: -1 });
+  await elviraDb.collection('paia_stream_stats').createIndex({ nodeId: 1 }, { unique: true });
+  // u2_timeseries: indices creados por el worker U-2 (hilo independiente)
 }
 
 export async function closeMongo() {

@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pactvm Viridi · S-NFI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
+  <style>
+    .pactvm-hero {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px 40px;
+      margin-bottom: 24px;
+    }
+    .pactvm-hero__title {
+      font-family: var(--font-display);
+      font-size: clamp(1.8rem, 3.4vw, 2.6rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin: 0 0 10px;
+    }
+    .pactvm-hero__sub {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      max-width: 640px;
+      line-height: 1.65;
+      margin: 0;
+    }
+    .mode-tabs {
+      display: flex; gap: 0; margin-bottom: 24px;
+      border: 1px solid var(--border-mid); border-radius: var(--radius-sm); width: fit-content; overflow: hidden;
+    }
+    .mode-tab {
+      padding: 10px 24px; font-family: var(--font-mono); font-size: 0.65rem;
+      letter-spacing: 0.02em; color: var(--text-muted);
+      background: var(--bg-card); border: none; border-right: 1px solid var(--border-mid);
+      cursor: pointer; transition: background 0.18s var(--ease), color 0.18s var(--ease);
+    }
+    .mode-tab:last-child { border-right: none; }
+    .mode-tab.active { background: var(--accent-blue); color: #fff; font-weight: 600; }
+    .mode-tab:hover:not(.active) { color: var(--text-primary); }
+
+    .kpi-grid {
+      display: grid; grid-template-columns: repeat(5, 1fr); gap: 0;
+      border: 1px solid var(--border-mid); border-radius: var(--radius); overflow: hidden; margin-bottom: 24px; background: var(--bg-card);
+    }
+    @media (max-width: 1100px) { .kpi-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 900px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+    .kpi-cell {
+      padding: 20px 22px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
+      position: relative;
+    }
+    .kpi-cell:last-child { border-right: none; }
+    .kpi-cell.alert::before { content: ''; position: absolute; top: 0; left: 0; width: 3px; height: 100%; background: #d80300; }
+    .kpi-label { font-family: var(--font-mono); font-size: 0.55rem; letter-spacing: 0.04em; color: var(--text-muted); margin-bottom: 10px; }
+    .kpi-val { font-family: var(--font-display); font-size: 1.8rem; font-weight: 800; letter-spacing: -0.03em; }
+    .kpi-val.warn { color: #d80300; }
+
+    .pactvm-panel { display: none; }
+    .pactvm-panel.active { display: block; }
+
+    .add-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; align-items: flex-end; }
+    .add-row .sf { display: flex; flex-direction: column; gap: 4px; }
+    .add-row .sf label { font-size: 0.62rem; letter-spacing: -0.005em; color: var(--text-muted); font-family: var(--font-mono); }
+    .add-row .input { min-width: 120px; }
+
+    .status-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.02em;
+      padding: 3px 10px; border-radius: var(--radius-pill); background: var(--bg-elevated); border: 1px solid var(--border);
+    }
+    .status-dot-sm { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+    .empty-row td { text-align: center; color: var(--text-muted); font-size: 0.82rem; padding: 24px !important; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="brand">
+      <img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;">
+      SYSTEMS
+    </div>
+    <div class="row" style="gap:18px;">
+      <span class="mono" id="userTag">...</span>
+      <button class="btn ghost" id="logoutBtn">Cerrar sesión</button>
+    </div>
+  </nav>
+
+  <main class="container">
+    <div class="breadcrumb-row" style="display:flex; align-items:center; gap:8px; font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: -0.005em; color: var(--text-muted); margin-bottom: 22px;">
+      <a href="/pages/dashboard.html" style="color:inherit; text-decoration:none;">Systems</a>
+      <span style="opacity:.35;">/</span>
+      <span style="color: var(--text-primary); font-weight:600;">Pactvm Viridi</span>
+    </div>
+
+    <div class="pactvm-hero reveal">
+      <span class="kicker">Mesa · Cumplimiento bio-ambiental</span>
+      <h1 class="pactvm-hero__title">Pactvm <em style="font-style:normal;color:var(--accent-blue);">Viridi</em></h1>
+      <p class="pactvm-hero__sub">
+        Guardián doctrinal, científico y de cumplimiento bio-ambiental. Gestión del certificado CIBE,
+        parametrización de políticas medioambientales, control de condiciones de acceso, y auditoría
+        automatizada vía Herzog (fase F4) sin fricción.
+      </p>
+    </div>
+
+    <div id="errorBox" style="display:none;" class="mole-error"></div>
+
+    <div class="kpi-grid reveal" id="summaryKpis">
+      <div class="kpi-cell" id="kpiCibeEmitidos">
+        <div class="kpi-label">Certificados CIBE emitidos</div>
+        <div class="kpi-val" id="kpiCibeEmitidosVal">—</div>
+      </div>
+      <div class="kpi-cell" id="kpiCibePendientes">
+        <div class="kpi-label">Certificados pendientes</div>
+        <div class="kpi-val" id="kpiCibePendientesVal">—</div>
+      </div>
+      <div class="kpi-cell" id="kpiPolicies">
+        <div class="kpi-label">Políticas activas</div>
+        <div class="kpi-val" id="kpiPoliciesVal">—</div>
+      </div>
+      <div class="kpi-cell" id="kpiHerzogNc">
+        <div class="kpi-label">Herzog · NO CANDIDATO (últ. 50)</div>
+        <div class="kpi-val" id="kpiHerzogNcVal">—</div>
+      </div>
+      <div class="kpi-cell" id="kpiU2Perdidas">
+        <div class="kpi-label">Pérdidas vertido renovable U-2 (hoy)</div>
+        <div class="kpi-val" id="kpiU2PerdidasVal">—</div>
+      </div>
+    </div>
+
+    <div class="mode-tabs reveal">
+      <button class="mode-tab active" data-panel="cibe">Certificado CIBE</button>
+      <button class="mode-tab" data-panel="policies">Políticas</button>
+      <button class="mode-tab" data-panel="access">Condiciones de acceso</button>
+      <button class="mode-tab" data-panel="herzog">Auditorías Herzog</button>
+      <button class="mode-tab" data-panel="bunker">Búnker CIBE</button>
+    </div>
+
+    <!-- CIBE -->
+    <div class="pactvm-panel active card reveal" id="panel-cibe" style="padding:20px;">
+      <div class="add-row">
+        <div class="sf"><label>Empresa / nodo</label><input class="input" id="cibeEntityName" placeholder="Nombre entidad"></div>
+        <div class="sf"><label>Sector</label><input class="input" id="cibeSector" placeholder="Opcional"></div>
+        <div class="sf"><label>Fecha auditoría F4</label><input class="input" type="date" id="cibeAuditDate"></div>
+        <button class="btn sage" id="cibeAddBtn">Añadir</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="tbl" id="cibeTable">
+          <thead><tr><th>Entidad</th><th>Sector</th><th>Estado</th><th>Auditoría F4</th><th>Notas</th><th></th></tr></thead>
+          <tbody id="cibeBody"><tr class="empty-row"><td colspan="6">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- POLITICAS -->
+    <div class="pactvm-panel card reveal" id="panel-policies" style="padding:20px;">
+      <div class="add-row">
+        <div class="sf"><label>Nombre</label><input class="input" id="polName" placeholder="Límite emisión X"></div>
+        <div class="sf"><label>Categoría</label>
+          <select class="input" id="polCategory">
+            <option value="quimico">Químico</option>
+            <option value="circularidad">Circularidad</option>
+            <option value="energia">Energía</option>
+            <option value="residuo">Residuo</option>
+            <option value="otro">Otro</option>
+          </select>
+        </div>
+        <div class="sf"><label>Umbral</label><input class="input" id="polThreshold" style="width:100px;" placeholder="Opcional"></div>
+        <div class="sf"><label>Unidad</label><input class="input" id="polUnit" style="width:90px;" placeholder="kg/h"></div>
+        <button class="btn sage" id="polAddBtn">Añadir</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="tbl" id="polTable">
+          <thead><tr><th>Nombre</th><th>Categoría</th><th>Umbral</th><th>Activa</th><th>Versión</th><th></th></tr></thead>
+          <tbody id="polBody"><tr class="empty-row"><td colspan="6">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ACCESOS -->
+    <div class="pactvm-panel card reveal" id="panel-access" style="padding:20px;">
+      <div class="add-row">
+        <div class="sf"><label>Sujeto</label><input class="input" id="accSubject" placeholder="Empresa / rol / mesa"></div>
+        <div class="sf"><label>Alcance</label>
+          <select class="input" id="accScope">
+            <option value="empresa">Empresa</option>
+            <option value="mesa">Mesa</option>
+            <option value="rol">Rol</option>
+          </select>
+        </div>
+        <div class="sf"><label>Objetivo</label><input class="input" id="accTarget" placeholder="Sello CIBE / recurso"></div>
+        <div class="sf"><label>Motivo</label><input class="input" id="accReason" placeholder="Opcional"></div>
+        <button class="btn sage" id="accAddBtn">Añadir</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="tbl" id="accTable">
+          <thead><tr><th>Sujeto</th><th>Alcance</th><th>Objetivo</th><th>Estado</th><th>Motivo</th><th></th></tr></thead>
+          <tbody id="accBody"><tr class="empty-row"><td colspan="6">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- HERZOG (solo lectura) -->
+    <div class="pactvm-panel card reveal" id="panel-herzog" style="padding:20px;">
+      <p style="font-size:0.8rem; color:var(--text-muted); margin:0 0 16px;">
+        Lectura directa de las últimas auditorías Herzog (fase F4). Pactvm Viridi no escribe ni juzga el veredicto: solo lo consulta para fundamentar el sello CIBE.
+      </p>
+      <div style="overflow-x:auto;">
+        <table class="tbl" id="herzogTable">
+          <thead><tr><th>Empresa</th><th>Clasificación</th><th>Score</th><th>Resumen</th><th>Fecha</th></tr></thead>
+          <tbody id="herzogBody"><tr class="empty-row"><td colspan="5">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- BUNKER CIBE (Volumen 3: tokens firmados Ed25519) -->
+    <div class="pactvm-panel card reveal" id="panel-bunker" style="padding:20px;">
+      <p style="font-size:0.8rem; color:var(--text-muted); margin:0 0 16px; line-height:1.6;">
+        Módulo búnker de Pactvm Viridi: expide tokens firmados (Ed25519, TTL corto) que los endpoints críticos del OPHS Framework
+        exigen en cada comando. El acceso no se compra: sin certificado CIBE emitido, la puerta genera un <b>Auth-Refusal</b> inmutable.
+        Asigna la <b>tokenKey</b> a un certificado emitido desde la pestaña Certificado CIBE.
+      </p>
+      <div style="display:flex; gap:24px; flex-wrap:wrap; margin-bottom:18px; font-family:var(--font-mono); font-size:0.72rem;" id="bunkerStats">
+        <span>modo <b id="bkMode">—</b></span>
+        <span>kid <b id="bkKid">—</b></span>
+        <span>emitidos <b id="bkIssued">—</b></span>
+        <span>auto-expedidos <b id="bkAuto">—</b></span>
+        <span>Auth-Refusals <b id="bkRefused" style="color:#d80300;">—</b></span>
+        <span>revocados <b id="bkRevoked">—</b></span>
+        <span>clave <b id="bkKeySource">—</b></span>
+      </div>
+      <div class="add-row">
+        <div class="sf"><label>Revocar token (jti)</label><input class="input" id="bkRevokeJti" placeholder="uuid del token" style="min-width:280px;"></div>
+        <button class="btn sage" id="bkRevokeBtn">Revocar</button>
+        <button class="btn ghost" id="bkVerifyBtn">Verificar log</button>
+        <span id="bkVerifyMsg" style="font-family:var(--font-mono); font-size:0.68rem;"></span>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="tbl">
+          <thead><tr><th>Seq</th><th>Actor</th><th>Código</th><th>Ruta</th><th>Scope</th><th>Fecha</th></tr></thead>
+          <tbody id="bkRefusalsBody"><tr class="empty-row"><td colspan="6">Cargando Auth-Refusals…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script type="module">
+    import { api, getUser, requireAuth, clearSession, toast, escapeHtml } from '/js/api.js';
+    import { mountOfficeBg } from '/js/office-bg.js';
+    requireAuth();
+    mountOfficeBg();
+    document.getElementById('userTag').textContent = getUser() || '';
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      try { await api.logout(); } catch {}
+      clearSession();
+      location.href = '/pages/login.html';
+    });
+
+    function showError(msg) {
+      const box = document.getElementById('errorBox');
+      box.textContent = msg;
+      box.style.display = msg ? 'block' : 'none';
+    }
+
+    // ---- Tabs ----
+    document.querySelectorAll('.mode-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.pactvm-panel').forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(`panel-${tab.dataset.panel}`).classList.add('active');
+      });
+    });
+
+    // ---- Summary KPIs ----
+    async function loadSummary() {
+      try {
+        const s = await api.pactvmSummary();
+        document.getElementById('kpiCibeEmitidosVal').textContent = s.cibeEmitidos ?? 0;
+        document.getElementById('kpiCibePendientesVal').textContent = s.cibePendientes ?? 0;
+        document.getElementById('kpiPoliciesVal').textContent = s.policiesActive ?? 0;
+        document.getElementById('kpiHerzogNcVal').textContent = s.herzogNoCandidatoRecent ?? 0;
+        document.getElementById('kpiCibePendientes').classList.toggle('alert', (s.cibePendientes ?? 0) > 0);
+        document.getElementById('kpiHerzogNc').classList.toggle('alert', (s.herzogNoCandidatoRecent ?? 0) > 0);
+        document.getElementById('kpiHerzogNcVal').classList.toggle('warn', (s.herzogNoCandidatoRecent ?? 0) > 0);
+        const u2 = s.u2;
+        const u2Val = document.getElementById('kpiU2PerdidasVal');
+        if (u2 && u2.exceso_gwh_hoy != null) {
+          u2Val.textContent = `${u2.exceso_gwh_hoy} GWh`;
+          const pct = u2.pct_horas_desperdiciadas != null ? ` · ${u2.pct_horas_desperdiciadas}% h` : '';
+          u2Val.title = `Optimización S-NFI U-2 frente a demanda real${pct}`;
+        } else {
+          u2Val.textContent = '—';
+        }
+        document.getElementById('kpiU2Perdidas').classList.toggle('alert', (u2?.exceso_gwh_hoy ?? 0) > 0);
+      } catch (ex) { showError(ex.message || 'Error al cargar resumen'); }
+    }
+
+    const CIBE_STATUSES = {
+      pendiente: { label: 'Pendiente', color: '#c9a84c' },
+      emitido: { label: 'Emitido', color: '#00a878' },
+      suspendido: { label: 'Suspendido', color: '#d80300' },
+      revocado: { label: 'Revocado', color: '#d80300' },
+    };
+    const ACCESS_STATUSES = {
+      activo: { label: 'Activo', color: '#00a878' },
+      suspendido: { label: 'Suspendido', color: '#d80300' },
+    };
+
+    function selectHtml(options, current, cls) {
+      return `<select class="input ${cls}" style="font-size:0.72rem; padding:4px 6px;">` +
+        Object.entries(options).map(([k, v]) => `<option value="${k}" ${k === current ? 'selected' : ''}>${typeof v === 'string' ? v : v.label}</option>`).join('') +
+        `</select>`;
+    }
+    function pill(label, color) {
+      return `<span class="status-pill"><span class="status-dot-sm" style="background:${color};"></span>${escapeHtml(label)}</span>`;
+    }
+
+    // ---- CIBE ----
+    async function loadCibe() {
+      const body = document.getElementById('cibeBody');
+      try {
+        const rows = await api.pactvmCibeList();
+        if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="6">Sin certificados registrados.</td></tr>'; return; }
+        body.innerHTML = rows.map(r => `<tr data-id="${r.id}">
+          <td>${escapeHtml(r.entityName)}</td>
+          <td>${escapeHtml(r.sector || '—')}</td>
+          <td>${selectHtml(CIBE_STATUSES, r.status, 'cibe-status')}</td>
+          <td class="mono">${escapeHtml(r.auditF4Date || '—')}</td>
+          <td style="font-size:0.8rem;">${escapeHtml(r.notes || '')}</td>
+          <td style="white-space:nowrap;">
+            <button class="btn ghost btn--sm cibe-key" title="Asignar/rotar la tokenKey del búnker CIBE (solo certificados emitidos)">TokenKey</button>
+            <button class="btn ghost btn--sm cibe-del">Eliminar</button>
+          </td>
+        </tr>`).join('');
+        body.querySelectorAll('tr[data-id]').forEach(tr => {
+          const id = tr.dataset.id;
+          tr.querySelector('.cibe-status').addEventListener('change', async (e) => {
+            try { await api.pactvmCibePatch(id, { status: e.target.value }); loadSummary(); } catch (ex) { showError(ex.message); }
+          });
+          tr.querySelector('.cibe-key').addEventListener('click', async () => {
+            showError('');
+            try {
+              const r = await api.pactvmCibeTokenKey(id);
+              prompt(`tokenKey de "${r.entityName}" — se muestra UNA sola vez, cópiala ahora:`, r.tokenKey);
+              toast('tokenKey asignada. El sujeto externo ya puede pedir tokens CIBE.');
+            } catch (ex) { showError(ex.message); }
+          });
+          tr.querySelector('.cibe-del').addEventListener('click', async () => {
+            try { await api.pactvmCibeDelete(id); loadCibe(); loadSummary(); } catch (ex) { showError(ex.message); }
+          });
+        });
+      } catch (ex) { showError(ex.message || 'Error al cargar certificados CIBE'); }
+    }
+    document.getElementById('cibeAddBtn').addEventListener('click', async () => {
+      showError('');
+      const entityName = document.getElementById('cibeEntityName').value.trim();
+      if (!entityName) return showError('Indica la empresa/nodo');
+      try {
+        await api.pactvmCibeAdd({
+          entityName,
+          sector: document.getElementById('cibeSector').value.trim() || null,
+          auditF4Date: document.getElementById('cibeAuditDate').value || null,
+        });
+        document.getElementById('cibeEntityName').value = '';
+        document.getElementById('cibeSector').value = '';
+        document.getElementById('cibeAuditDate').value = '';
+        loadCibe(); loadSummary();
+      } catch (ex) { showError(ex.message || 'Error al crear certificado'); }
+    });
+
+    // ---- Politicas ----
+    async function loadPolicies() {
+      const body = document.getElementById('polBody');
+      try {
+        const rows = await api.pactvmPoliciesList();
+        if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="6">Sin políticas registradas.</td></tr>'; return; }
+        body.innerHTML = rows.map(r => `<tr data-id="${r.id}">
+          <td>${escapeHtml(r.name)}</td>
+          <td>${escapeHtml(r.category)}</td>
+          <td class="mono">${r.threshold ?? '—'} ${escapeHtml(r.unit || '')}</td>
+          <td><input type="checkbox" class="pol-active" ${r.active ? 'checked' : ''}></td>
+          <td class="mono">v${r.version}</td>
+          <td><button class="btn ghost btn--sm pol-del">Eliminar</button></td>
+        </tr>`).join('');
+        body.querySelectorAll('tr[data-id]').forEach(tr => {
+          const id = tr.dataset.id;
+          tr.querySelector('.pol-active').addEventListener('change', async (e) => {
+            try { await api.pactvmPolicyPatch(id, { active: e.target.checked }); loadSummary(); } catch (ex) { showError(ex.message); }
+          });
+          tr.querySelector('.pol-del').addEventListener('click', async () => {
+            try { await api.pactvmPolicyDelete(id); loadPolicies(); loadSummary(); } catch (ex) { showError(ex.message); }
+          });
+        });
+      } catch (ex) { showError(ex.message || 'Error al cargar políticas'); }
+    }
+    document.getElementById('polAddBtn').addEventListener('click', async () => {
+      showError('');
+      const name = document.getElementById('polName').value.trim();
+      if (!name) return showError('Indica el nombre de la política');
+      try {
+        const thresholdRaw = document.getElementById('polThreshold').value.trim();
+        await api.pactvmPolicyAdd({
+          name,
+          category: document.getElementById('polCategory').value,
+          threshold: thresholdRaw ? Number(thresholdRaw) : null,
+          unit: document.getElementById('polUnit').value.trim() || null,
+        });
+        document.getElementById('polName').value = '';
+        document.getElementById('polThreshold').value = '';
+        document.getElementById('polUnit').value = '';
+        loadPolicies(); loadSummary();
+      } catch (ex) { showError(ex.message || 'Error al crear política'); }
+    });
+
+    // ---- Condiciones de acceso ----
+    async function loadAccessRules() {
+      const body = document.getElementById('accBody');
+      try {
+        const rows = await api.pactvmAccessRulesList();
+        if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="6">Sin reglas registradas.</td></tr>'; return; }
+        body.innerHTML = rows.map(r => `<tr data-id="${r.id}">
+          <td>${escapeHtml(r.subject)}</td>
+          <td>${escapeHtml(r.scope)}</td>
+          <td>${escapeHtml(r.target)}</td>
+          <td>${selectHtml(ACCESS_STATUSES, r.status, 'acc-status')}</td>
+          <td style="font-size:0.8rem;">${escapeHtml(r.reason || '')}</td>
+          <td><button class="btn ghost btn--sm acc-del">Eliminar</button></td>
+        </tr>`).join('');
+        body.querySelectorAll('tr[data-id]').forEach(tr => {
+          const id = tr.dataset.id;
+          tr.querySelector('.acc-status').addEventListener('change', async (e) => {
+            try { await api.pactvmAccessRulePatch(id, { status: e.target.value }); } catch (ex) { showError(ex.message); }
+          });
+          tr.querySelector('.acc-del').addEventListener('click', async () => {
+            try { await api.pactvmAccessRuleDelete(id); loadAccessRules(); } catch (ex) { showError(ex.message); }
+          });
+        });
+      } catch (ex) { showError(ex.message || 'Error al cargar condiciones de acceso'); }
+    }
+    document.getElementById('accAddBtn').addEventListener('click', async () => {
+      showError('');
+      const subject = document.getElementById('accSubject').value.trim();
+      const target = document.getElementById('accTarget').value.trim();
+      if (!subject) return showError('Indica el sujeto');
+      if (!target) return showError('Indica el objetivo');
+      try {
+        await api.pactvmAccessRuleAdd({
+          subject,
+          scope: document.getElementById('accScope').value,
+          target,
+          reason: document.getElementById('accReason').value.trim() || null,
+        });
+        document.getElementById('accSubject').value = '';
+        document.getElementById('accTarget').value = '';
+        document.getElementById('accReason').value = '';
+        loadAccessRules();
+      } catch (ex) { showError(ex.message || 'Error al crear regla'); }
+    });
+
+    // ---- Herzog (solo lectura) ----
+    async function loadHerzog() {
+      const body = document.getElementById('herzogBody');
+      try {
+        const rows = await api.pactvmHerzogAudits();
+        if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="5">Sin auditorías Herzog registradas.</td></tr>'; return; }
+        body.innerHTML = rows.map(r => {
+          const cls = r.classification || '—';
+          const color = cls === 'ESTRATEGICO' ? '#00a878' : cls === 'OPERATIVO' ? '#c9a84c' : cls === 'NO_CANDIDATO' ? '#d80300' : '#8a8a8a';
+          return `<tr>
+            <td>${escapeHtml(r.companyName || '—')}</td>
+            <td>${pill(cls, color)}</td>
+            <td class="mono">${r.overall ?? '—'}</td>
+            <td style="font-size:0.8rem; max-width:360px;">${escapeHtml(r.summary || '')}</td>
+            <td class="mono">${r.createdAt ? new Date(r.createdAt).toLocaleString('es-ES') : '—'}</td>
+          </tr>`;
+        }).join('');
+      } catch (ex) { showError(ex.message || 'Error al cargar auditorías Herzog'); }
+    }
+
+    // ---- Bunker CIBE (Volumen 3: tokens firmados Ed25519) ----
+    async function loadBunker() {
+      try {
+        const s = await api.cibeBunkerStatus();
+        document.getElementById('bkMode').textContent = s.mode;
+        document.getElementById('bkKid').textContent = s.kid || '—';
+        document.getElementById('bkIssued').textContent = s.counters.issued;
+        document.getElementById('bkAuto').textContent = s.counters.autoIssued;
+        document.getElementById('bkRefused').textContent = s.counters.refused;
+        document.getElementById('bkRevoked').textContent = s.revokedCount;
+        document.getElementById('bkKeySource').textContent = s.keySource;
+        const body = document.getElementById('bkRefusalsBody');
+        const rows = s.recentRefusals || [];
+        if (!rows.length) { body.innerHTML = '<tr class="empty-row"><td colspan="6">Sin Auth-Refusals registrados. La puerta no ha rechazado a nadie todavía.</td></tr>'; return; }
+        body.innerHTML = rows.map(r => `<tr>
+          <td class="mono">${r.seq}</td>
+          <td>${escapeHtml(r.actorId || '—')}</td>
+          <td>${pill(r.detail?.code || '—', '#d80300')}</td>
+          <td class="mono" style="font-size:0.7rem;">${escapeHtml(r.detail?.method || '')} ${escapeHtml(r.detail?.path || '—')}</td>
+          <td class="mono">${escapeHtml(r.detail?.scope || '—')}</td>
+          <td class="mono">${r.createdAt ? new Date(r.createdAt).toLocaleString('es-ES') : '—'}</td>
+        </tr>`).join('');
+      } catch (ex) { showError(ex.message || 'Error al cargar el búnker CIBE'); }
+    }
+    document.getElementById('bkRevokeBtn').addEventListener('click', async () => {
+      showError('');
+      const jti = document.getElementById('bkRevokeJti').value.trim();
+      if (!jti) return showError('Indica el jti del token a revocar');
+      try {
+        await api.cibeBunkerRevoke(jti);
+        document.getElementById('bkRevokeJti').value = '';
+        toast('Token revocado.');
+        loadBunker();
+      } catch (ex) { showError(ex.message); }
+    });
+    document.getElementById('bkVerifyBtn').addEventListener('click', async () => {
+      const msg = document.getElementById('bkVerifyMsg');
+      msg.textContent = 'verificando…';
+      try {
+        const r = await api.cibeBunkerLogVerify();
+        msg.textContent = r.valid ? `íntegro · ${r.totalEntries} entradas` : `ROTO en seq ${r.brokenAtSeq}`;
+        msg.style.color = r.valid ? '#00a878' : '#d80300';
+      } catch (ex) { msg.textContent = ex.message; msg.style.color = '#d80300'; }
+    });
+
+    // ---- Init ----
+    loadSummary();
+    loadCibe();
+    loadPolicies();
+    loadAccessRules();
+    loadHerzog();
+    loadBunker();
+    setInterval(loadBunker, 30000);
+  </script>
+</body>
+</html>

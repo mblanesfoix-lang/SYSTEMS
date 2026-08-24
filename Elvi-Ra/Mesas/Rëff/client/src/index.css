@@ -7,34 +7,38 @@
   --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
   --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
-  --font-display: 'Syne', 'Inter', system-ui, sans-serif;
+  --font-display: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif;
 
-  --accent: #00a878;
-  --accent-hover: #008a62;
-  --accent-dim: rgba(0, 168, 120, 0.08);
-  --accent-border: rgba(0, 168, 120, 0.22);
+  --accent: #0071e3;
+  --accent-hover: #0077ed;
+  --accent-dim: rgba(0, 113, 227, 0.08);
+  --accent-border: rgba(0, 113, 227, 0.22);
 
-  --surface-0: #e8eaee;
+  --status-ok: #1fa855;
+  --status-warn: #c9820a;
+  --status-bad: #e0342c;
+
+  --surface-0: #f5f5f7;
   --surface-1: #ffffff;
-  --surface-2: #f0f2f5;
+  --surface-2: #fafafa;
 
-  --border-subtle: rgba(20, 24, 32, 0.06);
-  --border-mid: rgba(20, 24, 32, 0.10);
-  --border-strong: rgba(20, 24, 32, 0.22);
+  --border-subtle: rgba(0, 0, 0, 0.06);
+  --border-mid: rgba(0, 0, 0, 0.10);
+  --border-strong: rgba(0, 0, 0, 0.20);
 
-  --text-primary: #0e1116;
-  --text-secondary: #2a2f38;
-  --text-muted: #5a6170;
+  --text-primary: #1d1d1f;
+  --text-secondary: #3a3a3c;
+  --text-muted: #6e6e73;
 
-  --shadow-sm: 0 1px 2px rgba(20, 24, 32, 0.04);
-  --shadow-md: 0 1px 2px rgba(20, 24, 32, 0.04), 0 4px 12px rgba(20, 24, 32, 0.06);
-  --shadow-lg: 0 1px 2px rgba(20, 24, 32, 0.04), 0 12px 32px rgba(20, 24, 32, 0.10);
-  --shadow-xl: 0 1px 2px rgba(20, 24, 32, 0.05), 0 24px 48px rgba(20, 24, 32, 0.14);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 32px rgba(0, 0, 0, 0.10);
+  --shadow-xl: 0 1px 2px rgba(0, 0, 0, 0.05), 0 24px 48px rgba(0, 0, 0, 0.14);
 
-  --radius-sm: 0px;
-  --radius-md: 0px;
-  --radius-lg: 0px;
-  --radius-xl: 0px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
 
   --transition-fast: 160ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -51,10 +55,7 @@ body {
   font-weight: 400;
   font-size: 13px;
   background: var(--surface-0);
-  background-image:
-    radial-gradient(ellipse 80% 60% at 60% 40%, rgba(0,168,120,0.07) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 80% at 85% 90%, rgba(0,152,199,0.04) 0%, transparent 55%),
-    linear-gradient(180deg, #f0f2f5 0%, #e8eaee 100%);
+  background-image: linear-gradient(180deg, #fafafa 0%, #f5f5f7 100%);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -228,22 +229,23 @@ body {
   background: var(--accent);
   color: #fff;
   border: 1px solid var(--accent);
-  border-radius: 0;
-  padding: 7px 16px;
-  font-family: var(--font-mono);
-  font-weight: 600;
-  font-size: 12px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  border-radius: var(--radius-sm);
+  padding: 8px 18px;
+  font-family: var(--font-body);
+  font-weight: 590;
+  font-size: 13px;
+  letter-spacing: -0.006em;
+  text-transform: none;
   cursor: pointer;
-  transition: background var(--transition-fast), transform var(--transition-fast);
+  transition: background var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 .btn-primary:hover:not(:disabled) {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
+  box-shadow: 0 6px 16px -6px rgba(0,113,227,0.45);
 }
 .btn-primary:active:not(:disabled) {
-  transform: translateY(0);
+  transform: scale(0.98);
 }
 .btn-primary:disabled {
   opacity: 0.4;
@@ -254,26 +256,26 @@ body {
   background: transparent;
   color: var(--text-primary);
   border: 1px solid var(--border-strong);
-  border-radius: 0;
-  padding: 6px 15px;
-  font-family: var(--font-mono);
-  font-weight: 600;
-  font-size: 12px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  border-radius: var(--radius-sm);
+  padding: 7px 17px;
+  font-family: var(--font-body);
+  font-weight: 590;
+  font-size: 13px;
+  letter-spacing: -0.006em;
+  text-transform: none;
   cursor: pointer;
   transition: background var(--transition-fast), border-color var(--transition-fast);
 }
 .btn-secondary:hover:not(:disabled) {
-  background: rgba(20, 24, 32, 0.04);
-  border-color: rgba(20, 24, 32, 0.40);
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.30);
 }
 
 /* ── Elvi-Ra style input ──────────────────── */
 .input-field {
   background: var(--surface-1);
   border: 1px solid var(--border-strong);
-  border-radius: 0;
+  border-radius: var(--radius-sm);
   padding: 8px 12px;
   font-family: var(--font-body);
   font-size: 13px;
@@ -286,7 +288,7 @@ body {
 }
 .input-field:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(0, 168, 120, 0.18);
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.16);
 }
 .input-field::placeholder {
   color: var(--text-muted);

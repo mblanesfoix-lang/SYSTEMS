@@ -35,16 +35,19 @@ export async function seedDatabase(): Promise<void> {
   const sheets = db.collection('sheets');
   const counters = db.collection('counters');
 
+  // Contraseñas seed via env (REFF_SEED_<USER>_PASSWORD); sin variable no se crea el usuario.
   const seedUsers = [
-    { username: 'marc', displayName: 'Marc Blanes', password: 'Marc2005' },
-    { username: 'nour', displayName: 'Nour', password: 'Nour 2026' },
-    { username: 'amir', displayName: 'Amir', password: 'Amir2026' },
+    { username: 'marc', displayName: 'Marc Blanes', password: process.env.REFF_SEED_MARC_PASSWORD },
+    { username: 'nour', displayName: 'Nour', password: process.env.REFF_SEED_NOUR_PASSWORD },
+    { username: 'amir', displayName: 'Amir', password: process.env.REFF_SEED_AMIR_PASSWORD },
+    { username: 'gonzalo', displayName: 'Gonzalo', password: process.env.REFF_SEED_GONZALO_PASSWORD },
   ];
 
   for (const u of seedUsers) {
     const existing = await users.findOne({ username: u.username });
     let userId: string;
     if (!existing) {
+      if (!u.password) continue;
       userId = crypto.randomUUID();
       const hash = bcrypt.hashSync(u.password, 10);
       await users.insertOne({

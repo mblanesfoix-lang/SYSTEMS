@@ -1,13 +1,21 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
 import { DashboardPage } from './pages/DashboardPage';
 import { CRMPage } from './pages/CRMPage';
 import { HerzogPage } from './pages/HerzogPage';
-import { clearElviraSession, clearSession, getStoredUser, getToken, type User } from './lib/api';
+import { VigilanciaPage } from './pages/VigilanciaPage';
+import { clearElviraSession, clearSession, fetchGuestToken, getStoredUser, getToken, type User } from './lib/api';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(() => getStoredUser());
+
+  useEffect(() => {
+    if (user && getToken()) return;
+    fetchGuestToken().then((result) => {
+      if (result) setUser(result.user);
+    });
+  }, [user]);
 
   if (!user || !getToken()) {
     return (
@@ -32,6 +40,7 @@ export default function App() {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/crm" element={<CRMPage />} />
           <Route path="/herzog" element={<HerzogPage />} />
+          <Route path="/vigilancia" element={<VigilanciaPage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </div>

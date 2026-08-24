@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>S-NFI Factory · S-NFI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
+  <style>
+    .factory-hero {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-top: 2px solid var(--accent-blue);
+      border-radius: var(--radius);
+      padding: 32px 40px;
+      margin-bottom: 24px;
+    }
+    .factory-hero__title {
+      font-family: var(--font-display);
+      font-size: clamp(1.8rem, 3.4vw, 2.6rem);
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      margin: 0 0 10px;
+    }
+    .factory-hero__sub {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      max-width: 640px;
+      line-height: 1.65;
+      margin: 0;
+    }
+    .mode-tabs {
+      display: flex; gap: 0; margin-bottom: 24px;
+      border: 1px solid var(--border-mid); border-radius: var(--radius-sm); overflow: hidden;
+      width: fit-content;
+    }
+    .mode-tab {
+      padding: 10px 24px; font-family: var(--font-mono); font-size: 0.65rem;
+      letter-spacing: 0.03em; color: var(--text-muted);
+      background: var(--bg-card); border: none; border-right: 1px solid var(--border-mid);
+      cursor: pointer; transition: background 0.18s var(--ease), color 0.18s var(--ease);
+    }
+    .mode-tab:last-child { border-right: none; }
+    .mode-tab.active { background: var(--text-primary); color: #fff; font-weight: 600; }
+    .mode-tab:hover:not(.active) { color: var(--text-primary); }
+
+    .kpi-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 0;
+      border: 1px solid var(--border-mid); border-radius: var(--radius); overflow: hidden;
+      margin-bottom: 24px; background: var(--bg-card);
+    }
+    @media (max-width: 900px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+    .kpi-cell {
+      padding: 20px 22px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
+      position: relative;
+    }
+    .kpi-cell:nth-child(4n) { border-right: none; }
+    .kpi-cell.alert::before { content: ''; position: absolute; top: 0; left: 0; width: 3px; height: 100%; background: #d80300; }
+    .kpi-label { font-family: var(--font-mono); font-size: 0.55rem; letter-spacing: 0.03em; color: var(--text-muted); margin-bottom: 10px; }
+    .kpi-val { font-family: var(--font-display); font-size: 1.8rem; font-weight: 800; letter-spacing: -0.03em; }
+    .kpi-val.warn { color: #d80300; }
+
+    .factory-panel { display: none; }
+    .factory-panel.active { display: block; }
+
+    .add-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; align-items: flex-end; }
+    .add-row .sf { display: flex; flex-direction: column; gap: 4px; }
+    .add-row .sf label { font-size: 0.62rem; letter-spacing: 0.03em; color: var(--text-muted); font-family: var(--font-mono); }
+    .add-row .input { min-width: 120px; }
+
+    .status-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.04em; text-transform: uppercase;
+      padding: 3px 8px; border-radius: var(--radius-pill); background: var(--bg-elevated); border: 1px solid var(--border);
+    }
+    .status-dot-sm { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+    .stock-controls { display: inline-flex; align-items: center; gap: 6px; }
+    .stock-controls button { width: 22px; height: 22px; padding: 0; line-height: 1; }
+
+    .empty-row td { text-align: center; color: var(--text-muted); font-size: 0.82rem; padding: 24px !important; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="brand">
+      <img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;">
+      SYSTEMS
+    </div>
+    <div class="row" style="gap:18px;">
+      <span class="mono" id="userTag">...</span>
+      <button class="btn ghost" id="logoutBtn">Cerrar sesión</button>
+    </div>
+  </nav>
+
+  <main class="container">
+    <div class="breadcrumb-row" style="display:flex; align-items:center; gap:8px; font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.02em; color: var(--text-muted); margin-bottom: 22px;">
+      <a href="/pages/dashboard.html" style="color:inherit; text-decoration:none;">SYSTEMS</a>
+      <span style="opacity:.35;">/</span>
+      <a href="/pages/reff-dashboard.html" style="color:inherit; text-decoration:none;">Rëff</a>
+      <span style="opacity:.35;">/</span>
+      <span style="color: var(--text-primary); font-weight:600;">S-NFI Factory</span>
+    </div>
+
+    <div class="factory-hero reveal">
+      <span class="kicker">Mesa · Cadena de suministro industrial</span>
+      <h1 class="factory-hero__title">S-NFI <em style="font-style:normal;color:var(--accent-blue);">Factory</em></h1>
+      <p class="factory-hero__sub">
+        Control automatizado de la cadena de suministro industrial: ensamblaje de hardware BioHybrid™,
+        logística de materiales físicos, inventario de componentes mecánicos (incl. canalización en «Y» de acero inox)
+        y ciclo de mantenimiento de los nodos desplegados.
+      </p>
+    </div>
+
+    <div id="errorBox" style="display:none;" class="mole-error"></div>
+
+    <div class="kpi-grid reveal" id="summaryKpis">
+      <div class="kpi-cell" id="kpiAssembly">
+        <div class="kpi-label">Ensamblajes activos</div>
+        <div class="kpi-val" id="kpiAssemblyVal">—</div>
+      </div>
+      <div class="kpi-cell" id="kpiLogistics">
+        <div class="kpi-label">Incidencias logística</div>
+        <div class="kpi-val" id="kpiLogisticsVal">—</div>
+      </div>
+      <div class="kpi-cell" id="kpiInventory">
+        <div class="kpi-label">Stock bajo mínimo</div>
+        <div class="kpi-val" id="kpiInventoryVal">—</div>
+      </div>
+      <div class="kpi-cell" id="kpiMaintenance">
+        <div class="kpi-label">Mantenimientos vencidos</div>
+        <div class="kpi-val" id="kpiMaintenanceVal">—</div>
+      </div>
+    </div>
+
+    <div class="mode-tabs reveal">
+      <button class="mode-tab active" data-panel="assembly">Ensamblaje</button>
+      <button class="mode-tab" data-panel="logistics">Logística</button>
+      <button class="mode-tab" data-panel="inventory">Inventario</button>
+      <button class="mode-tab" data-panel="maintenance">Mantenimiento</button>
+    </div>
+
+    <!-- ENSAMBLAJE -->
+    <div class="factory-panel active card reveal" id="panel-assembly" style="padding:20px;">
+      <div class="add-row">
+        <div class="sf"><label>Nodo / referencia</label><input class="input" id="asmNodeRef" placeholder="BioHybrid-L #014"></div>
+        <div class="sf"><label>ETA (opcional)</label><input class="input" id="asmEta" placeholder="2026-08-01"></div>
+        <button class="btn sage" id="asmAddBtn">Añadir</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="tbl" id="asmTable">
+          <thead><tr><th>Nodo</th><th>Etapa</th><th>Estado</th><th>ETA</th><th>Bloqueo</th><th></th></tr></thead>
+          <tbody id="asmBody"><tr class="empty-row"><td colspan="6">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- LOGISTICA -->
+    <div class="factory-panel card reveal" id="panel-logistics" style="padding:20px;">
+      <div class="add-row">
+        <div class="sf"><label>Material</label><input class="input" id="logMaterial" placeholder="Canalización Y acero inox"></div>
+        <div class="sf"><label>Cantidad</label><input class="input" id="logQty" style="width:90px;" placeholder="10"></div>
+        <div class="sf"><label>Unidad</label><input class="input" id="logUnit" style="width:80px;" value="ud"></div>
+        <div class="sf"><label>Destino</label><input class="input" id="logDestination" placeholder="Planta Jumilla"></div>
+        <button class="btn sage" id="logAddBtn">Añadir</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="tbl" id="logTable">
+          <thead><tr><th>Material</th><th>Cantidad</th><th>Destino</th><th>Estado</th><th></th></tr></thead>
+          <tbody id="logBody"><tr class="empty-row"><td colspan="5">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- INVENTARIO -->
+    <div class="factory-panel card reveal" id="panel-inventory" style="padding:20px;">
+      <div class="add-row">
+        <div class="sf"><label>Componente</label><input class="input" id="invName" placeholder="Sensor temperatura BioGrinder"></div>
+        <div class="sf"><label>Categoría</label><input class="input" id="invCategory" placeholder="Sensores"></div>
+        <div class="sf"><label>Stock inicial</label><input class="input" id="invQty" style="width:90px;" placeholder="0"></div>
+        <div class="sf"><label>Mín. alerta</label><input class="input" id="invMin" style="width:90px;" placeholder="0"></div>
+        <button class="btn sage" id="invAddBtn">Añadir</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="tbl" id="invTable">
+          <thead><tr><th>Componente</th><th>Categoría</th><th>Stock</th><th>Mín.</th><th>Ubicación</th><th></th></tr></thead>
+          <tbody id="invBody"><tr class="empty-row"><td colspan="6">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- MANTENIMIENTO -->
+    <div class="factory-panel card reveal" id="panel-maintenance" style="padding:20px;">
+      <div class="add-row">
+        <div class="sf"><label>Nodo</label><input class="input" id="mntNodeId" placeholder="BioHybrid-L #014"></div>
+        <div class="sf"><label>Tipo</label>
+          <select class="input" id="mntType">
+            <option value="preventivo">Preventivo</option>
+            <option value="correctivo">Correctivo</option>
+            <option value="inspeccion">Inspección</option>
+          </select>
+        </div>
+        <div class="sf"><label>Programado</label><input class="input" type="datetime-local" id="mntScheduledAt"></div>
+        <div class="sf"><label>Técnico</label><input class="input" id="mntTechnician" placeholder="Opcional"></div>
+        <button class="btn sage" id="mntAddBtn">Programar</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="tbl" id="mntTable">
+          <thead><tr><th>Nodo</th><th>Tipo</th><th>Programado</th><th>Técnico</th><th>Estado</th><th></th></tr></thead>
+          <tbody id="mntBody"><tr class="empty-row"><td colspan="6">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script type="module">
+    import { api, getUser, requireAuth, clearSession, toast, escapeHtml } from '/js/api.js';
+    import { mountOfficeBg } from '/js/office-bg.js';
+    requireAuth();
+    mountOfficeBg();
+    document.getElementById('userTag').textContent = getUser() || '';
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      try { await api.logout(); } catch {}
+      clearSession();
+      location.href = '/pages/login.html';
+    });
+
+    function showError(msg) {
+      const box = document.getElementById('errorBox');
+      box.textContent = msg;
+      box.style.display = msg ? 'block' : 'none';
+    }
+
+    // ---- Tabs ----
+    document.querySelectorAll('.mode-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.factory-panel').forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(`panel-${tab.dataset.panel}`).classList.add('active');
+      });
+    });
+
+    // ---- Summary KPIs ----
+    async function loadSummary() {
+      try {
+        const s = await api.factorySummary();
+        document.getElementById('kpiAssemblyVal').textContent = s.assemblyActive ?? 0;
+        document.getElementById('kpiLogisticsVal').textContent = s.logisticsIncidents ?? 0;
+        document.getElementById('kpiInventoryVal').textContent = s.inventoryLow ?? 0;
+        document.getElementById('kpiMaintenanceVal').textContent = s.maintenanceOverdue ?? 0;
+        document.getElementById('kpiLogistics').classList.toggle('alert', (s.logisticsIncidents ?? 0) > 0);
+        document.getElementById('kpiInventory').classList.toggle('alert', (s.inventoryLow ?? 0) > 0);
+        document.getElementById('kpiMaintenance').classList.toggle('alert', (s.maintenanceOverdue ?? 0) > 0);
+        document.getElementById('kpiLogisticsVal').classList.toggle('warn', (s.logisticsIncidents ?? 0) > 0);
+        document.getElementById('kpiInventoryVal').classList.toggle('warn', (s.inventoryLow ?? 0) > 0);
+        document.getElementById('kpiMaintenanceVal').classList.toggle('warn', (s.maintenanceOverdue ?? 0) > 0);
+      } catch (ex) { showError(ex.message || 'Error al cargar resumen'); }
+    }
+
+    const ASM_STAGES = { recepcion: 'Recepción', mecanizado: 'Mecanizado', integracion: 'Integración', qa: 'QA', listo_envio: 'Listo envío' };
+    const ASM_STATUSES = {
+      en_curso: { label: 'En curso', color: '#0071e3' },
+      parado: { label: 'Parado', color: '#c9a84c' },
+      bloqueado: { label: 'Bloqueado', color: '#d80300' },
+      completado: { label: 'Completado', color: '#00a878' },
+    };
+    const LOG_STATUSES = {
+      pedido: { label: 'Pedido', color: '#0071e3' },
+      transito: { label: 'Tránsito', color: '#c9a84c' },
+      recibido: { label: 'Recibido', color: '#00a878' },
+      incidencia: { label: 'Incidencia', color: '#d80300' },
+    };
+    const MNT_TYPES = { preventivo: 'Preventivo', correctivo: 'Correctivo', inspeccion: 'Inspección' };
+    const MNT_STATUSES = {
+      programado: { label: 'Programado', color: '#0071e3' },
+      en_curso: { label: 'En curso', color: '#c9a84c' },
+      completado: { label: 'Completado', color: '#00a878' },
+    };
+
+    function selectHtml(options, current, cls) {
+      return `<select class="input ${cls}" style="font-size:0.72rem; padding:4px 6px;">` +
+        Object.entries(options).map(([k, v]) => `<option value="${k}" ${k === current ? 'selected' : ''}>${typeof v === 'string' ? v : v.label}</option>`).join('') +
+        `</select>`;
+    }
+    function pill(label, color) {
+      return `<span class="status-pill"><span class="status-dot-sm" style="background:${color};"></span>${escapeHtml(label)}</span>`;
+    }
+
+    // ---- Ensamblaje ----
+    async function loadAssembly() {
+      const body = document.getElementById('asmBody');
+      try {
+        const rows = await api.factoryAssemblyList();
+        if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="6">Sin ensamblajes registrados.</td></tr>'; return; }
+        body.innerHTML = rows.map(r => {
+          const meta = ASM_STATUSES[r.status] || ASM_STATUSES.en_curso;
+          return `<tr data-id="${r.id}">
+            <td>${escapeHtml(r.nodeRef)}</td>
+            <td>${selectHtml(ASM_STAGES, r.stage, 'asm-stage')}</td>
+            <td>${selectHtml(ASM_STATUSES, r.status, 'asm-status')}</td>
+            <td class="mono">${escapeHtml(r.eta || '—')}</td>
+            <td style="color:#d80300; font-size:0.8rem;">${escapeHtml(r.blockerNote || '')}</td>
+            <td><button class="btn ghost btn--sm asm-del">Eliminar</button></td>
+          </tr>`;
+        }).join('');
+        body.querySelectorAll('tr[data-id]').forEach(tr => {
+          const id = tr.dataset.id;
+          tr.querySelector('.asm-stage').addEventListener('change', async (e) => {
+            try { await api.factoryAssemblyPatch(id, { stage: e.target.value }); } catch (ex) { showError(ex.message); }
+          });
+          tr.querySelector('.asm-status').addEventListener('change', async (e) => {
+            try { await api.factoryAssemblyPatch(id, { status: e.target.value }); loadSummary(); } catch (ex) { showError(ex.message); }
+          });
+          tr.querySelector('.asm-del').addEventListener('click', async () => {
+            try { await api.factoryAssemblyDelete(id); loadAssembly(); loadSummary(); } catch (ex) { showError(ex.message); }
+          });
+        });
+      } catch (ex) { showError(ex.message || 'Error al cargar ensamblaje'); }
+    }
+    document.getElementById('asmAddBtn').addEventListener('click', async () => {
+      showError('');
+      const nodeRef = document.getElementById('asmNodeRef').value.trim();
+      if (!nodeRef) return showError('Indica el nodo/referencia de ensamblaje');
+      try {
+        await api.factoryAssemblyAdd({ nodeRef, eta: document.getElementById('asmEta').value.trim() || null });
+        document.getElementById('asmNodeRef').value = '';
+        document.getElementById('asmEta').value = '';
+        loadAssembly(); loadSummary();
+      } catch (ex) { showError(ex.message || 'Error al crear ensamblaje'); }
+    });
+
+    // ---- Logistica ----
+    async function loadLogistics() {
+      const body = document.getElementById('logBody');
+      try {
+        const rows = await api.factoryLogisticsList();
+        if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="5">Sin envíos registrados.</td></tr>'; return; }
+        body.innerHTML = rows.map(r => `<tr data-id="${r.id}">
+          <td>${escapeHtml(r.material)}</td>
+          <td class="mono">${r.qty} ${escapeHtml(r.unit)}</td>
+          <td>${escapeHtml(r.destination || '—')}</td>
+          <td>${selectHtml(LOG_STATUSES, r.status, 'log-status')}</td>
+          <td><button class="btn ghost btn--sm log-del">Eliminar</button></td>
+        </tr>`).join('');
+        body.querySelectorAll('tr[data-id]').forEach(tr => {
+          const id = tr.dataset.id;
+          tr.querySelector('.log-status').addEventListener('change', async (e) => {
+            try { await api.factoryLogisticsPatch(id, { status: e.target.value }); loadSummary(); } catch (ex) { showError(ex.message); }
+          });
+          tr.querySelector('.log-del').addEventListener('click', async () => {
+            try { await api.factoryLogisticsDelete(id); loadLogistics(); loadSummary(); } catch (ex) { showError(ex.message); }
+          });
+        });
+      } catch (ex) { showError(ex.message || 'Error al cargar logística'); }
+    }
+    document.getElementById('logAddBtn').addEventListener('click', async () => {
+      showError('');
+      const material = document.getElementById('logMaterial').value.trim();
+      const qty = Number(document.getElementById('logQty').value);
+      if (!material) return showError('Indica el material');
+      if (!Number.isFinite(qty) || qty < 0) return showError('Cantidad inválida');
+      try {
+        await api.factoryLogisticsAdd({
+          material, qty,
+          unit: document.getElementById('logUnit').value.trim() || 'ud',
+          destination: document.getElementById('logDestination').value.trim() || null,
+        });
+        document.getElementById('logMaterial').value = '';
+        document.getElementById('logQty').value = '';
+        document.getElementById('logDestination').value = '';
+        loadLogistics(); loadSummary();
+      } catch (ex) { showError(ex.message || 'Error al crear envío'); }
+    });
+
+    // ---- Inventario ----
+    async function loadInventory() {
+      const body = document.getElementById('invBody');
+      try {
+        const rows = await api.factoryInventoryList();
+        if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="6">Sin componentes registrados.</td></tr>'; return; }
+        body.innerHTML = rows.map(r => `<tr data-id="${r.id}">
+          <td>${escapeHtml(r.componentName)}</td>
+          <td>${escapeHtml(r.category)}</td>
+          <td>
+            <span class="stock-controls">
+              <button class="btn ghost inv-dec">-</button>
+              <span class="mono" style="min-width:28px; text-align:center; display:inline-block; ${r.lowStock ? 'color:#d80300;font-weight:700;' : ''}">${r.qtyStock}</span>
+              <button class="btn ghost inv-inc">+</button>
+            </span>
+          </td>
+          <td class="mono">${r.minThreshold}</td>
+          <td>${escapeHtml(r.location || '—')}</td>
+          <td><button class="btn ghost btn--sm inv-del">Eliminar</button></td>
+        </tr>`).join('');
+        body.querySelectorAll('tr[data-id]').forEach(tr => {
+          const id = tr.dataset.id;
+          const row = rows.find(r => r.id === id);
+          tr.querySelector('.inv-dec').addEventListener('click', async () => {
+            try { await api.factoryInventoryPatch(id, { qtyStock: Math.max(0, row.qtyStock - 1) }); loadInventory(); loadSummary(); } catch (ex) { showError(ex.message); }
+          });
+          tr.querySelector('.inv-inc').addEventListener('click', async () => {
+            try { await api.factoryInventoryPatch(id, { qtyStock: row.qtyStock + 1 }); loadInventory(); loadSummary(); } catch (ex) { showError(ex.message); }
+          });
+          tr.querySelector('.inv-del').addEventListener('click', async () => {
+            try { await api.factoryInventoryDelete(id); loadInventory(); loadSummary(); } catch (ex) { showError(ex.message); }
+          });
+        });
+      } catch (ex) { showError(ex.message || 'Error al cargar inventario'); }
+    }
+    document.getElementById('invAddBtn').addEventListener('click', async () => {
+      showError('');
+      const componentName = document.getElementById('invName').value.trim();
+      const category = document.getElementById('invCategory').value.trim();
+      if (!componentName) return showError('Indica el componente');
+      if (!category) return showError('Indica la categoría');
+      try {
+        await api.factoryInventoryAdd({
+          componentName, category,
+          qtyStock: Number(document.getElementById('invQty').value) || 0,
+          minThreshold: Number(document.getElementById('invMin').value) || 0,
+        });
+        document.getElementById('invName').value = '';
+        document.getElementById('invCategory').value = '';
+        document.getElementById('invQty').value = '';
+        document.getElementById('invMin').value = '';
+        loadInventory(); loadSummary();
+      } catch (ex) { showError(ex.message || 'Error al crear componente'); }
+    });
+
+    // ---- Mantenimiento ----
+    async function loadMaintenance() {
+      const body = document.getElementById('mntBody');
+      try {
+        const rows = await api.factoryMaintenanceList();
+        if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="6">Sin mantenimientos programados.</td></tr>'; return; }
+        body.innerHTML = rows.map(r => {
+          const statusKey = r.overdue ? null : r.status;
+          const meta = r.overdue ? { label: 'Vencido', color: '#d80300' } : (MNT_STATUSES[r.status] || MNT_STATUSES.programado);
+          return `<tr data-id="${r.id}">
+            <td>${escapeHtml(r.nodeId)}</td>
+            <td>${MNT_TYPES[r.type] || r.type}</td>
+            <td class="mono">${new Date(r.scheduledAt).toLocaleString('es-ES')}</td>
+            <td>${escapeHtml(r.technician || '—')}</td>
+            <td>${r.overdue ? pill(meta.label, meta.color) : selectHtml(MNT_STATUSES, r.status, 'mnt-status')}</td>
+            <td><button class="btn ghost btn--sm mnt-del">Eliminar</button></td>
+          </tr>`;
+        }).join('');
+        body.querySelectorAll('tr[data-id]').forEach(tr => {
+          const id = tr.dataset.id;
+          const sel = tr.querySelector('.mnt-status');
+          if (sel) sel.addEventListener('change', async (e) => {
+            try { await api.factoryMaintenancePatch(id, { status: e.target.value }); loadMaintenance(); loadSummary(); } catch (ex) { showError(ex.message); }
+          });
+          tr.querySelector('.mnt-del').addEventListener('click', async () => {
+            try { await api.factoryMaintenanceDelete(id); loadMaintenance(); loadSummary(); } catch (ex) { showError(ex.message); }
+          });
+        });
+      } catch (ex) { showError(ex.message || 'Error al cargar mantenimiento'); }
+    }
+    document.getElementById('mntAddBtn').addEventListener('click', async () => {
+      showError('');
+      const nodeId = document.getElementById('mntNodeId').value.trim();
+      const scheduledAt = document.getElementById('mntScheduledAt').value;
+      if (!nodeId) return showError('Indica el nodo');
+      if (!scheduledAt) return showError('Indica fecha programada');
+      try {
+        await api.factoryMaintenanceAdd({
+          nodeId,
+          type: document.getElementById('mntType').value,
+          scheduledAt,
+          technician: document.getElementById('mntTechnician').value.trim() || null,
+        });
+        document.getElementById('mntNodeId').value = '';
+        document.getElementById('mntScheduledAt').value = '';
+        document.getElementById('mntTechnician').value = '';
+        loadMaintenance(); loadSummary();
+      } catch (ex) { showError(ex.message || 'Error al programar mantenimiento'); }
+    });
+
+    // ---- Init ----
+    loadSummary();
+    loadAssembly();
+    loadLogistics();
+    loadInventory();
+    loadMaintenance();
+  </script>
+</body>
+</html>

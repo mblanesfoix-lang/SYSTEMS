@@ -1,0 +1,16 @@
+[Unit]
+Description=Elvi-Ra service
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/elvi-ra
+ExecStart=/usr/bin/docker compose up --build --remove-orphans
+ExecStop=/usr/bin/docker compose down
+Restart=always
+RestartSec=5
+Environment=COMPOSE_PROJECT_NAME=elvira
+
+[Install]
+WantedBy=multi-user.target

@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', hint: 'Globo 3D' },
   { to: '/crm', label: 'CRM', hint: 'Hojas y empresas' },
   { to: '/herzog', label: 'Herzog', hint: 'Auditoría científica' },
+  { to: '/vigilancia', label: 'Vigilancia', hint: 'Feed inteligente 24/7' },
 ];
 
 export function Sidebar({ user, onLogout }: Props) {
@@ -37,16 +38,13 @@ export function Sidebar({ user, onLogout }: Props) {
 
       <div style={{
         padding: '0 20px 16px',
-        fontFamily: 'var(--font-mono)',
-        fontSize: 10,
-        letterSpacing: '0.14em',
-        textTransform: 'uppercase',
-        opacity: 0.5,
+        fontSize: 11,
+        opacity: 0.6,
         color: 'var(--text-muted)',
         borderBottom: '1px solid var(--border-subtle)',
         paddingBottom: 16,
       }}>
-        CRM Inteligente
+        CRM inteligente
       </div>
 
       <nav style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '16px 12px', flex: 1 }}>
@@ -67,13 +65,13 @@ export function Sidebar({ user, onLogout }: Props) {
             })}
           >
             <span style={{ fontSize: 13, fontWeight: 600, letterSpacing: '-0.01em' }}>{item.label}</span>
-            <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', opacity: 0.6, letterSpacing: '0.06em' }}>{item.hint}</span>
+            <span style={{ fontSize: 11, opacity: 0.6 }}>{item.hint}</span>
           </NavLink>
         ))}
       </nav>
 
       <div style={{ padding: '16px 20px', borderTop: '1px solid var(--border-subtle)' }}>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, marginBottom: 8, color: 'var(--text-primary)' }}>{user.displayName}</div>
+        <div style={{ fontSize: 13, marginBottom: 8, color: 'var(--text-primary)' }}>{user.displayName}</div>
         <button
           onClick={() => {
             clearSession();
@@ -82,12 +80,10 @@ export function Sidebar({ user, onLogout }: Props) {
           style={{
             background: 'transparent',
             border: '1px solid var(--border-strong)',
+            borderRadius: 'var(--radius-sm)',
             color: 'var(--text-secondary)',
             padding: '6px 12px',
-            fontFamily: 'var(--font-mono)',
-            fontSize: 11,
-            letterSpacing: '0.1em',
-            textTransform: 'uppercase',
+            fontSize: 12,
             cursor: 'pointer',
             width: '100%',
           }}
