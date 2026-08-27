@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nodos por País · Pactvm Viridi · S-NFI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
+  <style>
+    .pactvm-hero {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px 40px;
+      margin-bottom: 24px;
+    }
+    .pactvm-hero__title {
+      font-family: var(--font-display);
+      font-size: clamp(1.8rem, 3.4vw, 2.6rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin: 0 0 10px;
+    }
+    .pactvm-hero__sub {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      max-width: 680px;
+      line-height: 1.65;
+      margin: 0;
+    }
+    .kpi-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 0;
+      border: 1px solid var(--border-mid); border-radius: var(--radius); overflow: hidden; margin-bottom: 24px; background: var(--bg-card);
+    }
+    @media (max-width: 900px) { .kpi-grid { grid-template-columns: repeat(1, 1fr); } }
+    .kpi-cell {
+      padding: 20px 22px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
+      position: relative;
+    }
+    .kpi-cell:last-child { border-right: none; }
+    .kpi-label { font-family: var(--font-mono); font-size: 0.55rem; letter-spacing: 0.04em; color: var(--text-muted); margin-bottom: 10px; }
+    .kpi-val { font-family: var(--font-display); font-size: 1.8rem; font-weight: 800; letter-spacing: -0.03em; }
+
+    .add-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; align-items: flex-end; }
+    .add-row .sf { display: flex; flex-direction: column; gap: 4px; }
+    .add-row .sf label { font-size: 0.62rem; letter-spacing: -0.005em; color: var(--text-muted); font-family: var(--font-mono); }
+    .add-row .input { min-width: 120px; }
+
+    .status-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.02em;
+      padding: 3px 10px; border-radius: var(--radius-pill); background: var(--bg-elevated); border: 1px solid var(--border);
+    }
+    .status-dot-sm { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .empty-row td { text-align: center; color: var(--text-muted); font-size: 0.82rem; padding: 24px !important; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="brand">
+      <img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;">
+      SYSTEMS
+    </div>
+    <div class="row" style="gap:18px;">
+      <span class="mono" id="userTag">...</span>
+      <button class="btn ghost" id="logoutBtn">Cerrar sesión</button>
+    </div>
+  </nav>
+
+  <main class="container">
+    <div class="breadcrumb-row" style="display:flex; align-items:center; gap:8px; font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: -0.005em; color: var(--text-muted); margin-bottom: 22px;">
+      <a href="/pages/dashboard.html" style="color:inherit; text-decoration:none;">Systems</a>
+      <span style="opacity:.35;">/</span>
+      <a href="/pages/pactum-viridi.html" style="color:inherit; text-decoration:none;">Pactvm Viridi</a>
+      <span style="opacity:.35;">/</span>
+      <span style="color: var(--text-primary); font-weight:600;">Nodos por País</span>
+    </div>
+
+    <div class="pactvm-hero reveal">
+      <span class="kicker">Mesa · Interfaz geoespacial</span>
+      <h1 class="pactvm-hero__title">Nodos S-NFI <em style="font-style:normal;color:var(--accent-blue);">por País</em></h1>
+      <p class="pactvm-hero__sub">
+        Cuantificación de nodos BioHybrid necesarios por país según residuo orgánico húmedo estimado.
+        <span class="mono">nodos = ceil(residuo T/día ÷ 150 T/día)</span>, capacidad piloto por nodo
+        (S-NFI Base Conocimiento §2.3: 150 T/día residuo → 12 T/día biopellet 7%).
+        El dato de residuo es una <b>estimación editable</b> — cada país declara su fuente en el campo "Fuente".
+        Sin fuente citada, tratar como placeholder de trabajo, no como cifra oficial.
+      </p>
+    </div>
+
+    <div id="errorBox" style="display:none;" class="mole-error"></div>
+
+    <div class="kpi-grid reveal" id="summaryKpis">
+      <div class="kpi-cell" id="kpiNodesTotal">
+        <div class="kpi-label">Nodos BioHybrid necesarios (total)</div>
+        <div class="kpi-val" id="kpiNodesTotalVal">—</div>
+      </div>
+      <div class="kpi-cell" id="kpiCountriesTracked">
+        <div class="kpi-label">Países trackeados</div>
+        <div class="kpi-val" id="kpiCountriesTrackedVal">—</div>
+      </div>
+      <div class="kpi-cell" id="kpiCapacity">
+        <div class="kpi-label">Capacidad piloto / nodo</div>
+        <div class="kpi-val" id="kpiCapacityVal">150 T/día</div>
+      </div>
+    </div>
+
+    <div class="card reveal" style="padding:20px;">
+      <div style="display:flex; gap:24px; align-items:flex-start; flex-wrap:wrap;">
+        <div id="worldMapWrap" style="flex:2 1 640px; min-width:360px; border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden; background:#0d1520;">
+          <svg id="worldMap" viewBox="0 0 960 500" style="width:100%; height:auto; min-height:420px; display:block;"></svg>
+        </div>
+        <div style="flex:1 1 260px; min-width:220px;">
+          <div class="mono" style="font-size:0.62rem; color:var(--text-muted); margin-bottom:10px;">LEYENDA · NODOS NECESARIOS</div>
+          <div id="mapLegend" style="display:flex; flex-direction:column; gap:10px; font-size:0.84rem;"></div>
+          <div id="mapSelected" class="mono" style="margin-top:20px; font-size:0.78rem; color:var(--text-muted); line-height:1.7;">Pasa el ratón o haz clic sobre un país del mapa, o selecciona una fila de la tabla.</div>
+        </div>
+      </div>
+      <div class="add-row" style="margin-top:20px;">
+        <div class="sf"><label>Código ISO-2</label><input class="input" id="cnCode" style="width:70px;" placeholder="ES" maxlength="2"></div>
+        <div class="sf"><label>País</label><input class="input" id="cnLabel" placeholder="España"></div>
+        <div class="sf"><label>Residuo est. T/día</label><input class="input" id="cnWaste" style="width:130px;" placeholder="45000"></div>
+        <div class="sf"><label>Fuente</label><input class="input" id="cnSource" style="min-width:200px;" placeholder="MITECO 2026 / estimación propia"></div>
+        <button class="btn sage" id="cnAddBtn">Añadir</button>
+      </div>
+      <div style="overflow-x:auto; margin-top:12px;">
+        <table class="tbl" id="cnTable">
+          <thead><tr><th>País</th><th>Residuo T/día</th><th>Nodos necesarios</th><th>Estado</th><th>Fuente</th><th></th></tr></thead>
+          <tbody id="cnBody"><tr class="empty-row"><td colspan="6">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script src="/vendor/topojson-client.min.js"></script>
+  <script type="module">
+    import { api, getUser, requireAuth, clearSession, escapeHtml } from '/js/api.js';
+    import { mountOfficeBg } from '/js/office-bg.js';
+    requireAuth();
+    mountOfficeBg();
+    document.getElementById('userTag').textContent = getUser() || '';
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      try { await api.logout(); } catch {}
+      clearSession();
+      location.href = '/pages/login.html';
+    });
+
+    function showError(msg) {
+      const box = document.getElementById('errorBox');
+      box.textContent = msg;
+      box.style.display = msg ? 'block' : 'none';
+    }
+
+    function selectHtml(options, current, cls) {
+      return `<select class="input ${cls}" style="font-size:0.72rem; padding:4px 6px;">` +
+        Object.entries(options).map(([k, v]) => `<option value="${k}" ${k === current ? 'selected' : ''}>${typeof v === 'string' ? v : v.label}</option>`).join('') +
+        `</select>`;
+    }
+
+    // ---- Summary KPIs ----
+    async function loadSummary() {
+      try {
+        const s = await api.pactvmSummary();
+        document.getElementById('kpiNodesTotalVal').textContent = s.nodesNeededTotal ?? 0;
+        document.getElementById('kpiCountriesTrackedVal').textContent = s.countriesTracked ?? 0;
+      } catch (ex) { showError(ex.message || 'Error al cargar resumen'); }
+    }
+
+    // ---- Nodos por pais (interfaz geoespacial) ----
+    const COUNTRY_NODE_STATUSES = {
+      estimado: { label: 'Estimado', color: '#8a8a8a' },
+      validado: { label: 'Validado', color: '#00a878' },
+      en_negociacion: { label: 'En negociación', color: '#c9a84c' },
+      activo: { label: 'Activo', color: '#3a7bd5' },
+    };
+    // ISO 3166-1 numeric -> alpha-2, solo para los codigos que usamos hoy
+    // (countries-110m.json identifica features por el numerico).
+    const ISO_NUMERIC_TO_A2 = { '724': 'ES', '620': 'PT', '250': 'FR', '504': 'MA' };
+
+const UNTRACKED_FILL = '#1a2432';
+    const UNTRACKED_STROKE = '#2c3a4d';
+    const TRACKED_STROKE = '#0d1520';
+
+    function nodeColor(n) {
+      if (!n || n <= 0) return UNTRACKED_FILL;
+      if (n < 50) return '#2ecc8f';
+      if (n < 200) return '#f2c94c';
+      if (n < 500) return '#f2994a';
+      return '#eb5757';
+    }
+
+    let cnRowsCache = [];
+    let mapPaths = null;
+
+    async function renderWorldMap() {
+      const svg = document.getElementById('worldMap');
+      if (mapPaths) return; // solo construir geometria una vez
+      try {
+        const topology = await fetch('/vendor/countries-110m.json').then(r => r.json());
+        const geo = topojson.feature(topology, topology.objects.countries);
+        const proj = equirectangular(960, 500);
+        mapPaths = {};
+        const frag = document.createDocumentFragment();
+        geo.features.forEach(f => {
+          const d = pathFromGeometry(f.geometry, proj);
+          if (!d) return;
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.setAttribute('d', d);
+          path.setAttribute('fill', UNTRACKED_FILL);
+          path.setAttribute('stroke', UNTRACKED_STROKE);
+          path.setAttribute('stroke-width', '0.6');
+          path.style.cursor = 'default';
+          path.style.transition = 'fill 0.12s, stroke 0.12s';
+          const a2 = ISO_NUMERIC_TO_A2[String(f.id)];
+          const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+          title.textContent = a2 ? (f.properties?.name || a2) : (f.properties?.name || '');
+          path.appendChild(title);
+          if (a2) {
+            path.dataset.code = a2;
+            mapPaths[a2] = path;
+            path.style.cursor = 'pointer';
+            path.addEventListener('mouseenter', () => { path.setAttribute('stroke', '#e8edf5'); path.setAttribute('stroke-width', '1.6'); selectCountry(a2); });
+            path.addEventListener('mouseleave', () => { path.setAttribute('stroke', TRACKED_STROKE); path.setAttribute('stroke-width', '1'); });
+            path.addEventListener('click', () => selectCountry(a2));
+          }
+          frag.appendChild(path);
+        });
+        svg.appendChild(frag);
+        paintMap();
+      } catch (ex) { showError('No se pudo cargar el mapa (vendor/countries-110m.json)'); }
+    }
+
+    // proyeccion equirectangular simple, sin dependencias externas
+    function equirectangular(w, h) {
+      return ([lon, lat]) => [ (lon + 180) * (w / 360), (90 - lat) * (h / 180) ];
+    }
+    function pathFromGeometry(geom, proj) {
+      if (!geom) return null;
+      const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.type === 'MultiPolygon' ? geom.coordinates : null;
+      if (!polys) return null;
+      let d = '';
+      polys.forEach(poly => {
+        poly.forEach(ring => {
+          ring.forEach(([lon, lat], i) => {
+            const [x, y] = proj([lon, lat]);
+            d += (i === 0 ? 'M' : 'L') + x.toFixed(1) + ',' + y.toFixed(1) + ' ';
+          });
+          d += 'Z ';
+        });
+      });
+      return d.trim();
+    }
+
+    function paintMap() {
+      if (!mapPaths) return;
+      Object.entries(mapPaths).forEach(([a2, path]) => {
+        const row = cnRowsCache.find(r => r.code === a2);
+        path.setAttribute('fill', row ? nodeColor(row.nodesNeeded) : UNTRACKED_FILL);
+        path.setAttribute('stroke', row ? TRACKED_STROKE : UNTRACKED_STROKE);
+        path.setAttribute('stroke-width', row ? '1' : '0.6');
+        const title = path.querySelector('title');
+        if (title && row) title.textContent = `${row.label} — ${row.nodesNeeded} nodos necesarios`;
+      });
+    }
+
+    function selectCountry(a2) {
+      const row = cnRowsCache.find(r => r.code === a2);
+      const box = document.getElementById('mapSelected');
+      if (!row) { box.textContent = `${a2}: sin datos registrados.`; return; }
+      box.innerHTML = `<b>${escapeHtml(row.label)}</b> (${row.code})<br>` +
+        `residuo est.: ${row.wasteEstTDay} T/día<br>` +
+        `nodos necesarios: <b>${row.nodesNeeded}</b><br>` +
+        `estado: ${COUNTRY_NODE_STATUSES[row.status]?.label || row.status}`;
+    }
+
+    function renderLegend() {
+      const el = document.getElementById('mapLegend');
+      el.innerHTML = [
+        ['< 50 nodos', '#2ecc8f'],
+        ['50–199 nodos', '#f2c94c'],
+        ['200–499 nodos', '#f2994a'],
+        ['≥ 500 nodos', '#eb5757'],
+        ['sin dato / no trackeado', UNTRACKED_FILL],
+      ].map(([label, color]) => `<span style="display:flex; align-items:center; gap:10px;">
+        <span style="width:18px; height:18px; border-radius:4px; background:${color}; border:1px solid rgba(255,255,255,0.15); flex-shrink:0;"></span>${label}
+      </span>`).join('');
+    }
+
+    async function loadCountryNodes() {
+      const body = document.getElementById('cnBody');
+      try {
+        const rows = await api.pactvmCountryNodesList();
+        cnRowsCache = rows;
+        paintMap();
+        if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="6">Sin países registrados.</td></tr>'; return; }
+        body.innerHTML = rows.map(r => `<tr data-id="${r.id}" data-code="${r.code}">
+          <td>${escapeHtml(r.label)} <span class="mono" style="color:var(--text-muted);">(${r.code})</span></td>
+          <td class="mono"><input class="input cn-waste" style="width:110px;" value="${r.wasteEstTDay}"></td>
+          <td class="mono" style="font-weight:700;">${r.nodesNeeded}</td>
+          <td>${selectHtml(COUNTRY_NODE_STATUSES, r.status, 'cn-status')}</td>
+          <td style="font-size:0.78rem; max-width:260px;">${escapeHtml(r.source || '')}</td>
+          <td><button class="btn ghost btn--sm cn-del">Eliminar</button></td>
+        </tr>`).join('');
+        body.querySelectorAll('tr[data-id]').forEach(tr => {
+          const id = tr.dataset.id;
+          tr.addEventListener('click', (e) => { if (!e.target.closest('button,select,input')) selectCountry(tr.dataset.code); });
+          tr.querySelector('.cn-waste').addEventListener('change', async (e) => {
+            try { await api.pactvmCountryNodePatch(id, { wasteEstTDay: Number(e.target.value) }); loadCountryNodes(); loadSummary(); } catch (ex) { showError(ex.message); }
+          });
+          tr.querySelector('.cn-status').addEventListener('change', async (e) => {
+            try { await api.pactvmCountryNodePatch(id, { status: e.target.value }); } catch (ex) { showError(ex.message); }
+          });
+          tr.querySelector('.cn-del').addEventListener('click', async () => {
+            try { await api.pactvmCountryNodeDelete(id); loadCountryNodes(); loadSummary(); } catch (ex) { showError(ex.message); }
+          });
+        });
+      } catch (ex) { showError(ex.message || 'Error al cargar nodos por país'); }
+    }
+    document.getElementById('cnAddBtn').addEventListener('click', async () => {
+      showError('');
+      const code = document.getElementById('cnCode').value.trim().toUpperCase();
+      const label = document.getElementById('cnLabel').value.trim();
+      const wasteEstTDay = Number(document.getElementById('cnWaste').value.trim());
+      if (!/^[A-Z]{2}$/.test(code)) return showError('Código ISO-2 inválido');
+      if (!label) return showError('Indica el país');
+      if (!Number.isFinite(wasteEstTDay) || wasteEstTDay < 0) return showError('Residuo estimado inválido');
+      try {
+        await api.pactvmCountryNodeAdd({ code, label, wasteEstTDay, source: document.getElementById('cnSource').value.trim() || null });
+        document.getElementById('cnCode').value = '';
+        document.getElementById('cnLabel').value = '';
+        document.getElementById('cnWaste').value = '';
+        document.getElementById('cnSource').value = '';
+        loadCountryNodes(); loadSummary();
+      } catch (ex) { showError(ex.message || 'Error al crear país'); }
+    });
+
+    // ---- Init ----
+    loadSummary();
+    renderLegend();
+    renderWorldMap();
+    loadCountryNodes();
+  </script>
+</body>
+</html>

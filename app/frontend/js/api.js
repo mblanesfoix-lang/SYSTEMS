@@ -216,6 +216,14 @@ Object.assign(api, {
   pactvmAccessRuleDelete:  (id) => req('DELETE', `/api/pactvm/access-rules/${id}`),
   pactvmHerzogAudits:      () => req('GET', '/api/pactvm/herzog-audits'),
   pactvmLogVerify:         () => req('GET', '/api/pactvm/log/verify'),
+  pactvmCountryNodesList:  () => req('GET', '/api/pactvm/country-nodes'),
+  pactvmCountryNodeAdd:    (payload) => req('POST', '/api/pactvm/country-nodes', payload),
+  pactvmCountryNodePatch: (id, payload) => req('PATCH', `/api/pactvm/country-nodes/${id}`, payload),
+  pactvmCountryNodeDelete: (id) => req('DELETE', `/api/pactvm/country-nodes/${id}`),
+  pactvmEntryConditionsList:  () => req('GET', '/api/pactvm/entry-conditions'),
+  pactvmEntryConditionAdd:    (payload) => req('POST', '/api/pactvm/entry-conditions', payload),
+  pactvmEntryConditionPatch: (id, payload) => req('PATCH', `/api/pactvm/entry-conditions/${id}`, payload),
+  pactvmEntryConditionDelete: (id) => req('DELETE', `/api/pactvm/entry-conditions/${id}`),
 
   // CIBE Bunker · tokens firmados Ed25519 (Volumen 3)
   cibeBunkerStatus:    () => req('GET', '/api/pactvm/cibe-bunker/status'),

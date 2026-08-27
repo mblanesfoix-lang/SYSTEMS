@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Condiciones de Entrada · Pactvm Viridi · S-NFI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
+  <style>
+    .pactvm-hero {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px 40px;
+      margin-bottom: 24px;
+    }
+    .pactvm-hero__title {
+      font-family: var(--font-display);
+      font-size: clamp(1.8rem, 3.4vw, 2.6rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin: 0 0 10px;
+    }
+    .pactvm-hero__sub {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      max-width: 680px;
+      line-height: 1.65;
+      margin: 0;
+    }
+    .kpi-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 0;
+      border: 1px solid var(--border-mid); border-radius: var(--radius); overflow: hidden; margin-bottom: 24px; background: var(--bg-card);
+    }
+    @media (max-width: 900px) { .kpi-grid { grid-template-columns: repeat(1, 1fr); } }
+    .kpi-cell {
+      padding: 20px 22px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
+      position: relative;
+    }
+    .kpi-cell:last-child { border-right: none; }
+    .kpi-label { font-family: var(--font-mono); font-size: 0.55rem; letter-spacing: 0.04em; color: var(--text-muted); margin-bottom: 10px; }
+    .kpi-val { font-family: var(--font-display); font-size: 1.8rem; font-weight: 800; letter-spacing: -0.03em; }
+
+    .add-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; align-items: flex-end; }
+    .add-row .sf { display: flex; flex-direction: column; gap: 4px; }
+    .add-row .sf label { font-size: 0.62rem; letter-spacing: -0.005em; color: var(--text-muted); font-family: var(--font-mono); }
+    .add-row .input { min-width: 120px; }
+
+    .status-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.02em;
+      padding: 3px 10px; border-radius: var(--radius-pill); background: var(--bg-elevated); border: 1px solid var(--border);
+    }
+    .status-dot-sm { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .empty-row td { text-align: center; color: var(--text-muted); font-size: 0.82rem; padding: 24px !important; }
+    .doctrine-box {
+      border: 1px solid var(--border); border-left: 3px solid var(--accent-blue);
+      border-radius: var(--radius-sm); padding: 14px 18px; margin-bottom: 20px;
+      background: var(--bg-elevated); font-size: 0.8rem; line-height: 1.6; color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="brand">
+      <img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;">
+      SYSTEMS
+    </div>
+    <div class="row" style="gap:18px;">
+      <span class="mono" id="userTag">...</span>
+      <button class="btn ghost" id="logoutBtn">Cerrar sesión</button>
+    </div>
+  </nav>
+
+  <main class="container">
+    <div class="breadcrumb-row" style="display:flex; align-items:center; gap:8px; font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: -0.005em; color: var(--text-muted); margin-bottom: 22px;">
+      <a href="/pages/dashboard.html" style="color:inherit; text-decoration:none;">Systems</a>
+      <span style="opacity:.35;">/</span>
+      <a href="/pages/pactum-viridi.html" style="color:inherit; text-decoration:none;">Pactvm Viridi</a>
+      <span style="opacity:.35;">/</span>
+      <span style="color: var(--text-primary); font-weight:600;">Condiciones de Entrada</span>
+    </div>
+
+    <div class="pactvm-hero reveal">
+      <span class="kicker">Mesa · Condiciones operativas de entrada</span>
+      <h1 class="pactvm-hero__title">Condiciones de <em style="font-style:normal;color:var(--accent-blue);">Entrada</em></h1>
+      <p class="pactvm-hero__sub">
+        Qué puede entrar a un nodo BioHybrid y en qué condiciones. Un nodo S-NFI opera por vertidos de
+        residuo orgánico — nunca por conexión a la red eléctrica como insumo.
+      </p>
+    </div>
+
+    <div class="doctrine-box reveal">
+      <b>Doctrina de entrada:</b> solo vertidos de residuo orgánico (propio, de tercero contratado, o vía planta de
+      transferencia). Un nodo S-NFI <b>no se conecta a la red eléctrica como insumo</b> — la energía es su salida
+      (biopellet + térmica), no su entrada. La resiliencia eléctrica del nodo (autonomía 1-2 días) se cubre con
+      BSS propio, no con suministro externo.
+    </div>
+
+    <div id="errorBox" style="display:none;" class="mole-error"></div>
+
+    <div class="kpi-grid reveal" id="summaryKpis">
+      <div class="kpi-cell" id="kpiTotal">
+        <div class="kpi-label">Condiciones registradas</div>
+        <div class="kpi-val" id="kpiTotalVal">—</div>
+      </div>
+      <div class="kpi-cell" id="kpiActive">
+        <div class="kpi-label">Condiciones activas</div>
+        <div class="kpi-val" id="kpiActiveVal">—</div>
+      </div>
+      <div class="kpi-cell" id="kpiBSS">
+        <div class="kpi-label">Exigen BSS propio</div>
+        <div class="kpi-val" id="kpiBSSVal">—</div>
+      </div>
+    </div>
+
+    <div class="card reveal" style="padding:20px;">
+      <div class="add-row">
+        <div class="sf"><label>Nombre condición</label><input class="input" id="ecName" placeholder="Vertido agroindustrial tipo A"></div>
+        <div class="sf"><label>Tipo residuo</label>
+          <select class="input" id="ecResidueType">
+            <option value="organico_humedo">Orgánico húmedo</option>
+            <option value="agroindustrial">Agroindustrial</option>
+            <option value="ganadero">Ganadero</option>
+            <option value="forestal">Forestal</option>
+            <option value="otro">Otro</option>
+          </select>
+        </div>
+        <div class="sf"><label>Procedencia</label>
+          <select class="input" id="ecProcedencia">
+            <option value="vertido_propio">Vertido propio</option>
+            <option value="vertido_tercero_contratado">Vertido tercero contratado</option>
+            <option value="planta_transferencia">Planta de transferencia</option>
+          </select>
+        </div>
+        <div class="sf"><label>Humedad máx. %</label><input class="input" id="ecHumedad" style="width:100px;" placeholder="Opcional"></div>
+        <div class="sf" style="flex-direction:row; align-items:center; gap:6px;">
+          <input type="checkbox" id="ecBSS"><label style="margin:0;">Exige BSS propio</label>
+        </div>
+        <button class="btn sage" id="ecAddBtn">Añadir</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="tbl" id="ecTable">
+          <thead><tr><th>Condición</th><th>Tipo residuo</th><th>Procedencia</th><th>Humedad máx.</th><th>BSS</th><th>Estado</th><th></th></tr></thead>
+          <tbody id="ecBody"><tr class="empty-row"><td colspan="7">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script type="module">
+    import { api, getUser, requireAuth, clearSession, escapeHtml } from '/js/api.js';
+    import { mountOfficeBg } from '/js/office-bg.js';
+    requireAuth();
+    mountOfficeBg();
+    document.getElementById('userTag').textContent = getUser() || '';
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      try { await api.logout(); } catch {}
+      clearSession();
+      location.href = '/pages/login.html';
+    });
+
+    function showError(msg) {
+      const box = document.getElementById('errorBox');
+      box.textContent = msg;
+      box.style.display = msg ? 'block' : 'none';
+    }
+
+    function selectHtml(options, current, cls) {
+      return `<select class="input ${cls}" style="font-size:0.72rem; padding:4px 6px;">` +
+        Object.entries(options).map(([k, v]) => `<option value="${k}" ${k === current ? 'selected' : ''}>${typeof v === 'string' ? v : v.label}</option>`).join('') +
+        `</select>`;
+    }
+
+    const ENTRY_RESIDUE_LABELS = { organico_humedo: 'Orgánico húmedo', agroindustrial: 'Agroindustrial', ganadero: 'Ganadero', forestal: 'Forestal', otro: 'Otro' };
+    const ENTRY_PROCEDENCIA_LABELS = { vertido_propio: 'Vertido propio', vertido_tercero_contratado: 'Vertido tercero contratado', planta_transferencia: 'Planta de transferencia' };
+    const ENTRY_STATUSES = {
+      propuesta: { label: 'Propuesta', color: '#c9a84c' },
+      activa: { label: 'Activa', color: '#00a878' },
+      suspendida: { label: 'Suspendida', color: '#d80300' },
+    };
+
+    let ecRowsCache = [];
+
+    function updateKpis() {
+      document.getElementById('kpiTotalVal').textContent = ecRowsCache.length;
+      document.getElementById('kpiActiveVal').textContent = ecRowsCache.filter(r => r.status === 'activa').length;
+      document.getElementById('kpiBSSVal').textContent = ecRowsCache.filter(r => r.requiresBSS).length;
+    }
+
+    async function loadEntryConditions() {
+      const body = document.getElementById('ecBody');
+      try {
+        const rows = await api.pactvmEntryConditionsList();
+        ecRowsCache = rows;
+        updateKpis();
+        if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="7">Sin condiciones registradas.</td></tr>'; return; }
+        body.innerHTML = rows.map(r => `<tr data-id="${r.id}">
+          <td>${escapeHtml(r.name)}</td>
+          <td>${escapeHtml(ENTRY_RESIDUE_LABELS[r.residueType] || r.residueType)}</td>
+          <td>${escapeHtml(ENTRY_PROCEDENCIA_LABELS[r.procedencia] || r.procedencia)}</td>
+          <td class="mono">${r.maxHumedadPct != null ? r.maxHumedadPct + '%' : '—'}</td>
+          <td>${r.requiresBSS ? '<span class="status-pill"><span class="status-dot-sm" style="background:#3a7bd5;"></span>Sí</span>' : '—'}</td>
+          <td>${selectHtml(ENTRY_STATUSES, r.status, 'ec-status')}</td>
+          <td><button class="btn ghost btn--sm ec-del">Eliminar</button></td>
+        </tr>`).join('');
+        body.querySelectorAll('tr[data-id]').forEach(tr => {
+          const id = tr.dataset.id;
+          tr.querySelector('.ec-status').addEventListener('change', async (e) => {
+            try { await api.pactvmEntryConditionPatch(id, { status: e.target.value }); loadEntryConditions(); } catch (ex) { showError(ex.message); }
+          });
+          tr.querySelector('.ec-del').addEventListener('click', async () => {
+            try { await api.pactvmEntryConditionDelete(id); loadEntryConditions(); } catch (ex) { showError(ex.message); }
+          });
+        });
+      } catch (ex) { showError(ex.message || 'Error al cargar condiciones de entrada'); }
+    }
+    document.getElementById('ecAddBtn').addEventListener('click', async () => {
+      showError('');
+      const name = document.getElementById('ecName').value.trim();
+      if (!name) return showError('Indica el nombre de la condición');
+      const humedadRaw = document.getElementById('ecHumedad').value.trim();
+      try {
+        await api.pactvmEntryConditionAdd({
+          name,
+          residueType: document.getElementById('ecResidueType').value,
+          procedencia: document.getElementById('ecProcedencia').value,
+          maxHumedadPct: humedadRaw ? Number(humedadRaw) : null,
+          requiresBSS: document.getElementById('ecBSS').checked,
+        });
+        document.getElementById('ecName').value = '';
+        document.getElementById('ecHumedad').value = '';
+        document.getElementById('ecBSS').checked = false;
+        loadEntryConditions();
+      } catch (ex) { showError(ex.message || 'Error al crear condición'); }
+    });
+
+    // ---- Init ----
+    loadEntryConditions();
+  </script>
+</body>
+</html>
