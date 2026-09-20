@@ -14,3 +14,4 @@ tmp_*.json
 *.db-wal
 *.db-shm
 dist/
+k8s/02-secrets.yaml
