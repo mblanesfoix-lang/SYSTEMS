@@ -1,0 +1,126 @@
+# Placeholder Fase 1: OPHS separado a Deployment propio para cuando llegue
+# el hardware/Systems real (dias, segun jefe). replicas:0 = manifest valido
+# y probado en el cluster local, pero sin consumir recursos hasta activar.
+#
+# Al integrar hardware real:
+#   1. kubectl scale deployment/ophs -n elvira --replicas=2
+#   2. Confirmar que /api/ophs/readyz refleja el dominio real (hoy es
+#      placeholder que solo hace ping a Mongo, ver server.js Fase 0) —
+#      cuando OPHS tenga su propio proceso, ese endpoint debe vivir ahi
+#      y comprobar conexion a Systems real (SYSTEMS_URL), no solo Mongo.
+#   3. Revisar si OPHS necesita imagen propia (hoy usa la misma elvira:local
+#      porque OPHS todavia vive en el mismo server.js monolito).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ophs
+  namespace: elvira
+spec:
+  replicas: 0
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: ophs
+  template:
+    metadata:
+      labels:
+        app: ophs
+    spec:
+      securityContext:
+        # mismo criterio que 04-elvira-core.yaml: misma imagen (elvira:local),
+        # mismo USER elvira:elvira (uid/gid 10001) del Dockerfile.
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+        - name: ophs
+          image: elvira:local   # sustituir por imagen propia si OPHS se extrae a proceso separado
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - containerPort: 5173
+          envFrom:
+            - configMapRef:
+                name: elvira-config
+            - secretRef:
+                name: elvira-secrets
+          env:
+            - name: SYSTEMS_URL
+              value: ""   # jefe: puerto real Systems, ver CLAUDE.md "Puerto Systems real"
+          readinessProbe:
+            httpGet:
+              path: /api/ophs/readyz
+              port: 5173
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 2
+          livenessProbe:
+            httpGet:
+              path: /api/livez
+              port: 5173
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /api/livez
+              port: 5173
+            failureThreshold: 30
+            periodSeconds: 2
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2"
+              memory: "1536Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ophs
+  namespace: elvira
+spec:
+  selector:
+    app: ophs
+  ports:
+    - port: 5173
+      targetPort: 5173
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ophs-pdb
+  namespace: elvira
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: ophs
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ophs-hpa
+  namespace: elvira
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ophs
+  minReplicas: 2   # se aplica solo cuando se active (replicas:0 -> N manual primero)
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

@@ -42,8 +42,24 @@ COPY --from=reff-builder /build/node_modules /Elvi-Ra/Mesas/Rëff/node_modules
 RUN mkdir -p /app/backend/data
 VOLUME ["/app/backend/data"]
 
+# FASE 6/7 (2026-09-20): sin USER, el proceso corria como root (default de
+# node:20-slim) — imagen no privilegiada, coherente con securityContext
+# runAsNonRoot en k8s/04-elvira-core.yaml. uid/gid fijos (no "node" del
+# stage base, que puede no existir igual en runner tras el COPY --from)
+# para que el propietario del volumen de datos sea predecible entre
+# reinicios/redeploys.
+RUN groupadd -g 10001 elvira && useradd -u 10001 -g elvira -M -s /usr/sbin/nologin elvira \
+    && chown -R elvira:elvira /app
+USER elvira:elvira
+
 ENV NODE_ENV=production
 ENV PORT=5173
+# --max-old-space-size explicito: la deteccion automatica de V8 sobre el
+# limite de memoria del cgroup no siempre es fiable en todos los runtimes de
+# contenedor: mejor ceiling explicito, coherente con el limits.memory del
+# manifest k8s (1536Mi) y con el memory de docker-compose — deja margen para
+# stacks nativos/buffers fuera del heap de V8 (GridFS, worker threads U2/Grid).
+ENV NODE_OPTIONS="--max-old-space-size=1200"
 # Coolify env vars requeridas:
 #   ANTHROPIC_API_KEY   — sk-ant-...
 #   ANTHROPIC_MODEL     — claude-haiku-4-5-20251001 (default si no se define)

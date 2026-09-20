@@ -1,0 +1,178 @@
+# Monolito actual (Reff+Elvira+Pactvm+Finance+F&L+M&A+Factory+Sentinel+Rack+Grid)
+# tal cual corre hoy en server.js. OPHS vive aqui tambien mientras no se separe
+# (ver 05-ophs.yaml, replicas 0 hasta integracion hardware real).
+#
+# Probes usan los endpoints de Fase 0 (server.js):
+#   /api/livez  -> liveness: SOLO proceso vivo, sin tocar Mongo. Si esto no
+#                  responde, kubelet MATA el pod (esta colgado de verdad).
+#   /api/readyz -> readiness: ping Mongo real + rol Rack State. Si falla,
+#                  kubelet saca el pod del Service (deja de recibir trafico)
+#                  SIN reiniciarlo — se recupera solo si Mongo vuelve.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: elvira-core
+  namespace: elvira
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0   # zero-downtime: nunca menos replicas de las pedidas durante deploy
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: elvira-core
+  template:
+    metadata:
+      labels:
+        app: elvira-core
+    spec:
+      securityContext:
+        # pod-level: coherente con el USER elvira:elvira (uid/gid 10001)
+        # fijado en app/Dockerfile — cinturon y tirantes (Dockerfile ya evita
+        # root, esto ademas se lo impide a k8s aunque alguien reconstruya la
+        # imagen sin ese USER).
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001   # el volumen elvira-data debe ser escribible por ese uid
+      containers:
+        - name: elvira
+          image: elvira:local   # kind load docker-image elvira:local (ver README Fase 1)
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            # readOnlyRootFilesystem NO activado: server.js escribe directo
+            # bajo /app/backend/data (atomicWriteJson en varios modulos) y
+            # ese path ya es el volumen persistente — el resto del filesystem
+            # de la imagen no se toca en runtime, pero forzar read-only aqui
+            # sin auditar cada write relativo del codigo es mas riesgo de
+            # romper el boot que beneficio de seguridad marginal.
+          ports:
+            - containerPort: 5173
+            - containerPort: 5175   # Foundry Ingress Gateway dedicado
+          envFrom:
+            - configMapRef:
+                name: elvira-config
+            - secretRef:
+                name: elvira-secrets
+          env:
+            # Cada pod es su propio "rack" logico ante rack-state.js. RACK_ID
+            # unico por pod via downward API — necesario para que el Raft no
+            # confunda dos replicas con la misma identidad.
+            - name: RACK_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          readinessProbe:
+            httpGet:
+              path: /api/readyz
+              port: 5173
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 2   # ~10s para sacarlo del Service: "nos enteramos a los segundos"
+          livenessProbe:
+            httpGet:
+              path: /api/livez
+              port: 5173
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          startupProbe:
+            # cubre el arranque real observado (Mongo connect + seed + mount
+            # de ~15 modulos + Rëff): evita que liveness mate el pod mientras
+            # todavia esta montando rutas.
+            httpGet:
+              path: /api/livez
+              port: 5173
+            failureThreshold: 30
+            periodSeconds: 2
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2"
+              memory: "1536Mi"
+          volumeMounts:
+            - name: elvira-data
+              mountPath: /app/backend/data
+      volumes:
+        - name: elvira-data
+          persistentVolumeClaim:
+            claimName: elvira-data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: elvira-data
+  namespace: elvira
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: elvira-core
+  namespace: elvira
+spec:
+  selector:
+    app: elvira-core
+  ports:
+    - name: http
+      port: 5173
+      targetPort: 5173
+    - name: foundry-ingress
+      port: 5175
+      targetPort: 5175
+---
+# PodDisruptionBudget: garantiza que un drain/upgrade de nodo k8s nunca tumbe
+# las 2 replicas a la vez. Con replicas:2 y minAvailable:1, siempre queda 1 viva.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: elvira-core-pdb
+  namespace: elvira
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: elvira-core
+---
+# HPA por CPU/memoria. Metricas custom (ej. nodos BioHybrid conectados) quedan
+# para Fase 4 cuando exista fuente real de esa metrica en Prometheus.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: elvira-core-hpa
+  namespace: elvira
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: elvira-core
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300   # evita flapping: no bajar replicas por un pico corto

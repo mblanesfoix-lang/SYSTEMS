@@ -1,0 +1,72 @@
+# Mongo como StatefulSet: identidad de red estable + volumen persistente por
+# pod, necesario para un dato que no se puede perder (doctrina: logs
+# inmutables, hash chains Sentinel/Rack/Grid/CIBE). Replica unica en Fase 1
+# (misma topologia que docker-compose.yml hoy); replica set real es trabajo
+# de Fase 4 si el volumen de escritura lo exige.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongo
+  namespace: elvira
+spec:
+  serviceName: mongo
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongo
+  template:
+    metadata:
+      labels:
+        app: mongo
+    spec:
+      containers:
+        - name: mongo
+          image: mongo:7.0
+          ports:
+            - containerPort: 27017
+          env:
+            - name: MONGO_INITDB_DATABASE
+              value: elvira
+          volumeMounts:
+            - name: mongo-data
+              mountPath: /data/db
+          readinessProbe:
+            exec:
+              command: ["mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+  volumeClaimTemplates:
+    - metadata:
+        name: mongo-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo
+  namespace: elvira
+spec:
+  clusterIP: None   # headless: DNS estable mongo-0.mongo.elvira.svc
+  selector:
+    app: mongo
+  ports:
+    - port: 27017
+      targetPort: 27017

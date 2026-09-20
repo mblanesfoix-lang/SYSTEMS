@@ -1,0 +1,24 @@
+# Variables NO secretas. Mismo set que docker-compose.yml, sin credenciales.
+# Mismo patron de defaults seguros que ya existe en el codigo (server.js/rack-state.js/cibe-bunker.js).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: elvira-config
+  namespace: elvira
+data:
+  NODE_ENV: "production"
+  PORT: "5173"
+  HOST: "0.0.0.0"
+  MONGO_URI: "mongodb://mongo:27017/elvira"
+  LLM_PROVIDER: "anthropic"
+  ANTHROPIC_MODEL: "claude-haiku-4-5-20251001"
+  OLLAMA_URL: "http://ollama:11434"
+  OLLAMA_MODEL: "llama3:70b"
+  CIBE_MODE: "auto"
+  # Rack State: en k8s cada replica del Deployment elvira-core es un rack.
+  # RACK_PEERS se resuelve via Service headless (ver 04-elvira-core.yaml).
+  # Vacio en Fase 1 = cada pod standalone (quorum 1); activar en Fase 4.
+  RACK_PEERS: ""
+  FOUNDRY_INGRESS_PORT: "5175"
+  FOUNDRY_LATENCY_BUDGET_MS: "250"
+  ENABLE_TWIN_PORT: "false"
