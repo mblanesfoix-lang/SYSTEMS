@@ -1,5 +1,5 @@
 /**
- * Data Foundry — S-NFI U-2 siphon worker.
+ * Lab — S-NFI U-2 siphon worker.
  *
  * Worker thread totalmente independiente del hilo principal del OPHS Framework
  * (doctrina Instrucciones.txt §3). Consumidor pasivo: recibe paquetes de

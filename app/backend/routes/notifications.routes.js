@@ -103,5 +103,20 @@ export function mountNotifications(app, { auth, requireAdmin, atomicWriteJson, N
     res.json({ ok: true });
   });
 
-  return { adminNotify };
+  /* Retención 6 meses: notificaciones leídas cuya antigüedad supera el umbral
+     se purgan solas (mismo criterio que un TTL index, pero en JSON no hay TTL
+     nativo — se aplica en cada acceso). Solo afecta a 'read', igual que el
+     retention scope pedido para Consola de Notificaciones. */
+  const RETENTION_MS = 1000 * 60 * 60 * 24 * 30 * 6;
+  function purgeExpired() {
+    const cutoff = Date.now() - RETENTION_MS;
+    const before = adminNotifications.length;
+    adminNotifications = adminNotifications.filter(n => !(n.read && new Date(n.ts).getTime() < cutoff));
+    if (adminNotifications.length !== before) atomicWriteJson(NOTIFICATIONS_FILE, adminNotifications);
+  }
+
+  return {
+    adminNotify,
+    listAdminNotifications: () => { purgeExpired(); return adminNotifications; },
+  };
 }

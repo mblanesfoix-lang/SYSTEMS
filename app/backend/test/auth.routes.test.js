@@ -73,13 +73,13 @@ describe('auth.routes: login/logout/sesiones sobre Mongo', { skip: skip && 'MONG
     await new Promise((resolve) => server.close(resolve));
   });
 
-  test('login con dominio no autorizado devuelve 403 sin tocar Mongo', async () => {
+  test('login con usuario inexistente devuelve 401 (login normal, sin restriccion de dominio)', async () => {
     const { status, body } = await fetchJson('/api/login', {
       method: 'POST',
       body: JSON.stringify({ username: 'alguien@gmail.com', password: 'x' }),
     });
-    assert.equal(status, 403);
-    assert.match(body.error, /Dominio no autorizado/);
+    assert.equal(status, 401);
+    assert.match(body.error, /Credenciales inválidas/);
   });
 
   test('login con credenciales invalidas devuelve 401', async () => {

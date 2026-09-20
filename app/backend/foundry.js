@@ -1,5 +1,5 @@
 /**
- * Data Foundry — pipeline de ingesta asincrona (doctrina Instrucciones.txt).
+ * Lab — pipeline de ingesta asincrona (doctrina Instrucciones.txt).
  *
  * Sistema real, no representacion: Ingress Gateway con firma HMAC por nodo,
  * bus de eventos no bloqueante en proceso, 4 ramificaciones en salas limpias
@@ -546,7 +546,7 @@ export function mountFoundry(app, { auth, requireMesa, mongo, busEmit, adminNoti
   /* ---- contrato para el integrador (S-NFI Systems) ---- */
   function contractHandler(req, res) {
     res.json({
-      system: 'S-NFI Data Foundry · Ingress Gateway',
+      system: 'S-NFI Lab · Ingress Gateway',
       version: 1,
       transport: {
         embedded: 'POST /api/foundry/ingress (puerto principal Elvi-Ra)',

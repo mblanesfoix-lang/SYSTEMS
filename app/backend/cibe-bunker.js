@@ -25,7 +25,7 @@
 import crypto from 'node:crypto';
 
 const TOKEN_RE = /^v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
-const KEY_SCOPES = ['ophs.command', 'grid.command', 'rack.command', 'foundry.command', '*'];
+const KEY_SCOPES = ['ophs.command', 'grid.command', 'rack.command', 'foundry.command', 'fl.expediente.read', '*'];
 const CLOCK_SKEW_S = 60;
 const EXTERNAL_TS_WINDOW_MS = 30000;
 

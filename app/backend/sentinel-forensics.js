@@ -27,13 +27,32 @@ const AUTO_BLOCK_DISTINCT_ROUTES_COUNT = 2;
 // Codigo ISO-2 de geoip-lite. Vacio por defecto — el jefe puede rellenar via env.
 const RISK_COUNTRIES = (process.env.SENTINEL_RISK_COUNTRIES || '').split(',').map(c => c.trim().toUpperCase()).filter(Boolean);
 
+/* ============================================================
+   Profiling de Comportamiento a Largo Plazo (Behavioral Analytics)
+   Analiza patrones de USO por empleado (no por IP) sobre el propio
+   forensic_log — sin coleccion nueva de eventos, se reutiliza la
+   traza ya escrita por appendForensicEntry.
+   ============================================================ */
+
+// "Informes OPHS": rutas de lectura del Cockpit (OPS+PAIA+Herzog+Sentinel resumido) y nodos.
+const OPHS_REPORT_PREFIXES = ['/api/ophs-cockpit', '/api/ophs/nodes', '/api/ops', '/api/paia'];
+const OPHS_REPORT_LIMIT = 5;
+const OPHS_REPORT_WINDOW_MS = 60 * 60 * 1000; // 1h — umbral literal del jefe: "5 informes OPHS en menos de 1 hora"
+const BEHAVIOR_ALERT_LEVEL_FREQ = 'NARANJA';
+
+// "Zonas sensibles" para la regla de exfiltracion: mismo criterio de rutas sensibles
+// (CNMC + U-2, SENSITIVE_PREFIXES definido mas abajo) mas los informes OPHS.
+function isOphsReportPath(path) {
+  return OPHS_REPORT_PREFIXES.some(p => path.startsWith(p));
+}
+
 const MESA_LABELS = {
   elvira: 'Elvi-Ra (centro de mando)',
   reff: 'Rëff (CRM comercial)',
   snfiu2: 'S-NFI U-2 (datos científicos)',
   sentinel: 'Sentinel (seguridad)',
   twin: 'Twin (enlace S-NFI Systems)',
-  foundry: 'Data Foundry (ingesta pipeline)',
+  foundry: 'Lab (ingesta pipeline)',
 };
 
 function humanizePath(path) {
@@ -119,7 +138,7 @@ function signHmac(hash) {
   return crypto.createHmac('sha256', FORENSIC_SECRET).update(hash).digest('hex');
 }
 
-export function createSentinelForensics({ mongo, busEmit }) {
+export function createSentinelForensics({ mongo, busEmit, ROLE_MESAS = {} }) {
   // seq/hash se derivan SIEMPRE de Mongo, nunca de memoria de proceso.
   // Motivo: en un redeploy con rolling restart (Coolify) el contenedor viejo
   // sigue vivo unos segundos a la vez que el nuevo ya arranca — dos procesos
@@ -361,10 +380,14 @@ export function createSentinelForensics({ mongo, busEmit }) {
         }
 
         res.on('finish', () => {
+          const mesa = mesaForPath?.(req.path) || null;
           appendForensicEntry({
-            ip, geo, method: req.method, path: req.path, mesa: mesaForPath?.(req.path) || null,
+            ip, geo, method: req.method, path: req.path, mesa,
             sensitive, user: req.user || null, statusCode: res.statusCode, blocked: false,
           }).catch(err => console.error('[sentinel-forensics] log error', err));
+          if (req.user && res.statusCode < 400) {
+            checkBehavioralAnomaly({ user: req.user, role: req.role, path: req.path, mesa });
+          }
         });
 
         next();
@@ -483,6 +506,146 @@ export function createSentinelForensics({ mongo, busEmit }) {
     return mongo.collection('ip_review_queue').findOne({ ip });
   }
 
+  /* ============================================================
+     Profiling de Comportamiento a Largo Plazo (Behavioral Analytics)
+     Bloqueo por USUARIO (no por IP) — cola separada de ip_review_queue,
+     mismo patron (decision PENDING/BLOCKED/ALLOWED, Admin decide).
+     ============================================================ */
+
+  async function isUserBlocked(user) {
+    if (!user) return false;
+    const blocked = await mongo.collection('user_review_queue').findOne({ user, decision: 'BLOCKED' });
+    return !!blocked;
+  }
+
+  async function listUserReviewQueue() {
+    return mongo.collection('user_review_queue').find().sort({ updatedAt: -1 }).limit(200).toArray();
+  }
+
+  async function decideUserReview(user, decision, decidedBy) {
+    const now = new Date();
+    await mongo.collection('user_review_queue').updateOne(
+      { user },
+      { $set: { decision, decidedBy, decidedAt: now, updatedAt: now, autoBlocked: false } },
+      { upsert: true },
+    );
+    return mongo.collection('user_review_queue').findOne({ user });
+  }
+
+  async function manualBlockUser(user, reason, decidedBy) {
+    const now = new Date();
+    await mongo.collection('user_review_queue').updateOne(
+      { user },
+      { $set: { user, decision: 'BLOCKED', reason: reason || `Bloqueo manual por ${decidedBy}`, autoBlocked: false, decidedBy, decidedAt: now, updatedAt: now },
+        $setOnInsert: { createdAt: now } },
+      { upsert: true },
+    );
+    return mongo.collection('user_review_queue').findOne({ user });
+  }
+
+  async function appendBehaviorAlert(fields) {
+    const now = new Date();
+    const doc = { _id: crypto.randomUUID(), ts: now.toISOString(), ...fields };
+    await mongo.collection('behavior_alerts').insertOne(doc);
+    return doc;
+  }
+
+  /* ---- Frecuencia anormal: >=5 informes OPHS en <1h por el mismo usuario -> alerta NARANJA ----
+     No distingue perfil (PhD u otro): la regla aplica igual a cualquier rol, el jefe
+     puede acotar por perfil mas adelante si se añade ese campo a `users`. */
+  async function checkFrequencyAnomaly({ user, path, mesa }) {
+    if (!user || !isOphsReportPath(path)) return null;
+    const since = new Date(Date.now() - OPHS_REPORT_WINDOW_MS);
+    const count = await mongo.collection('forensic_log').countDocuments({
+      user, ts: { $gte: since.toISOString() },
+      $or: OPHS_REPORT_PREFIXES.map(p => ({ path: { $regex: `^${p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}` } })),
+    });
+    if (count < OPHS_REPORT_LIMIT) return null;
+
+    const alert = await appendBehaviorAlert({
+      type: 'FRECUENCIA_ANORMAL', level: BEHAVIOR_ALERT_LEVEL_FREQ, user, mesa: mesa || null,
+      count, windowMinutes: OPHS_REPORT_WINDOW_MS / 60000,
+      reason: `${count} informes OPHS solicitados por ${user} en menos de 1 hora`,
+    });
+    busEmit?.({
+      id: crypto.randomUUID(), ts: alert.ts, origin: 'SENTINEL', dest: 'ELVI-RA',
+      type: 'alert', state: BEHAVIOR_ALERT_LEVEL_FREQ, label: `ALERTA NARANJA · frecuencia anormal · ${user} (${count} informes OPHS/1h)`,
+      payload: { user, count, path }, user,
+    });
+    return alert;
+  }
+
+  /* ---- Exfiltracion de datos: acceso a informes OPHS sin proyecto activo en Reff. ----
+     PLACEHOLDER: no existe hoy vinculo proyecto-activo <-> usuario en el esquema Reff
+     (companies/sheets no llevan owner de proyecto por seccion geografica/sector). Como
+     proxy se usa acceso concedido a la mesa 'reff' via ROLE_MESAS.
+     Alcance deliberadamente limitado a rutas OPHS (no a CNMC/U-2): esas ya estan
+     gateadas por su propia mesa (requireMesa('snfiu2')/('elvira')) en server.js, asi
+     que un usuario que llega hasta ahi ya tiene permiso legitimo de esa mesa concreta —
+     marcarlo tambien como "sin proyecto Reff" bloquearia sin motivo a usuarios como
+     'ray'/'gonzalo' (snfiu2 sin reff) en su primera peticion normal. OPHS en cambio es
+     una mesa independiente de reff en ROLE_MESAS, asi que "informe OPHS sin proyecto
+     Reff asociado" es una señal real de cruce de datos entre dominios. Sustituir por el
+     vinculo real de proyecto en cuanto exista ese campo en Reff (no hardcodear roles:
+     ROLE_MESAS puede cambiar). */
+  async function checkExfiltration({ user, role, path, mesa }) {
+    if (!user || !isOphsReportPath(path)) return null;
+    const hasReffProject = role === 'admin' || (ROLE_MESAS[role] || []).includes('reff');
+    if (hasReffProject) return null;
+
+    const alert = await appendBehaviorAlert({
+      type: 'EXFILTRACION_SOSPECHOSA', level: 'ROJO', user, role, mesa: mesa || null, path,
+      reason: `Acceso a zona sensible (${path}) sin proyecto activo asociado en Rëff`,
+    });
+    await mongo.collection('user_review_queue').updateOne(
+      { user },
+      { $set: {
+          user, decision: 'BLOCKED', autoBlocked: true,
+          reason: `AUTO-BLOQUEO · ${alert.reason}`,
+          decidedAt: alert.ts, updatedAt: alert.ts,
+        },
+        $setOnInsert: { createdAt: alert.ts } },
+      { upsert: true },
+    );
+    busEmit?.({
+      id: crypto.randomUUID(), ts: alert.ts, origin: 'SENTINEL', dest: 'ELVI-RA',
+      type: 'alert', state: 'BLOCKED', label: `USUARIO BLOQUEADO · exfiltracion sospechosa · ${user}`,
+      payload: { user, path, mesa }, user,
+    });
+    return alert;
+  }
+
+  /* ---- corre ambas reglas de comportamiento tras registrar una peticion (fire-and-forget) ---- */
+  function checkBehavioralAnomaly({ user, role, path, mesa }) {
+    if (!user) return;
+    checkFrequencyAnomaly({ user, path, mesa }).catch(err => console.error('[sentinel-behavior] freq check error', err));
+    checkExfiltration({ user, role, path, mesa }).catch(err => console.error('[sentinel-behavior] exfil check error', err));
+  }
+
+  async function listBehaviorAlerts({ user, type, level, limit = 100, offset = 0 } = {}) {
+    const q = {};
+    if (user) q.user = user;
+    if (type) q.type = type;
+    if (level) q.level = level;
+    const total = await mongo.collection('behavior_alerts').countDocuments(q);
+    const events = await mongo.collection('behavior_alerts').find(q).sort({ ts: -1 }).skip(Number(offset)).limit(Math.min(Number(limit), 500)).toArray();
+    return { total, events };
+  }
+
+  /* ---- Heatmap de interes: peticiones por usuario x mesa, ultimos N dias ---- */
+  async function behaviorHeatmap(days = 30) {
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const rows = await mongo.collection('forensic_log').aggregate([
+      { $match: { ts: { $gte: since.toISOString() }, user: { $ne: null }, mesa: { $ne: null } } },
+      { $group: { _id: { user: '$user', mesa: '$mesa' }, total: { $sum: 1 }, sensitive: { $sum: { $cond: ['$sensitive', 1, 0] } } } },
+      { $sort: { total: -1 } },
+    ]).toArray();
+    const users = [...new Set(rows.map(r => r._id.user))].sort();
+    const mesas = [...new Set(rows.map(r => r._id.mesa))].sort();
+    const cells = rows.map(r => ({ user: r._id.user, mesa: r._id.mesa, total: r.total, sensitive: r.sensitive }));
+    return { days, users, mesas, cells };
+  }
+
   /* ---- timeline de trafico: peticiones/min ultimos N minutos ---- */
   async function trafficTimeline(minutes = 60) {
     const since = new Date(Date.now() - minutes * 60 * 1000);
@@ -509,5 +672,8 @@ export function createSentinelForensics({ mongo, busEmit }) {
     middleware, attach, listForensicLog, listForensicLogHuman, ipStats, listReviewQueue, decideReview, manualBlock,
     trafficTimeline, exportIpReport, verifyChain, reanchorChain, isSensitivePath, registerLoginAttempt,
     addToAllowlist, removeFromAllowlist, listAllowlist, isIpAllowlisted,
+    // Behavioral Analytics (profiling de comportamiento)
+    isUserBlocked, listUserReviewQueue, decideUserReview, manualBlockUser,
+    listBehaviorAlerts, behaviorHeatmap,
   };
 }

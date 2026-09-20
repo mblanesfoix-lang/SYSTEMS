@@ -246,6 +246,237 @@ function calcularDesperdicioDaily(precioValues, demandaValues) {
   };
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   CURTAILMENT ESTIMADO (no oficial)
+
+   Por que existe: los indicadores ERNI de ESIOS (2200/2201/2202), que son
+   la cifra OFICIAL de renovable no integrada, exigen cuenta institucional.
+   Con token personal devuelven 403 y /curtailment responde 503. Este
+   bloque estima la misma magnitud con series a las que si se llega.
+
+   Metodo: curtailment ~ generacion renovable en las horas en que el
+   mercado no puede absorberla. Se detecta por precio SPOT hundido
+   (<= umbral): con exceso de renovable el marginalista cae a cero o
+   negativo. Sobre esas horas se aplica una tasa de vertido.
+
+   NO es la cifra oficial de REE. Es un proxy con sesgo conocido:
+   subestima el curtailment por restriccion tecnica local (que ocurre sin
+   que el precio nacional caiga) y sobreestima en horas de precio bajo por
+   causas ajenas (hidraulicidad alta, demanda baja festiva).
+   ═══════════════════════════════════════════════════════════════════ */
+
+// Tasa de vertido aplicada sobre la renovable de las horas de precio
+// hundido. PLACEHOLDER de modelo: sin serie ERNI real no hay forma de
+// calibrarla contra el dato oficial. Editable via ?tasa=.
+const CURTAILMENT_RATE_DEFAULT = 0.18;
+const CURTAILMENT_PRICE_THRESHOLD_DEFAULT = 5; // EUR/MWh
+
+/*
+ * Paises vecinos y fronterizos con Espana.
+ *
+ * IMPORTANTE: no hay integracion con RTE (FR), REN (PT) ni ONEE (MA) en
+ * este repo — no existe token ni endpoint equivalente a ESIOS para ellos.
+ * Las tasas son cifras PUBLICADAS, no lecturas en vivo, y por tanto
+ * PLACEHOLDER editables: cada una declara su procedencia en `source`.
+ * Actualizar cuando el jefe confirme fuentes definitivas.
+ */
+const NEIGHBOUR_GRIDS = [
+  {
+    code: 'ES', label: 'España', tso: 'REE',
+    pctCurtailmentRenovable: null, // se calcula en vivo, no se fija aqui
+    genRenovableTwhYear: null,
+    frontera: 'referencia',
+    source: 'calculado en vivo (apidatos.ree.es, publico)',
+  },
+  {
+    code: 'PT', label: 'Portugal', tso: 'REN',
+    pctCurtailmentRenovable: 1.1,
+    genRenovableTwhYear: 33.0,
+    frontera: 'terrestre',
+    source: 'PLACEHOLDER — orden de magnitud publico REN/ERSE, sin API integrada',
+  },
+  {
+    code: 'FR', label: 'Francia', tso: 'RTE',
+    pctCurtailmentRenovable: 2.4,
+    genRenovableTwhYear: 140.0,
+    frontera: 'terrestre',
+    source: 'PLACEHOLDER — orden de magnitud publico RTE Bilan electrique, sin API integrada',
+  },
+  {
+    code: 'MA', label: 'Marruecos', tso: 'ONEE',
+    pctCurtailmentRenovable: 3.0,
+    genRenovableTwhYear: 7.5,
+    frontera: 'interconexion submarina',
+    source: 'PLACEHOLDER — estimacion sectorial, sin fuente oficial accesible',
+  },
+  {
+    code: 'AD', label: 'Andorra', tso: 'FEDA',
+    pctCurtailmentRenovable: 0.4,
+    genRenovableTwhYear: 0.1,
+    frontera: 'terrestre',
+    source: 'PLACEHOLDER — red muy pequena, mayoritariamente importadora',
+  },
+];
+
+// Tecnologias que cuentan como renovable en estructura-generacion.
+// Mismo criterio que usa la pestana de Renovables de esta mesa.
+const REE_RENOVABLE_IDS = [
+  REE_IDS.hidro, REE_IDS.eolica, REE_IDS.solar_fv,
+  REE_IDS.solar_term, REE_IDS.otras_renov, REE_IDS.residuos_renov,
+];
+
+/*
+ * Descarga precio SPOT (horario) + generacion renovable (diaria) de
+ * apidatos.ree.es, troceando por meses naturales (la API rechaza rangos
+ * > 1 mes).
+ *
+ * Dos granularidades distintas a proposito:
+ *   - precios-mercados-tiempo-real  admite time_trunc=hour
+ *   - estructura-generacion         SOLO admite day/month (hour da 400)
+ * Por eso el cruce no puede ser hora-contra-hora. Ver estimarCurtailmentES.
+ *
+ * Se usa apidatos y NO ESIOS porque el token ESIOS de este despliegue
+ * devuelve 403 en todos los indicadores, no solo en los ERNI.
+ */
+async function fetchCurtailmentInputs(from, to) {
+  const months = [];
+  let cur = new Date(`${from}T00:00:00`);
+  const finalEnd = new Date(`${to}T23:59:59`);
+  while (cur <= finalEnd) {
+    const mStart = cur.toISOString().split('T')[0];
+    const mLast = new Date(cur.getFullYear(), cur.getMonth() + 1, 0);
+    const mEnd = mLast > finalEnd ? to : mLast.toISOString().split('T')[0];
+    months.push({ start: mStart, end: mEnd });
+    cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
+  }
+
+  const precios = [];
+  const renovable = [];
+  let fallos = 0;
+
+  const CONCURRENCY = 3;
+  for (let i = 0; i < months.length; i += CONCURRENCY) {
+    const batch = months.slice(i, i + CONCURRENCY);
+    const res = await Promise.all(batch.map(({ start, end }) => Promise.all([
+      fetchREE(REE_ENDPOINTS.precios, start, end, 'hour'),
+      fetchREE(REE_ENDPOINTS.generacion, start, end, 'day'),
+    ])));
+
+    for (const [pRes, gRes] of res) {
+      if (!pRes.ok || !gRes.ok) { fallos++; continue; }
+
+      precios.push(...extractREESeries(pRes.data, REE_IDS.precio_spot));
+
+      // Suma diaria de las tecnologias renovables
+      const porDia = {};
+      for (const id of REE_RENOVABLE_IDS) {
+        for (const v of extractREESeries(gRes.data, id)) {
+          const k = (v.datetime || '').substring(0, 10);
+          if (!k) continue;
+          porDia[k] = (porDia[k] || 0) + (Number(v.value) || 0);
+        }
+      }
+      for (const [datetime, value] of Object.entries(porDia)) {
+        renovable.push({ datetime, value });
+      }
+    }
+  }
+
+  return { precios, renovable, mesesPedidos: months.length, mesesFallidos: fallos };
+}
+
+/*
+ * Estima curtailment espanol.
+ *
+ * precios:  valores HORARIOS de precio SPOT.
+ * genRenov: valores DIARIOS de generacion renovable agregada.
+ *
+ * Como estructura-generacion no da hora, no se puede cruzar hora contra
+ * hora. En su lugar, por cada dia se calcula que fraccion de sus horas
+ * tuvo el precio bajo el umbral, y esa fraccion se aplica a la renovable
+ * de ese dia. Conserva la resolucion horaria del precio (que es donde
+ * esta la senal de exceso) sin inventar un reparto horario de generacion.
+ */
+function estimarCurtailmentES(precios, genRenov, { umbral, tasa }) {
+  // horas hundidas y horas totales por dia
+  const porDia = {};
+  for (const p of precios) {
+    const dia = (p.datetime || '').substring(0, 10);
+    if (!dia) continue;
+    if (!porDia[dia]) porDia[dia] = { horas: 0, hundidas: 0 };
+    porDia[dia].horas++;
+    if (Number(p.value) <= umbral) porDia[dia].hundidas++;
+  }
+
+  let renovableTotalMwh = 0;
+  let renovableEnHorasHundidasMwh = 0;
+  let horasHundidas = 0;
+  const porMes = {};
+
+  for (const g of genRenov) {
+    const dia = (g.datetime || '').substring(0, 10);
+    const mes = (g.datetime || '').substring(0, 7);
+    const mwh = Number(g.value) || 0;
+    if (!dia || !mes) continue;
+
+    renovableTotalMwh += mwh;
+    if (!porMes[mes]) porMes[mes] = { mes, renovable_mwh: 0, horas_precio_hundido: 0, estimado_mwh: 0 };
+    porMes[mes].renovable_mwh += mwh;
+
+    const d = porDia[dia];
+    if (!d || !d.horas || !d.hundidas) continue;
+
+    const fraccion = d.hundidas / d.horas;
+    const expuesta = mwh * fraccion;
+    horasHundidas += d.hundidas;
+    renovableEnHorasHundidasMwh += expuesta;
+    porMes[mes].horas_precio_hundido += d.hundidas;
+    porMes[mes].estimado_mwh += expuesta * tasa;
+    d.hundidas = 0; // ya contabilizado: evita doble conteo si el dia se repite
+  }
+
+  const estimadoMwh = renovableEnHorasHundidasMwh * tasa;
+
+  // Dias con dato por mes: un mes al que la API fallo aparece aqui con
+  // dos o tres dias de solape de los meses vecinos. Marcarlo evita
+  // presentar 3 dias sueltos como si fueran un mes entero.
+  const diasPorMes = {};
+  for (const g of genRenov) {
+    const mes = (g.datetime || '').substring(0, 7);
+    const dia = (g.datetime || '').substring(0, 10);
+    if (!mes || !dia) continue;
+    (diasPorMes[mes] ||= new Set()).add(dia);
+  }
+
+  const mensual = Object.values(porMes)
+    .sort((a, b) => a.mes.localeCompare(b.mes))
+    .map((m) => {
+      const dias = diasPorMes[m.mes]?.size || 0;
+      const [y, mm] = m.mes.split('-').map(Number);
+      const diasDelMes = new Date(y, mm, 0).getDate();
+      return {
+        mes: m.mes,
+        dias_con_dato: dias,
+        dias_del_mes: diasDelMes,
+        completo: dias >= diasDelMes - 1, // 1 dia de margen por husos/DST
+        renovable_gwh: Math.round((m.renovable_mwh / 1000) * 100) / 100,
+        horas_precio_hundido: m.horas_precio_hundido,
+        curtailment_estimado_gwh: Math.round((m.estimado_mwh / 1000) * 100) / 100,
+      };
+    });
+
+  return {
+    horas_precio_hundido: horasHundidas,
+    renovable_total_gwh: Math.round((renovableTotalMwh / 1000) * 100) / 100,
+    renovable_en_horas_hundidas_gwh: Math.round((renovableEnHorasHundidasMwh / 1000) * 100) / 100,
+    curtailment_estimado_gwh: Math.round((estimadoMwh / 1000) * 100) / 100,
+    pct_sobre_renovable: renovableTotalMwh > 0
+      ? Math.round((estimadoMwh / renovableTotalMwh) * 10000) / 100
+      : null,
+    mensual,
+  };
+}
+
 async function fetchESIOS(indicatorId, startDate, endDate, timeTrunc = 'hour') {
   const { default: https } = await import('node:https');
   const token = process.env.ESIOS_API_KEY || process.env.ESIOS_TOKEN || '';
@@ -1066,6 +1297,99 @@ export function mountU2Ree(app, { auth, busEmit, busEmitAlert, busEvents, atomic
       console.error('[snfi-u2/curtailment]', ex);
       busEmitAlert({ origin: 'SNFI-U2', label: `S-NFI U2 CURTAILMENT · fallo`, detail: ex.message, user: req.user });
       res.status(500).json({ error: ex.message || 'error curtailment ESIOS' });
+    }
+  });
+
+  /*
+   * GET /api/snfi-u2/curtailment-estimado?from=YYYY-MM-DD&to=YYYY-MM-DD
+   *
+   * Calculo NO OFICIAL de curtailment espanol + comparativa con la red de
+   * los paises vecinos y fronterizos.
+   *
+   * Existe porque /curtailment (ERNI oficial) devuelve 503 con token
+   * personal: los indicadores 2200/2201/2202 son de cuenta institucional.
+   * Ver el bloque de doctrina sobre estimarCurtailmentES arriba.
+   */
+  app.get('/api/snfi-u2/curtailment-estimado', auth, async (req, res) => {
+    try {
+      const today = new Date();
+      const defaultFrom = new Date(today.getTime() - 365 * 24 * 3600 * 1000);
+      const from = String(req.query.from || defaultFrom.toISOString().split('T')[0]);
+      const to   = String(req.query.to   || today.toISOString().split('T')[0]);
+
+      const umbral = Number.isFinite(Number(req.query.umbral))
+        ? Number(req.query.umbral) : CURTAILMENT_PRICE_THRESHOLD_DEFAULT;
+      const tasa = Number.isFinite(Number(req.query.tasa))
+        ? Math.min(1, Math.max(0, Number(req.query.tasa))) : CURTAILMENT_RATE_DEFAULT;
+
+      // Fuente: apidatos.ree.es (publico, sin token). No se usa ESIOS
+      // porque su token devuelve 403 en todos los indicadores aqui.
+      const { precios, renovable: genRenov, mesesPedidos, mesesFallidos } =
+        await fetchCurtailmentInputs(from, to);
+
+      if (!precios.length || !genRenov.length) {
+        return res.status(503).json({
+          error: 'apidatos.ree.es no devolvio series para el rango pedido',
+          detalle: { mesesPedidos, mesesFallidos },
+        });
+      }
+
+      const es = estimarCurtailmentES(precios, genRenov, { umbral, tasa });
+
+      // Comparativa: Espana en vivo + vecinos con cifra publicada.
+      // La media se pondera por generacion renovable, no aritmetica: una
+      // media simple daria a Andorra el mismo peso que a Francia.
+      const anualizadoTwh = es.renovable_total_gwh / 1000;
+      const comparativa = NEIGHBOUR_GRIDS.map((n) => (
+        n.code === 'ES'
+          ? {
+              ...n,
+              pctCurtailmentRenovable: es.pct_sobre_renovable,
+              genRenovableTwhYear: Math.round(anualizadoTwh * 100) / 100,
+              esEstimacionPropia: true,
+            }
+          : { ...n, esEstimacionPropia: false }
+      ));
+
+      const conDato = comparativa.filter((c) => c.pctCurtailmentRenovable != null && c.genRenovableTwhYear);
+      const sumaGen = conDato.reduce((s, c) => s + c.genRenovableTwhYear, 0);
+      const mediaPonderada = sumaGen > 0
+        ? conDato.reduce((s, c) => s + c.pctCurtailmentRenovable * c.genRenovableTwhYear, 0) / sumaGen
+        : null;
+      const mediaAritmetica = conDato.length
+        ? conDato.reduce((s, c) => s + c.pctCurtailmentRenovable, 0) / conDato.length
+        : null;
+
+      busEmit({
+        id: crypto.randomUUID(), ts: new Date().toISOString(), seq: busEvents.length + 1,
+        origin: 'SNFI-U2', dest: 'ELVI-RA', type: 'event', state: 'COMPLETED',
+        label: `CURTAILMENT ESTIMADO ${from}→${to} · ${es.curtailment_estimado_gwh} GWh (${es.pct_sobre_renovable}% renovable)`,
+        payload: { from, to, gwh: es.curtailment_estimado_gwh, pct: es.pct_sobre_renovable },
+        user: req.user,
+      });
+
+      res.json({
+        from, to,
+        oficial: false,
+        fuente: 'apidatos.ree.es (publico) — precios-mercados-tiempo-real + estructura-generacion',
+        cobertura: { meses_pedidos: mesesPedidos, meses_sin_datos: mesesFallidos },
+        metodologia: `Por cada dia se calcula la fraccion de horas con precio SPOT <= ${umbral} EUR/MWh y se aplica a la generacion renovable de ese dia; sobre esa energia expuesta se aplica una tasa de vertido del ${Math.round(tasa * 100)}%. Precio horario y generacion diaria porque estructura-generacion de apidatos no admite granularidad horaria. Proxy: NO es la serie ERNI oficial de REE.`,
+        aviso: 'Calculo no oficial. La cifra oficial (indicadores ERNI 2200/2201/2202) requiere cuenta institucional ESIOS; el token de este despliegue devuelve 403 en todo ESIOS. Este proxy subestima la restriccion tecnica local y sobreestima las horas de precio bajo por causas ajenas (hidraulicidad, demanda festiva).',
+        parametros: { umbral_eur_mwh: umbral, tasa_vertido: tasa },
+        espana: es,
+        comparativa_vecinos: comparativa,
+        media_vecinos: {
+          pct_ponderado_por_generacion: mediaPonderada != null ? Math.round(mediaPonderada * 100) / 100 : null,
+          pct_aritmetico: mediaAritmetica != null ? Math.round(mediaAritmetica * 100) / 100 : null,
+          paises_con_dato: conDato.length,
+          nota: 'Ponderada por TWh renovables: sin ponderar, Andorra pesaria igual que Francia. Vecinos = cifras publicadas PLACEHOLDER, no lectura en vivo (no hay API RTE/REN/ONEE integrada).',
+        },
+        calculadoAt: new Date().toISOString(),
+      });
+    } catch (ex) {
+      console.error('[snfi-u2/curtailment-estimado]', ex);
+      busEmitAlert({ origin: 'SNFI-U2', label: 'S-NFI U-2 CURTAILMENT ESTIMADO · fallo', detail: ex.message, user: req.user });
+      res.status(500).json({ error: ex.message || 'error curtailment estimado' });
     }
   });
 

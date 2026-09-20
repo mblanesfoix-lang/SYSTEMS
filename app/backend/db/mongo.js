@@ -45,24 +45,46 @@ async function ensureIndexes() {
   await elviraDb.collection('ip_excess_log').createIndex({ ip: 1, path: 1, ts: -1 });
   await elviraDb.collection('ip_review_queue').createIndex({ ip: 1 }, { unique: true });
 
-  // S-NFI Factory · cadena de suministro industrial
-  await elviraDb.collection('factory_assembly').createIndex({ status: 1 });
-  await elviraDb.collection('factory_logistics').createIndex({ status: 1 });
-  await elviraDb.collection('factory_inventory').createIndex({ category: 1 });
-  await elviraDb.collection('factory_maintenance').createIndex({ status: 1, scheduledAt: 1 });
-
-  // S-NFI F&L · custodia legal (NDAs, contratos, licencias, expediente OEPM)
-  await elviraDb.collection('fl_ndas').createIndex({ status: 1, validTo: 1 });
-  await elviraDb.collection('fl_contracts').createIndex({ status: 1, validTo: 1 });
-  await elviraDb.collection('fl_licenses').createIndex({ status: 1, validTo: 1 });
-  await elviraDb.collection('fl_documents.files').createIndex({ 'metadata.entity_kind': 1, 'metadata.entity_id': 1 });
+  // Sentinel · Behavioral Analytics (profiling de comportamiento por usuario)
+  await elviraDb.collection('user_review_queue').createIndex({ user: 1 }, { unique: true });
+  await elviraDb.collection('behavior_alerts').createIndex({ ts: -1 });
+  await elviraDb.collection('behavior_alerts').createIndex({ user: 1, type: 1 });
 
   // Pactvm Viridi · cumplimiento bio-ambiental (certificado CIBE, politicas, accesos)
   await elviraDb.collection('pactvm_cibe').createIndex({ status: 1 });
   await elviraDb.collection('pactvm_policies').createIndex({ category: 1, active: 1 });
   await elviraDb.collection('pactvm_access_rules').createIndex({ status: 1, scope: 1 });
 
-  // Data Foundry · pipeline de ingesta asincrona (gateway HMAC + salas limpias)
+  // S-NFI F&L · Audit Legal (licencias multi-planta + matriz de responsabilidad + poderes)
+  await elviraDb.collection('fl_licencias').createIndex({ id_instalacion: 1 });
+  await elviraDb.collection('fl_licencias').createIndex({ fecha_vencimiento: 1 });
+  await elviraDb.collection('fl_licencias').createIndex({ dependencia: 1, estado_tramite: 1 });
+  await elviraDb.collection('fl_metricas').createIndex({ id_licencia: 1, tipo_parametro: 1 });
+  await elviraDb.collection('fl_condicionantes').createIndex({ id_licencia: 1, estado_cumplimiento: 1 });
+  await elviraDb.collection('fl_evidencias').createIndex({ id_condicionante: 1 });
+  await elviraDb.collection('fl_inspecciones').createIndex({ id_instalacion: 1, estatus_resolucion: 1 });
+  await elviraDb.collection('fl_hitos').createIndex({ project_id: 1 });
+  await elviraDb.collection('fl_matriz_riesgo').createIndex({ project_id: 1, status: 1 });
+  await elviraDb.collection('fl_matriz_riesgo').createIndex({ milestone_id: 1 });
+  await elviraDb.collection('fl_poderes').createIndex({ fecha_caducidad: 1 });
+  await elviraDb.collection('fl_poderes').createIndex({ estado: 1 });
+  await elviraDb.collection('fl_log').createIndex({ seq: 1 }, { unique: true });
+  // Expediente Fiscal y Juridico Impecable (CRM documental + adjuntos GridFS)
+  await elviraDb.collection('fl_expediente_docs').createIndex({ bloque: 1, orden: 1 });
+  await elviraDb.collection('fl_expediente_docs').createIndex({ fecha_caducidad: 1 });
+  await elviraDb.collection('fl_expediente_docs').createIndex({ estado: 1 });
+  await elviraDb.collection('fl_expediente_docs').createIndex({ confidencial: 1 });
+  await elviraDb.collection('fl_expediente_files.files').createIndex({ 'metadata.doc_id': 1 });
+  // Clave de cifrado del expediente: SOLO env FL_EXPEDIENTE_ENC_KEY (retirado
+  // el fallback fl_expediente_keys en Mongo, 2026-09-20) — sin coleccion propia.
+
+  // S-NFI Finance · CRM de empresas + archivo documental
+  await elviraDb.collection('finance_companies').createIndex({ name: 1 });
+  await elviraDb.collection('finance_companies').createIndex({ relation: 1, status: 1 });
+  await elviraDb.collection('finance_company_notes').createIndex({ companyId: 1, createdAt: -1 });
+  await elviraDb.collection('finance_company_docs.files').createIndex({ 'metadata.company_id': 1, 'metadata.folder': 1 });
+
+  // Lab · pipeline de ingesta asincrona (gateway HMAC + salas limpias)
   await elviraDb.collection('foundry_nodes').createIndex({ nodeId: 1 }, { unique: true });
   await elviraDb.collection('foundry_log').createIndex({ seq: 1 }, { unique: true });
   await elviraDb.collection('foundry_herzog_records').createIndex({ seq: 1 }, { unique: true });

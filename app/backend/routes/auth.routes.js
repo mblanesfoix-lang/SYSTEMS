@@ -13,11 +13,15 @@ import bcrypt from 'bcrypt';
 import crypto from 'node:crypto';
 
 const SEED_USERS = {
-  'mblanes@snficorp.com': { password: process.env.SEED_MARC_PASSWORD,    role: 'admin'   },
-  'nour@snficorp.com':    { password: process.env.SEED_NOUR_PASSWORD,    role: 'admin'   },
-  'ray@snficorp.com':     { password: process.env.SEED_RAY_PASSWORD,     role: 'ray'     },
-  'ventures@snficorp.com':{ password: process.env.SEED_AMIR_PASSWORD,    role: 'amir'    },
-  'gonzalo@snficorp.com': { password: process.env.SEED_GONZALO_PASSWORD, role: 'gonzalo' },
+  'nzaroual@s-nficorp.com': { password: process.env.SEED_NOUR_PASSWORD,     role: 'admin'    },
+  'mblanes@s-nficorp.com':  { password: process.env.SEED_MARC_PASSWORD,     role: 'admin'    },
+  'gonzalosb@s-nficorp.com':{ password: process.env.SEED_GONZALO_PASSWORD,  role: 'admin'    },
+  'ventures@s-nficorp.com': { password: process.env.SEED_AMIR_PASSWORD,     role: 'amir'     },
+  'ray@s-nficorp.com':      { password: process.env.SEED_RAY_PASSWORD,      role: 'ray'      },
+  'csanser@s-nficorp.com':  { password: process.env.SEED_CELIA_PASSWORD,    role: 'celia'    },
+  'malvarez@s-nficorp.com': { password: process.env.SEED_MAITANE_PASSWORD,  role: 'maitane'  },
+  'aporquet@snficorp.com':  { password: process.env.SEED_ARKAITZ_PASSWORD,  role: 'arkaitz'  },
+  'oscars@s-nficorp.com':   { password: process.env.SEED_OSCAR_PASSWORD,    role: 'oscar'    },
 };
 
 const SESSION_TTL_MS = 1000 * 60 * 60 * 8; // 8h
@@ -37,8 +41,10 @@ export async function ensureUsersSeed(mongo) {
   }
 }
 
-/** Middleware factory: requiere que ensureUsersSeed ya se haya ejecutado sobre `mongo`. */
-export function createAuthMiddleware(mongo) {
+/** Middleware factory: requiere que ensureUsersSeed ya se haya ejecutado sobre `mongo`.
+ *  sentinelForensics es opcional (algunos montajes tempranos aun no lo tienen listo);
+ *  si se pasa, aplica el bloqueo por usuario de Behavioral Analytics (Sentinel). */
+export function createAuthMiddleware(mongo, sentinelForensics) {
   return async function auth(req, res, next) {
     const h = req.headers.authorization || '';
     // EventSource no permite headers personalizados: el stream SSE acepta el token por query string.
@@ -46,6 +52,9 @@ export function createAuthMiddleware(mongo) {
     if (!token) return res.status(401).json({ error: 'unauthorized' });
     const s = await mongo.collection('sessions').findOne({ _id: token });
     if (!s || new Date(s.exp).getTime() < Date.now()) return res.status(401).json({ error: 'unauthorized' });
+    if (sentinelForensics?.isUserBlocked && await sentinelForensics.isUserBlocked(s.user)) {
+      return res.status(403).json({ error: 'Usuario bloqueado por Sentinel (Behavioral Analytics)' });
+    }
     req.user = s.user;
     req.role = s.role;
     next();
@@ -53,15 +62,15 @@ export function createAuthMiddleware(mongo) {
 }
 
 export function mountAuth(app, { mongo, requireAdmin, ROLE_MESAS, authLimiter, sentinelForensics, busEmit }) {
-  const auth = createAuthMiddleware(mongo);
+  const auth = createAuthMiddleware(mongo, sentinelForensics);
 
   app.post('/api/login', authLimiter, async (req, res) => {
     const { username, password } = req.body || {};
     const ip = req.ip || 'unknown';
 
-    if (!username || !String(username).toLowerCase().endsWith('@snficorp.com')) {
-      await sentinelForensics.registerLoginAttempt({ ip, username, ok: false, reason: 'dominio_no_autorizado' });
-      return res.status(403).json({ error: 'Dominio no autorizado. IP bloqueada por Sentinel.' });
+    if (!username) {
+      await sentinelForensics.registerLoginAttempt({ ip, username, ok: false, reason: 'credenciales_invalidas' });
+      return res.status(401).json({ error: 'Credenciales inválidas' });
     }
 
     const u = await mongo.collection('users').findOne({ _id: username });

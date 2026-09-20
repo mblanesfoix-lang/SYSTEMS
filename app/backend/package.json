@@ -21,6 +21,8 @@
     "express-rate-limit": "^8.5.2",
     "geoip-lite": "^2.0.3",
     "mongodb": "^7.3.0",
-    "pdfkit": "^0.19.1"
+    "pdf-parse": "^2.4.5",
+    "pdfkit": "^0.19.1",
+    "qrcode": "^1.5.4"
   }
 }

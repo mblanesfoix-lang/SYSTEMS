@@ -138,4 +138,61 @@ export function mountSentinelForensicRoutes(app, { auth, sentinelForensics, busE
     const report = await sentinelForensics.exportIpReport(req.params.ip);
     res.json(report);
   });
+
+  /* ==========================================================================
+     Profiling de Comportamiento a Largo Plazo (Behavioral Analytics)
+     Frecuencia anormal (NARANJA) + exfiltracion sospechosa (bloqueo por usuario)
+     + heatmap de interes por departamento/mesa. Logica en sentinel-forensics.js.
+  ========================================================================== */
+
+  /* GET /api/sentinel/behavior/alerts — alertas de comportamiento (frecuencia + exfiltracion) */
+  app.get('/api/sentinel/behavior/alerts', auth, async (req, res) => {
+    if (req.role !== 'admin') return res.status(403).json({ error: 'admin requerido' });
+    const { user, type, level, limit, offset } = req.query;
+    const result = await sentinelForensics.listBehaviorAlerts({ user, type, level, limit, offset });
+    res.json(result);
+  });
+
+  /* GET /api/sentinel/behavior/heatmap — peticiones por usuario x mesa, ultimos N dias */
+  app.get('/api/sentinel/behavior/heatmap', auth, async (req, res) => {
+    if (req.role !== 'admin') return res.status(403).json({ error: 'admin requerido' });
+    const days = Math.min(Number(req.query.days) || 30, 180);
+    const result = await sentinelForensics.behaviorHeatmap(days);
+    res.json(result);
+  });
+
+  /* GET /api/sentinel/behavior/review-queue — usuarios pendientes/bloqueados/permitidos */
+  app.get('/api/sentinel/behavior/review-queue', auth, async (req, res) => {
+    if (req.role !== 'admin') return res.status(403).json({ error: 'admin requerido' });
+    const queue = await sentinelForensics.listUserReviewQueue();
+    res.json(queue);
+  });
+
+  /* POST /api/sentinel/behavior/review-queue/:user/decide — Admin concede o bloquea al usuario */
+  app.post('/api/sentinel/behavior/review-queue/:user/decide', auth, async (req, res) => {
+    if (req.role !== 'admin') return res.status(403).json({ error: 'admin requerido' });
+    const { decision } = req.body || {};
+    if (!['ALLOWED', 'BLOCKED'].includes(decision)) return res.status(400).json({ error: 'decision debe ser ALLOWED o BLOCKED' });
+    const updated = await sentinelForensics.decideUserReview(req.params.user, decision, req.user);
+    busEmit({
+      id: crypto.randomUUID(), ts: new Date().toISOString(), seq: busEvents.length + 1,
+      origin: 'SENTINEL', dest: 'ELVI-RA', type: 'event', state: decision === 'BLOCKED' ? 'BLOCKED' : 'APPROVED',
+      label: `USUARIO ${decision} · ${req.params.user} · por ${req.user}`, payload: { user: req.params.user, decision }, user: req.user,
+    });
+    res.json(updated);
+  });
+
+  /* POST /api/sentinel/behavior/block-user — Admin, bloqueo manual directo de un usuario */
+  app.post('/api/sentinel/behavior/block-user', auth, async (req, res) => {
+    if (req.role !== 'admin') return res.status(403).json({ error: 'admin requerido' });
+    const { user, reason } = req.body || {};
+    if (!user) return res.status(400).json({ error: 'user requerido' });
+    const updated = await sentinelForensics.manualBlockUser(user, reason, req.user);
+    busEmit({
+      id: crypto.randomUUID(), ts: new Date().toISOString(), seq: busEvents.length + 1,
+      origin: 'SENTINEL', dest: 'ELVI-RA', type: 'alert', state: 'BLOCKED',
+      label: `USUARIO BLOQUEADO MANUALMENTE · ${user} · por ${req.user}`, payload: { user, reason }, user: req.user,
+    });
+    res.json(updated);
+  });
 }
