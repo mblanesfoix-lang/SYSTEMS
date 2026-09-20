@@ -59,8 +59,11 @@ export function mountElviraCentral(app, deps) {
   const {
     auth, requireMesa, mongo, getMongoClient,
     callLLM, trackTokens, busEmit, adminNotify,
-    readElvira, getU2Snapshot, cibe,
+    readElvira, getU2Snapshot, cibe, llmLimiter,
   } = deps;
+  // limiter especifico en /chat (llama callLLM() en cada mensaje) — ver
+  // definicion en server.js, keyGenerator por usuario no por IP.
+  const chatGuard = llmLimiter ? [auth, llmLimiter] : [auth];
   // firma CIBE del bunker Pactvm Viridi en endpoints criticos OPHS
   const cibeGuard = (scope) => (cibe ? cibe.guard(scope) : (_req, _res, next) => next());
 
@@ -121,17 +124,33 @@ export function mountElviraCentral(app, deps) {
   async function executeAction(action, requestedBy) {
     const systemsUrl = process.env.SYSTEMS_URL;
     if (systemsUrl) {
-      const r = await fetch(`${systemsUrl.replace(/\/$/, '')}/api/v1/actions`, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          ...(process.env.SYSTEMS_TOKEN ? { authorization: `Bearer ${process.env.SYSTEMS_TOKEN}` } : {}),
-        },
-        body: JSON.stringify({
-          id: action._id, type: action.type, nodeId: action.nodeId,
-          params: action.params, requestedBy, authorizedAt: new Date().toISOString(),
-        }),
-      });
+      // FASE 5 (2026-09-20): sin timeout, un Systems real colgado dejaba este
+      // fetch esperando para siempre — el humano ya autorizo la accion (Regla
+      // de Oro), pero la peticion HTTP que la ejecuta se quedaria bloqueada
+      // sin fin ni de exito ni de error. Mismo AbortController que llm.js.
+      const controller = new AbortController();
+      const timeoutMs = Number(process.env.SYSTEMS_TIMEOUT_MS) || 15000;
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+      let r;
+      try {
+        r = await fetch(`${systemsUrl.replace(/\/$/, '')}/api/v1/actions`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            ...(process.env.SYSTEMS_TOKEN ? { authorization: `Bearer ${process.env.SYSTEMS_TOKEN}` } : {}),
+          },
+          body: JSON.stringify({
+            id: action._id, type: action.type, nodeId: action.nodeId,
+            params: action.params, requestedBy, authorizedAt: new Date().toISOString(),
+          }),
+          signal: controller.signal,
+        });
+      } catch (err) {
+        if (err?.name === 'AbortError') throw new Error(`Systems (${systemsUrl}) timeout tras ${timeoutMs}ms — accion sin confirmar, revisar estado del nodo manualmente`);
+        throw err;
+      } finally {
+        clearTimeout(timeout);
+      }
       const data = await r.json().catch(() => ({}));
       if (!r.ok || !data.ok) throw new Error(data.error || `Systems respondió HTTP ${r.status}`);
       return { via: 'systems', ...data.result };
@@ -291,7 +310,7 @@ REGLAS DE RESPUESTA:
     res.json({ nodes });
   });
 
-  app.post('/api/elvira/central/chat', auth, async (req, res) => {
+  app.post('/api/elvira/central/chat', ...chatGuard, async (req, res) => {
     const message = String(req.body?.message || '').trim();
     if (!message) return res.status(400).json({ error: 'message requerido' });
     if (message.length > 4000) return res.status(400).json({ error: 'Mensaje demasiado largo (max 4000)' });

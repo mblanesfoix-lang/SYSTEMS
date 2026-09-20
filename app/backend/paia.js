@@ -111,9 +111,12 @@ function analyzeReadings(readings) {
   return findings;
 }
 
-export function mountPaia(app, { auth, requireMesa, mongo }) {
+export function mountPaia(app, { auth, requireMesa, mongo, llmLimiter }) {
   const router = app;
   const guard = [auth, requireMesa('ophs')];
+  // limiter especifico solo en la ruta que llama callLLM() — /analyze es
+  // estadistica pura, sin coste de IA, no necesita el mismo techo.
+  const llmGuard = llmLimiter ? [...guard, llmLimiter] : guard;
 
   /* ---- analisis bajo demanda de un nodo ---- */
 
@@ -146,7 +149,7 @@ export function mountPaia(app, { auth, requireMesa, mongo }) {
 
   /* ---- insight en lenguaje natural (opcional, bajo demanda explicita) ---- */
 
-  router.post('/api/paia/nodes/:nodeId/insight', ...guard, async (req, res) => {
+  router.post('/api/paia/nodes/:nodeId/insight', ...llmGuard, async (req, res) => {
     const { nodeId } = req.params;
     const lastAnalysis = await mongo.collection('paia_analyses')
       .find({ nodeId })
