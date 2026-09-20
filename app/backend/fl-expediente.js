@@ -670,7 +670,19 @@ export function mountFlExpediente(app, { auth, requireMesa, mongo, busEmit, admi
     const file = await mongo.collection('fl_expediente_files.files').findOne({ _id: oid });
     if (!file) return res.status(404).json({ error: 'Archivo no encontrado' });
 
-    const { iv, auth_tag: authTag } = file.metadata || {};
+    // iv/authTag NO viven en la metadata de GridFS (el upload nunca los
+    // escribe ahi) — viven en la ficha del documento (file_iv/file_auth_tag),
+    // que es donde el endpoint de subida los guarda. Bug real encontrado y
+    // corregido 2026-09-20: la version anterior los buscaba en
+    // file.metadata, siempre undefined, y sin embargo no lanzaba (Buffer.from
+    // de valores vacios en base64 no tira), asi que el decifrado corria con
+    // iv/authTag equivocados y devolvia bytes ilegibles en vez de error —
+    // fallo silencioso, detectado con verificacion byte a byte del contenido
+    // descargado contra el original, no solo por status code.
+    const docId = file.metadata?.doc_id;
+    const ownerDoc = docId ? await col().findOne({ _id: docId }) : null;
+    const iv = ownerDoc?.file_iv;
+    const authTag = ownerDoc?.file_auth_tag;
     if (!iv || !authTag) {
       // Archivo legado sin cifrar (anterior al endurecimiento 2026-09-20):
       // se sirve tal cual para no romper documentos ya subidos, pero queda
