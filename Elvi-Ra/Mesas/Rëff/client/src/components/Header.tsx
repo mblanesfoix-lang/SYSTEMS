@@ -1,10 +1,17 @@
 import { memo } from 'react';
-import type { User, Agent } from '../lib/api';
+import type { User } from '../lib/api';
 import logoSnfi from '../assets/logo-snfi.png';
+
+// No caller passes activeAgent today (grep: 0 JSX usages) — shape kept
+// minimal to match the only fields this component reads (id, name).
+interface HeaderActiveAgent {
+  id: string;
+  name: string;
+}
 
 interface HeaderProps {
   user: User;
-  activeAgent?: Agent | null;
+  activeAgent?: HeaderActiveAgent | null;
 }
 
 export function HeaderComponent({ user, activeAgent }: HeaderProps) {
