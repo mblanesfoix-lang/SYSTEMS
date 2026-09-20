@@ -114,24 +114,13 @@ Object.assign(api, {
   sentinelAllowIp:       (ip, label) => req('POST', '/api/sentinel/allowlist', { ip, label }),
   sentinelUnallowIp:     (ip) => req('DELETE', `/api/sentinel/allowlist/${encodeURIComponent(ip)}`),
 
-  // S-NFI Factory · cadena de suministro industrial
-  factorySummary:       () => req('GET', '/api/factory/summary'),
-  factoryAssemblyList:  () => req('GET', '/api/factory/assembly'),
-  factoryAssemblyAdd:   (payload) => req('POST', '/api/factory/assembly', payload),
-  factoryAssemblyPatch: (id, payload) => req('PATCH', `/api/factory/assembly/${id}`, payload),
-  factoryAssemblyDelete:(id) => req('DELETE', `/api/factory/assembly/${id}`),
-  factoryLogisticsList:  () => req('GET', '/api/factory/logistics'),
-  factoryLogisticsAdd:   (payload) => req('POST', '/api/factory/logistics', payload),
-  factoryLogisticsPatch: (id, payload) => req('PATCH', `/api/factory/logistics/${id}`, payload),
-  factoryLogisticsDelete:(id) => req('DELETE', `/api/factory/logistics/${id}`),
-  factoryInventoryList:  () => req('GET', '/api/factory/inventory'),
-  factoryInventoryAdd:   (payload) => req('POST', '/api/factory/inventory', payload),
-  factoryInventoryPatch: (id, payload) => req('PATCH', `/api/factory/inventory/${id}`, payload),
-  factoryInventoryDelete:(id) => req('DELETE', `/api/factory/inventory/${id}`),
-  factoryMaintenanceList:  () => req('GET', '/api/factory/maintenance'),
-  factoryMaintenanceAdd:   (payload) => req('POST', '/api/factory/maintenance', payload),
-  factoryMaintenancePatch: (id, payload) => req('PATCH', `/api/factory/maintenance/${id}`, payload),
-  factoryMaintenanceDelete:(id) => req('DELETE', `/api/factory/maintenance/${id}`),
+  // Sentinel · Behavioral Analytics (profiling de comportamiento)
+  sentinelBehaviorAlerts:      (params = {}) => req('GET', `/api/sentinel/behavior/alerts?${new URLSearchParams(params).toString()}`),
+  sentinelBehaviorHeatmap:     (days = 30) => req('GET', `/api/sentinel/behavior/heatmap?days=${days}`),
+  sentinelBehaviorQueue:       () => req('GET', '/api/sentinel/behavior/review-queue'),
+  sentinelBehaviorDecide:      (user, decision) => req('POST', `/api/sentinel/behavior/review-queue/${encodeURIComponent(user)}/decide`, { decision }),
+  sentinelBehaviorBlockUser:   (user, reason) => req('POST', '/api/sentinel/behavior/block-user', { user, reason }),
+
 
   // S-NFI Finance · control financiero y valoracion de activos reales
   financeSummary:         () => req('GET', '/api/finance/summary'),
@@ -159,6 +148,20 @@ Object.assign(api, {
   financeExportCreate:    (fromDate, toDate, reportType) => req('POST', '/api/finance/exports', { fromDate, toDate, reportType }),
   financeLogVerify:       () => req('GET', '/api/finance/log/verify'),
 
+  // S-NFI Finance · CRM de empresas + archivo documental
+  financeCompaniesMeta:    () => req('GET', '/api/finance/companies/meta'),
+  financeCompaniesSummary: () => req('GET', '/api/finance/companies-summary'),
+  financeCompaniesList:    (params = {}) => req('GET', `/api/finance/companies?${new URLSearchParams(params).toString()}`),
+  financeCompanyGet:       (id) => req('GET', `/api/finance/companies/${id}`),
+  financeCompanyAdd:       (payload) => req('POST', '/api/finance/companies', payload),
+  financeCompanyPatch:     (id, payload) => req('PATCH', `/api/finance/companies/${id}`, payload),
+  financeCompanyDelete:    (id) => req('DELETE', `/api/finance/companies/${id}`),
+  financeCompanyDocsList:  (id, folder) => req('GET', `/api/finance/companies/${id}/documents${folder ? `?folder=${encodeURIComponent(folder)}` : ''}`),
+  financeCompanyDocPatch:  (fileId, payload) => req('PATCH', `/api/finance/companies/documents/${fileId}`, payload),
+  financeCompanyDocDelete: (fileId) => req('DELETE', `/api/finance/companies/documents/${fileId}`),
+  financeCompanyNoteAdd:   (id, text) => req('POST', `/api/finance/companies/${id}/notes`, { text }),
+  financeCompanyNoteDelete:(noteId) => req('DELETE', `/api/finance/companies/notes/${noteId}`),
+
   // S-NFI M&A · inteligencia corporativa para el crecimiento fractal
   mnaSummary:              () => req('GET', '/api/mna/summary'),
   mnaDealsList:            () => req('GET', '/api/mna/deals'),
@@ -178,27 +181,73 @@ Object.assign(api, {
   mnaDiligenceItemDelete:  (id) => req('DELETE', `/api/mna/diligence/items/${id}`),
   mnaLogVerify:            () => req('GET', '/api/mna/log/verify'),
 
-  // S-NFI F&L · custodia legal (NDAs, contratos, licencias, expediente OEPM)
-  flSummary:          () => req('GET', '/api/fl/summary'),
-  flNdasList:         () => req('GET', '/api/fl/ndas'),
-  flNdaAdd:           (payload) => req('POST', '/api/fl/ndas', payload),
-  flNdaPatch:         (id, payload) => req('PATCH', `/api/fl/ndas/${id}`, payload),
-  flNdaDelete:        (id) => req('DELETE', `/api/fl/ndas/${id}`),
-  flContractsList:    () => req('GET', '/api/fl/contracts'),
-  flContractAdd:      (payload) => req('POST', '/api/fl/contracts', payload),
-  flContractPatch:    (id, payload) => req('PATCH', `/api/fl/contracts/${id}`, payload),
-  flContractDelete:   (id) => req('DELETE', `/api/fl/contracts/${id}`),
-  flLicensesList:     () => req('GET', '/api/fl/licenses'),
-  flLicenseAdd:       (payload) => req('POST', '/api/fl/licenses', payload),
-  flLicensePatch:     (id, payload) => req('PATCH', `/api/fl/licenses/${id}`, payload),
-  flLicenseDelete:    (id) => req('DELETE', `/api/fl/licenses/${id}`),
-  flOepmList:         () => req('GET', '/api/fl/oepm'),
-  flOepmAdd:          (payload) => req('POST', '/api/fl/oepm', payload),
-  flOepmPatch:        (id, payload) => req('PATCH', `/api/fl/oepm/${id}`, payload),
-  flOepmDelete:       (id) => req('DELETE', `/api/fl/oepm/${id}`),
-  flDocsList:         (kind, id) => req('GET', `/api/fl/${kind}/${id}/docs`),
-  flDocDelete:        (docId) => req('DELETE', `/api/fl/docs/${docId}`),
-  flLogVerify:        () => req('GET', '/api/fl/log/verify'),
+  // S-NFI F&L · Audit Legal
+  flSummary:               () => req('GET', '/api/fl/summary'),
+  flLogVerify:             () => req('GET', '/api/fl/log/verify'),
+
+  flInstalacionesList:     () => req('GET', '/api/fl/instalaciones'),
+  flInstalacionAdd:        (payload) => req('POST', '/api/fl/instalaciones', payload),
+  flInstalacionPatch:      (id, payload) => req('PATCH', `/api/fl/instalaciones/${id}`, payload),
+  flInstalacionDelete:     (id) => req('DELETE', `/api/fl/instalaciones/${id}`),
+
+  flLicenciasList:         (filters) => req('GET', `/api/fl/licencias${filters?.id_instalacion ? `?id_instalacion=${filters.id_instalacion}` : ''}`),
+  flLicenciaAdd:           (payload) => req('POST', '/api/fl/licencias', payload),
+  flLicenciaPatch:         (id, payload) => req('PATCH', `/api/fl/licencias/${id}`, payload),
+  flLicenciaDelete:        (id) => req('DELETE', `/api/fl/licencias/${id}`),
+  flLicenciaKpis:          (id) => req('GET', `/api/fl/licencias/${id}/kpis`),
+
+  flMetricasList:          (licenciaId) => req('GET', `/api/fl/licencias/${licenciaId}/metricas`),
+  flMetricaAdd:            (licenciaId, payload) => req('POST', `/api/fl/licencias/${licenciaId}/metricas`, payload),
+
+  flCondicionantesList:    (licenciaId) => req('GET', `/api/fl/licencias/${licenciaId}/condicionantes`),
+  flCondicionanteAdd:      (licenciaId, payload) => req('POST', `/api/fl/licencias/${licenciaId}/condicionantes`, payload),
+  flCondicionantePatch:    (id, payload) => req('PATCH', `/api/fl/condicionantes/${id}`, payload),
+
+  flEvidenciasList:        (condicionanteId) => req('GET', `/api/fl/condicionantes/${condicionanteId}/evidencias`),
+  flEvidenciaAdd:          (condicionanteId, payload) => req('POST', `/api/fl/condicionantes/${condicionanteId}/evidencias`, payload),
+
+  flInspeccionesList:      (filters) => req('GET', `/api/fl/inspecciones${filters?.id_instalacion ? `?id_instalacion=${filters.id_instalacion}` : ''}`),
+  flInspeccionAdd:         (payload) => req('POST', '/api/fl/inspecciones', payload),
+  flInspeccionPatch:       (id, payload) => req('PATCH', `/api/fl/inspecciones/${id}`, payload),
+
+  flProyectosList:         () => req('GET', '/api/fl/proyectos'),
+  flProyectoAdd:           (payload) => req('POST', '/api/fl/proyectos', payload),
+  flProyectoBloquear:      (id, bloqueado) => req('POST', `/api/fl/proyectos/${id}/bloquear`, { bloqueado }),
+  flProyectoKpis:          (id) => req('GET', `/api/fl/proyectos/${id}/kpis`),
+
+  flHitosList:             (proyectoId) => req('GET', `/api/fl/proyectos/${proyectoId}/hitos`),
+  flHitoAdd:               (proyectoId, payload) => req('POST', `/api/fl/proyectos/${proyectoId}/hitos`, payload),
+  flHitoTransicion:        (id, status) => req('POST', `/api/fl/hitos/${id}/transicion`, { status }),
+
+  flMatrizRiesgoList:      (proyectoId) => req('GET', `/api/fl/proyectos/${proyectoId}/matriz-riesgo`),
+  flMatrizRiesgoAdd:       (payload) => req('POST', '/api/fl/matriz-riesgo', payload),
+  flMatrizRiesgoPatch:     (id, payload) => req('PATCH', `/api/fl/matriz-riesgo/${id}`, payload),
+  flMatrizRiesgoVerificar: (id, complianceEvidenceUrl) => req('POST', `/api/fl/matriz-riesgo/${id}/verificar`, { compliance_evidence_url: complianceEvidenceUrl }),
+
+  flPoderesList:           () => req('GET', '/api/fl/poderes'),
+  flPoderAdd:              (payload) => req('POST', '/api/fl/poderes', payload),
+  flPoderPatch:            (id, payload) => req('PATCH', `/api/fl/poderes/${id}`, payload),
+  flPoderDelete:           (id) => req('DELETE', `/api/fl/poderes/${id}`),
+
+  // Expediente Fiscal y Juridico Impecable (CRM documental)
+  flExpediente:            (filters) => {
+    const qs = new URLSearchParams();
+    if (filters?.bloque) qs.set('bloque', filters.bloque);
+    if (filters?.estado) qs.set('estado', filters.estado);
+    if (filters?.q) qs.set('q', filters.q);
+    const s = qs.toString();
+    return req('GET', `/api/fl/expediente${s ? `?${s}` : ''}`);
+  },
+  flExpedienteMeta:        () => req('GET', '/api/fl/expediente/meta'),
+  flExpedienteSummary:     () => req('GET', '/api/fl/expediente/summary'),
+  flExpedienteAlertas:     () => req('GET', '/api/fl/expediente/alertas'),
+  flExpedienteRevisar:     () => req('POST', '/api/fl/expediente/alertas/revisar', {}),
+  flExpedienteDocGet:      (id) => req('GET', `/api/fl/expediente/documentos/${id}`),
+  flExpedienteDocAdd:      (payload) => req('POST', '/api/fl/expediente/documentos', payload),
+  flExpedienteDocPatch:    (id, payload) => req('PATCH', `/api/fl/expediente/documentos/${id}`, payload),
+  flExpedienteDocDelete:   (id) => req('DELETE', `/api/fl/expediente/documentos/${id}`),
+  flExpedienteArchivoDel:  (docId) => req('DELETE', `/api/fl/expediente/documentos/${docId}/archivo`),
+  flExpedienteVerifyPin:   (pin) => req('POST', '/api/fl/expediente/verify-pin', { pin }),
 
   // Pactvm Viridi · cumplimiento bio-ambiental (CIBE, politicas, accesos, Herzog)
   pactvmSummary:           () => req('GET', '/api/pactvm/summary'),
@@ -225,6 +274,94 @@ Object.assign(api, {
   pactvmEntryConditionPatch: (id, payload) => req('PATCH', `/api/pactvm/entry-conditions/${id}`, payload),
   pactvmEntryConditionDelete: (id) => req('DELETE', `/api/pactvm/entry-conditions/${id}`),
 
+  // Creditos de Carbono · medidor mitigacion/monetizacion
+  pactvmCarbonRatio:        () => req('GET', '/api/pactvm/carbon/ratio'),
+  pactvmCarbonRatioPatch:   (payload) => req('PATCH', '/api/pactvm/carbon/ratio', payload),
+  pactvmCarbonCertConfig:      () => req('GET', '/api/pactvm/carbon/cert-config'),
+  pactvmCarbonCertConfigPatch: (payload) => req('PATCH', '/api/pactvm/carbon/cert-config', payload),
+  pactvmCarbonClientsList:  () => req('GET', '/api/pactvm/carbon/clients'),
+  pactvmCarbonClientAdd:    (payload) => req('POST', '/api/pactvm/carbon/clients', payload),
+  pactvmCarbonClientPatch:  (id, payload) => req('PATCH', `/api/pactvm/carbon/clients/${id}`, payload),
+  pactvmCarbonClientDelete: (id) => req('DELETE', `/api/pactvm/carbon/clients/${id}`),
+  pactvmCarbonSummary:      () => req('GET', '/api/pactvm/carbon/summary'),
+  pactvmCarbonEmitCertificate: (payload) => req('POST', '/api/pactvm/carbon/emit-certificate', payload),
+  pactvmCarbonTokenize:        (payload) => req('POST', '/api/pactvm/carbon/tokenize', payload),
+  pactvmCarbonPackagesList:    (opts = {}) => req('GET', `/api/pactvm/carbon/packages${opts.includeVoided ? '?includeVoided=1' : ''}`),
+  pactvmCarbonPackageGet:      (logSeq) => req('GET', `/api/pactvm/carbon/packages/${logSeq}`),
+  pactvmCarbonPackagePatch:    (logSeq, payload) => req('PATCH', `/api/pactvm/carbon/packages/${logSeq}`, payload),
+  pactvmCarbonPackageDelete:   (logSeq, reason) => req('DELETE', `/api/pactvm/carbon/packages/${logSeq}`, { reason }),
+  pactvmCarbonAllowlistGet:    (packageId) => req('GET', `/api/pactvm/carbon/packages/${packageId}/allowlist`),
+  pactvmCarbonAllowlistPut:    (packageId, emails) => req('PUT', `/api/pactvm/carbon/packages/${packageId}/allowlist`, { emails }),
+  pactvmCarbonAccessCodeIssue: (packageId, minutes) => req('POST', `/api/pactvm/carbon/packages/${packageId}/access-code`, { minutes }),
+  pactvmCarbonPackageQr:       (packageId) => req('GET', `/api/pactvm/carbon/packages/${packageId}/qr`),
+
+  // Herzog (Central) · bunker receptor de informacion de SYSTEMS
+  herzogSummary:        () => req('GET', '/api/herzog-central/summary'),
+  herzogMetricsList:    (opts = {}) => {
+    const params = new URLSearchParams();
+    if (opts.department) params.set('department', opts.department);
+    if (opts.source) params.set('source', opts.source);
+    if (opts.limit) params.set('limit', String(opts.limit));
+    const qs = params.toString();
+    return req('GET', `/api/herzog-central/metrics${qs ? `?${qs}` : ''}`);
+  },
+  herzogMetricAdd:      (payload) => req('POST', '/api/herzog-central/metrics', payload),
+  herzogDocumentsList:  () => req('GET', '/api/herzog-central/documents'),
+  herzogDocumentDelete: (id) => req('DELETE', `/api/herzog-central/documents/${id}`),
+  herzogNotesList:      () => req('GET', '/api/herzog-central/notes'),
+  herzogNoteAdd:        (payload) => req('POST', '/api/herzog-central/notes', payload),
+  herzogNoteDelete:     (id) => req('DELETE', `/api/herzog-central/notes/${id}`),
+
+  // S-EAGLE · revision de informacion Herzog (verificar/corregir/compartir)
+  seagleSummary:      () => req('GET', '/api/seagle/summary'),
+  seagleHerzogFeed:   (department) => req('GET', `/api/seagle/herzog/feed${department ? `?department=${encodeURIComponent(department)}` : ''}`),
+  seagleReview:       (payload) => req('POST', '/api/seagle/herzog/review', payload),
+  seagleHerzogShare:  (payload) => req('POST', '/api/seagle/herzog/share', payload),
+  seagleLogVerify:    () => req('GET', '/api/seagle/log/verify'),
+
+  // Motor Planetario · parametros globales, paises target (T/año), telemetria CUDA-Bio simulada
+  pactvmPlanetaryConfig:        () => req('GET', '/api/pactvm/planetary/config'),
+  pactvmPlanetaryConfigPatch:   (payload) => req('PATCH', '/api/pactvm/planetary/config', payload),
+  pactvmPlanetaryCountriesList: () => req('GET', '/api/pactvm/planetary/countries'),
+  pactvmPlanetaryCountryAdd:    (payload) => req('POST', '/api/pactvm/planetary/countries', payload),
+  pactvmPlanetaryCountryPatch:  (id, payload) => req('PATCH', `/api/pactvm/planetary/countries/${id}`, payload),
+  pactvmPlanetaryCountryDelete: (id) => req('DELETE', `/api/pactvm/planetary/countries/${id}`),
+  pactvmPlanetarySummary:       () => req('GET', '/api/pactvm/planetary/summary'),
+  pactvmPlanetaryTelemetry:     () => req('GET', '/api/pactvm/planetary/telemetry'),
+
+  // VDR · CRM geoespacial de empresas (ubicacion + actividad en España)
+  pactvmVdrCountriesList: () => req('GET', '/api/pactvm/vdr/countries'),
+  pactvmVdrCompaniesList: () => req('GET', '/api/pactvm/vdr/companies'),
+  pactvmVdrCompanyGet:    (id) => req('GET', `/api/pactvm/vdr/companies/${id}`),
+  pactvmVdrCompanyAdd:    (payload) => req('POST', '/api/pactvm/vdr/companies', payload),
+  pactvmVdrCompanyPatch:  (id, payload) => req('PATCH', `/api/pactvm/vdr/companies/${id}`, payload),
+  pactvmVdrCompanyDelete: (id) => req('DELETE', `/api/pactvm/vdr/companies/${id}`),
+  pactvmVdrSummary:       () => req('GET', '/api/pactvm/vdr/summary'),
+  pactvmVdrCompanyGlobe:  (id) => req('GET', `/api/pactvm/vdr/companies/${id}/globe`),
+  pactvmVdrEsConfig:      () => req('GET', '/api/pactvm/vdr/es-config'),
+  pactvmVdrEsConfigPatch: (payload) => req('PATCH', '/api/pactvm/vdr/es-config', payload),
+  // enlaces temporales de presentacion bajo NDA
+  pactvmVdrSharesList:    () => req('GET', '/api/pactvm/vdr/shares'),
+  pactvmVdrShareCreate:   (payload) => req('POST', '/api/pactvm/vdr/shares', payload),
+  pactvmVdrShareRevoke:   (token) => req('DELETE', `/api/pactvm/vdr/shares/${token}`),
+
+  // S-NFI Resilience (BSS) · continuidad operativa, cadena suministro, backup soberania
+  resilienceSummary:          () => req('GET', '/api/resilience/summary'),
+  resilienceBssReadingsList:  () => req('GET', '/api/resilience/bss-readings'),
+  resilienceBssReadingAdd:    (payload) => req('POST', '/api/resilience/bss-readings', payload),
+  resilienceSuppliersList:    () => req('GET', '/api/resilience/suppliers'),
+  resilienceSupplierAdd:      (payload) => req('POST', '/api/resilience/suppliers', payload),
+  resilienceSupplierPatch:    (id, payload) => req('PATCH', `/api/resilience/suppliers/${id}`, payload),
+  resilienceSupplierDelete:   (id) => req('DELETE', `/api/resilience/suppliers/${id}`),
+  resilienceSuppliersRecalculate: (payload) => req('POST', '/api/resilience/suppliers/recalculate', payload),
+  resilienceBackupStatus:      () => req('GET', '/api/resilience/backup-status'),
+  resilienceBackupStatusPatch: (payload) => req('PATCH', '/api/resilience/backup-status', payload),
+  resilienceSovereigntyMigrate: (payload) => req('POST', '/api/resilience/sovereignty/migrate', payload),
+  resilienceIsolatedMode:         () => req('GET', '/api/resilience/isolated-mode'),
+  resilienceIsolatedModeActivate: (payload) => req('POST', '/api/resilience/isolated-mode/activate', payload),
+  resilienceIsolatedModeDeactivate: () => req('POST', '/api/resilience/isolated-mode/deactivate'),
+  resilienceLogVerify: () => req('GET', '/api/resilience/log/verify'),
+
   // CIBE Bunker · tokens firmados Ed25519 (Volumen 3)
   cibeBunkerStatus:    () => req('GET', '/api/pactvm/cibe-bunker/status'),
   cibeBunkerLog:       () => req('GET', '/api/pactvm/cibe-bunker/log'),
@@ -249,12 +386,33 @@ Object.assign(api, {
   gridCountryChaos:   (code, mode) => req('POST', `/api/grid/countries/${encodeURIComponent(code)}/chaos`, { mode }),
   gridLogVerify:      () => req('GET', '/api/grid/log/verify'),
 
+  // Puerto Maestro · auditoria y control de trafico inter-puertos
+  gatewayRequestsList:  (status) => req('GET', `/api/gateway/requests${status ? `?status=${status}` : ''}`),
+  gatewayRequestCreate: (payload) => req('POST', '/api/gateway/requests', payload),
+  gatewayRequestDecide: (id, decision, reason) => req('POST', `/api/gateway/requests/${id}/decide`, { decision, reason }),
+  gatewaySummary:       () => req('GET', '/api/gateway/summary'),
+  gatewayLog:           () => req('GET', '/api/gateway/log'),
+  gatewayLogVerify:     () => req('GET', '/api/gateway/log/verify'),
+
   // Notificaciones Admin · errores/inestabilidad
   notifications:        (limit) => req('GET', `/api/notifications${limit ? `?limit=${limit}` : ''}`),
   notificationRead:     (id) => req('POST', `/api/notifications/${id}/read`),
   notificationReadAll:  () => req('POST', '/api/notifications/read-all'),
   notificationDelete:   (id) => req('DELETE', `/api/notifications/${id}`),
   notificationDeleteRead: () => req('DELETE', '/api/notifications'),
+
+  // Consola de Notificaciones · vista unificada admin-only (sistema + trafico Reff)
+  notifCenterSummary: () => req('GET', '/api/notif-center/summary'),
+  notifCenterFeed:    (source, status) => {
+    const qs = new URLSearchParams();
+    if (source) qs.set('source', source);
+    if (status) qs.set('status', status);
+    const q = qs.toString();
+    return req('GET', `/api/notif-center/feed${q ? `?${q}` : ''}`);
+  },
+  notifCenterTrafficApprove: (id) => req('POST', `/api/notif-center/traffic/${id}/approve`),
+  notifCenterTrafficDeny:    (id, note) => req('POST', `/api/notif-center/traffic/${id}/deny`, { note }),
+  notifCenterTrafficRequireJustification: (id) => req('POST', `/api/notif-center/traffic/${id}/require-justification`),
 });
 
 export function toast(msg) {
@@ -313,6 +471,108 @@ export async function uploadFlDoc(kind, entityId, file) {
   const data = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
   return data;
+}
+
+// F&L: [AUDITAR_CONTRATO] via PDF suelto (mismo patron raw upload, sin entidad).
+export async function uploadFlContractAuditPdf(file) {
+  const headers = { 'Content-Type': 'application/pdf', 'X-Filename': encodeURIComponent(file.name) };
+  const t = getToken();
+  if (t) headers.Authorization = `Bearer ${t}`;
+  const r = await fetch('/api/fl/contract-audits', { method: 'POST', headers, body: file });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+  return data;
+}
+
+// Herzog: subida raw de documentos, mismo patron que uploadFlDoc.
+export async function uploadHerzogDocument(file, department) {
+  const headers = { 'Content-Type': file.type, 'X-Filename': encodeURIComponent(file.name), 'X-Department': department || 'sin-especificar' };
+  const t = getToken();
+  if (t) headers.Authorization = `Bearer ${t}`;
+  const r = await fetch('/api/herzog-central/documents', { method: 'POST', headers, body: file });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+  return data;
+}
+
+// Finance CRM: subida raw de documentacion por empresa (mismo patron que Herzog,
+// mas cabecera X-Folder para que el archivo caiga ya ordenado en su carpeta).
+export async function uploadFinanceCompanyDoc(companyId, file, folder, label) {
+  const headers = {
+    'Content-Type': file.type || 'application/octet-stream',
+    'X-Filename': encodeURIComponent(file.name),
+    'X-Folder': folder || 'otros',
+  };
+  if (label) headers['X-Label'] = encodeURIComponent(label);
+  const t = getToken();
+  if (t) headers.Authorization = `Bearer ${t}`;
+  const r = await fetch(`/api/finance/companies/${companyId}/documents`, { method: 'POST', headers, body: file });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+  return data;
+}
+
+// La descarga exige Authorization, asi que se baja como blob autenticado y se
+// abre en pestana nueva (PDF/imagen) o se fuerza guardado si el navegador no lo
+// puede mostrar inline.
+export async function openFinanceCompanyDoc(fileId, filename, download = false) {
+  const headers = {};
+  const t = getToken();
+  if (t) headers.Authorization = `Bearer ${t}`;
+  const r = await fetch(`/api/finance/companies/documents/${fileId}`, { headers });
+  if (!r.ok) {
+    const data = await r.json().catch(() => ({}));
+    throw new Error(data.error || `HTTP ${r.status}`);
+  }
+  const blob = await r.blob();
+  const url = URL.createObjectURL(blob);
+  if (download) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename || 'documento';
+    a.click();
+  } else {
+    window.open(url, '_blank', 'noopener');
+  }
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+// Expediente F&L: subida raw (Content-Type del archivo + X-Filename/X-Label),
+// mismo patron que uploadFinanceCompanyDoc.
+export async function uploadFlExpedienteDoc(docId, file) {
+  const headers = {
+    'Content-Type': file.type || 'application/octet-stream',
+    'X-Filename': encodeURIComponent(file.name),
+  };
+  const t = getToken();
+  if (t) headers.Authorization = `Bearer ${t}`;
+  const r = await fetch(`/api/fl/expediente/documentos/${docId}/archivo`, { method: 'POST', headers, body: file });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+  return data;
+}
+
+// GridFS exige Authorization: se baja como blob y se abre/descarga en cliente.
+export async function openFlExpedienteDoc(fileId, filename, download = false) {
+  const headers = {};
+  const t = getToken();
+  if (t) headers.Authorization = `Bearer ${t}`;
+  const r = await fetch(`/api/fl/expediente/archivos/${fileId}`, { headers });
+  if (!r.ok) {
+    const data = await r.json().catch(() => ({}));
+    throw new Error(data.error || `HTTP ${r.status}`);
+  }
+  const blob = await r.blob();
+  const url = URL.createObjectURL(blob);
+  if (download) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename || 'documento';
+    a.click();
+  } else {
+    window.open(url, '_blank', 'noopener');
+  }
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
 export async function downloadFlDoc(docId, filename) {
