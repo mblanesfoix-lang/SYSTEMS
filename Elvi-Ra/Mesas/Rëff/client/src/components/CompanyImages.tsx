@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   fetchCompanyImages, uploadCompanyImage, deleteCompanyImage, fetchImageObjectUrl,
   type CompanyImage,
@@ -10,6 +10,19 @@ const MAX_PDF_SIZE = 16 * 1024 * 1024;
 
 const isPdf = (f: CompanyImage) => f.contentType === 'application/pdf';
 
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatDate(iso: string | null): string {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+type ThumbState = 'loading' | 'ready' | 'error';
+
 interface Props {
   companyId: number;
 }
@@ -19,32 +32,53 @@ interface Props {
 export function CompanyImages({ companyId }: Props) {
   const [images, setImages] = useState<CompanyImage[]>([]);
   const [urls, setUrls] = useState<Record<string, string>>({});
+  const [thumbState, setThumbState] = useState<Record<string, ThumbState>>({});
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lightbox, setLightbox] = useState<CompanyImage | null>(null);
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const urlsRef = useRef(urls);
   urlsRef.current = urls;
 
-  async function loadThumb(img: CompanyImage) {
-    if (isPdf(img)) return; // los PDF no tienen thumb: se abren bajo demanda
-    try {
-      const url = await fetchImageObjectUrl(img.id);
-      setUrls((prev) => ({ ...prev, [img.id]: url }));
-    } catch { /* thumb queda en placeholder */ }
+  const viewerImage = viewerIndex != null ? images[viewerIndex] : null;
+
+  async function ensureUrl(img: CompanyImage): Promise<string> {
+    const cached = urlsRef.current[img.id];
+    if (cached) return cached;
+    const url = await fetchImageObjectUrl(img.id);
+    setUrls((prev) => ({ ...prev, [img.id]: url }));
+    return url;
   }
 
-  // Abre el PDF en una pestaña nueva vía blob autenticado (cacheado en urls).
-  async function openPdf(img: CompanyImage) {
+  async function loadThumb(img: CompanyImage) {
+    if (isPdf(img)) return; // los PDF no tienen thumb: preview bajo demanda en el visor
+    setThumbState((prev) => ({ ...prev, [img.id]: 'loading' }));
     try {
-      let url = urlsRef.current[img.id];
-      if (!url) {
-        url = await fetchImageObjectUrl(img.id);
-        setUrls((prev) => ({ ...prev, [img.id]: url }));
-      }
-      window.open(url, '_blank', 'noopener');
+      await ensureUrl(img);
+      setThumbState((prev) => ({ ...prev, [img.id]: 'ready' }));
     } catch {
-      setError(`No se pudo abrir "${img.filename}"`);
+      setThumbState((prev) => ({ ...prev, [img.id]: 'error' }));
+    }
+  }
+
+  async function openViewer(index: number) {
+    setViewerIndex(index);
+    const img = images[index];
+    if (img && !urlsRef.current[img.id]) {
+      try { await ensureUrl(img); } catch { setError(`No se pudo abrir "${img.filename}"`); }
+    }
+  }
+
+  async function downloadFile(img: CompanyImage) {
+    try {
+      const url = await ensureUrl(img);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = img.filename;
+      a.click();
+    } catch {
+      setError(`No se pudo descargar "${img.filename}"`);
     }
   }
 
@@ -63,6 +97,27 @@ export function CompanyImages({ companyId }: Props) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId]);
+
+  // Navegación por teclado en el visor: flechas cambian de archivo, Escape cierra.
+  useEffect(() => {
+    if (viewerIndex == null) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setViewerIndex(null);
+      if (e.key === 'ArrowRight') setViewerIndex((i) => (i == null ? i : Math.min(i + 1, images.length - 1)));
+      if (e.key === 'ArrowLeft') setViewerIndex((i) => (i == null ? i : Math.max(i - 1, 0)));
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [viewerIndex, images.length]);
+
+  useEffect(() => {
+    if (viewerIndex == null) return;
+    const img = images[viewerIndex];
+    if (img && !urlsRef.current[img.id]) {
+      ensureUrl(img).catch(() => setError(`No se pudo abrir "${img.filename}"`));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewerIndex]);
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -101,11 +156,26 @@ export function CompanyImages({ companyId }: Props) {
         URL.revokeObjectURL(url);
         setUrls((prev) => { const next = { ...prev }; delete next[img.id]; return next; });
       }
-      if (lightbox?.id === img.id) setLightbox(null);
+      setViewerIndex((i) => {
+        if (i == null) return i;
+        const idx = images.findIndex((x) => x.id === img.id);
+        return idx === i ? null : i;
+      });
     } catch (err: any) {
       setError(err?.message || 'Error al eliminar imagen');
     }
   }
+
+  const dropHandlers = useMemo(() => ({
+    onDragOver: (e: React.DragEvent) => { e.preventDefault(); setDragOver(true); },
+    onDragLeave: () => setDragOver(false),
+    onDrop: (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragOver(false);
+      handleFiles(e.dataTransfer.files);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [companyId]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -131,78 +201,183 @@ export function CompanyImages({ companyId }: Props) {
         />
       </div>
 
-      {images.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(84px, 1fr))', gap: 8 }}>
-          {images.map((img) => (
-            <div key={img.id} style={{ position: 'relative' }}>
-              <button
-                onClick={() => (isPdf(img) ? openPdf(img) : setLightbox(img))}
-                title={img.filename}
-                style={{
-                  display: 'block', width: '100%', aspectRatio: '1', padding: 0,
-                  border: '1px solid var(--border, rgba(0,0,0,0.12))', borderRadius: 6,
-                  overflow: 'hidden', cursor: 'pointer', background: 'var(--surface-2, #f2f3f5)',
-                }}
-              >
-                {isPdf(img) ? (
-                  <span style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                    gap: 4, width: '100%', height: '100%', padding: 6,
-                  }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: '#b3322c' }}>PDF</span>
-                    <span style={{
-                      fontSize: 9, color: 'var(--text-muted)', maxWidth: '100%',
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    }}>
-                      {img.filename}
-                    </span>
-                  </span>
-                ) : urls[img.id] ? (
-                  <img src={urls[img.id]} alt={img.filename} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                ) : (
-                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>…</span>
-                )}
-              </button>
-              <button
-                onClick={() => handleDelete(img)}
-                title="Eliminar"
-                style={{
-                  position: 'absolute', top: 3, right: 3, width: 18, height: 18,
-                  border: 'none', borderRadius: '50%', background: 'rgba(0,0,0,0.55)',
-                  color: '#fff', fontSize: 11, lineHeight: '18px', cursor: 'pointer', padding: 0,
-                }}
-              >
-                ×
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+      <div
+        {...dropHandlers}
+        style={{
+          border: `1px dashed ${dragOver ? 'var(--accent)' : 'var(--border-mid)'}`,
+          borderRadius: 6,
+          padding: images.length > 0 ? 8 : 20,
+          background: dragOver ? 'var(--accent-dim)' : 'transparent',
+          transition: 'border-color 120ms ease, background 120ms ease',
+        }}
+      >
+        {images.length === 0 ? (
+          <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-muted)' }}>
+            Arrastra archivos aquí o usa "+ Añadir"
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(88px, 1fr))', gap: 8 }}>
+            {images.map((img, index) => {
+              const state = isPdf(img) ? 'ready' : (thumbState[img.id] || 'loading');
+              return (
+                <div key={img.id} style={{ position: 'relative' }}>
+                  <button
+                    onClick={() => openViewer(index)}
+                    title={`${img.filename} · ${formatSize(img.size)}`}
+                    style={{
+                      display: 'block', width: '100%', aspectRatio: '1', padding: 0,
+                      border: '1px solid var(--border-mid)', borderRadius: 6,
+                      overflow: 'hidden', cursor: 'pointer', background: 'var(--surface-2)',
+                    }}
+                  >
+                    {isPdf(img) ? (
+                      <span style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                        gap: 4, width: '100%', height: '100%', padding: 6,
+                      }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: '#ff6b6b' }}>PDF</span>
+                        <span style={{
+                          fontSize: 9, color: 'var(--text-muted)', maxWidth: '100%',
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        }}>
+                          {img.filename}
+                        </span>
+                      </span>
+                    ) : state === 'ready' && urls[img.id] ? (
+                      <img src={urls[img.id]} alt={img.filename} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                    ) : state === 'error' ? (
+                      <span
+                        role="button"
+                        onClick={(e) => { e.stopPropagation(); loadThumb(img); }}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', fontSize: 10, color: '#ff6b6b', textAlign: 'center', padding: 6 }}
+                      >
+                        Error · reintentar
+                      </span>
+                    ) : (
+                      <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+                        <span className="spinner" style={{ width: 14, height: 14 }} />
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => handleDelete(img)}
+                    title="Eliminar"
+                    style={{
+                      position: 'absolute', top: 3, right: 3, width: 18, height: 18,
+                      border: 'none', borderRadius: '50%', background: 'rgba(0,0,0,0.55)',
+                      color: '#fff', fontSize: 11, lineHeight: '18px', cursor: 'pointer', padding: 0,
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
-      {error && <div style={{ color: '#b3322c', fontSize: 12 }}>{error}</div>}
+      {error && <div style={{ color: '#ff6b6b', fontSize: 12 }}>{error}</div>}
 
-      {lightbox && (
+      {viewerImage && (
         <div
-          onClick={() => setLightbox(null)}
+          onClick={() => setViewerIndex(null)}
           style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.82)', zIndex: 400,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out',
+            position: 'fixed', inset: 0, background: 'rgba(3,6,10,0.90)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', zIndex: 400,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}
         >
-          <div style={{ maxWidth: '90vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {urls[lightbox.id] && (
-              <img
-                src={urls[lightbox.id]}
-                alt={lightbox.filename}
-                style={{ maxWidth: '90vw', maxHeight: '84vh', objectFit: 'contain', borderRadius: 6 }}
-              />
-            )}
-            <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, textAlign: 'center' }}>
-              {lightbox.filename}
-            </span>
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: '92vw', height: '90vh', display: 'flex', flexDirection: 'column', gap: 10 }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#fff' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {viewerImage.filename}
+                </span>
+                <span style={{ fontSize: 11, opacity: 0.6 }}>
+                  {formatSize(viewerImage.size)} · {formatDate(viewerImage.uploadedAt)} · {viewerIndex! + 1}/{images.length}
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                <button className="btn-secondary" onClick={() => downloadFile(viewerImage)} style={{ fontSize: 12, padding: '5px 12px' }}>
+                  Descargar
+                </button>
+                <button className="btn-secondary" onClick={() => handleDelete(viewerImage)} style={{ fontSize: 12, padding: '5px 12px', borderColor: '#ff6b6b', color: '#ff6b6b' }}>
+                  Eliminar
+                </button>
+                <button
+                  onClick={() => setViewerIndex(null)}
+                  style={{ border: 'none', background: 'rgba(255,255,255,0.1)', color: '#fff', cursor: 'pointer', fontSize: 16, width: 30, height: 30, borderRadius: 6 }}
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            <div style={{ flex: 1, minHeight: 0, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {viewerIndex! > 0 && (
+                <button
+                  onClick={() => setViewerIndex((i) => (i == null ? i : Math.max(i - 1, 0)))}
+                  style={navArrowStyle('left')}
+                  title="Anterior"
+                >
+                  ‹
+                </button>
+              )}
+              {viewerIndex! < images.length - 1 && (
+                <button
+                  onClick={() => setViewerIndex((i) => (i == null ? i : Math.min(i + 1, images.length - 1)))}
+                  style={navArrowStyle('right')}
+                  title="Siguiente"
+                >
+                  ›
+                </button>
+              )}
+
+              {isPdf(viewerImage) ? (
+                urls[viewerImage.id] ? (
+                  <iframe
+                    src={urls[viewerImage.id]}
+                    title={viewerImage.filename}
+                    style={{ width: '100%', height: '100%', border: 'none', borderRadius: 6, background: '#fff' }}
+                  />
+                ) : (
+                  <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>Cargando PDF…</span>
+                )
+              ) : urls[viewerImage.id] ? (
+                <img
+                  src={urls[viewerImage.id]}
+                  alt={viewerImage.filename}
+                  style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 6 }}
+                />
+              ) : (
+                <span className="spinner" />
+              )}
+            </div>
           </div>
         </div>
       )}
     </div>
   );
+}
+
+function navArrowStyle(side: 'left' | 'right'): React.CSSProperties {
+  return {
+    position: 'absolute',
+    [side]: 8,
+    top: '50%',
+    transform: 'translateY(-50%)',
+    border: 'none',
+    background: 'rgba(255,255,255,0.12)',
+    color: '#fff',
+    cursor: 'pointer',
+    fontSize: 26,
+    lineHeight: 1,
+    width: 42,
+    height: 42,
+    borderRadius: '50%',
+    zIndex: 1,
+  } as React.CSSProperties;
 }

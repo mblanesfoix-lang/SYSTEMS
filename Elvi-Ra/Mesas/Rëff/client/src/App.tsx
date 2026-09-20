@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { DashboardPage } from './pages/DashboardPage';
 import { CRMPage } from './pages/CRMPage';
-import { HerzogPage } from './pages/HerzogPage';
+import { CalendarPage } from './pages/CalendarPage';
 import { VigilanciaPage } from './pages/VigilanciaPage';
 import { clearElviraSession, clearSession, fetchGuestToken, getStoredUser, getToken, type User } from './lib/api';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(() => getStoredUser());
+  const location = useLocation();
 
   useEffect(() => {
     if (user && getToken()) return;
@@ -35,14 +37,19 @@ export default function App() {
         target.location.href = '/pages/login.html';
       }} />
       <div style={{ flex: 1, minWidth: 0, height: '100vh', overflow: 'auto' }}>
+        {/* La clave por ruta reinicia el boundary al navegar: un fallo en una
+            pantalla no deja bloqueadas las demas. */}
+        <ErrorBoundary key={location.pathname} label="esta pantalla">
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/crm" element={<CRMPage />} />
-          <Route path="/herzog" element={<HerzogPage />} />
+          <Route path="/calendario" element={<CalendarPage />} />
           <Route path="/vigilancia" element={<VigilanciaPage />} />
+          <Route path="/herzog" element={<Navigate to="/vigilancia" replace />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
+        </ErrorBoundary>
       </div>
     </div>
   );

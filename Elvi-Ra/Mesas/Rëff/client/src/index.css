@@ -2,47 +2,70 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ══════════════════════════════════════════════════════════════
+   RËFF · Sistema visual unico del departamento.
+   Estetica Apple (jerarquia, espaciado, materiales) sobre aura
+   oscura tecnologica: superficies elevadas, bordes redondeados,
+   glow de acento y animaciones de entrada.
+
+   Todo el departamento comparte estos tokens. Los componentes ya
+   consumen var(--surface-*), var(--text-*), var(--border-*) y
+   var(--accent), asi que el tema se aplica desde aqui sin tocar
+   cada pantalla.
+   ══════════════════════════════════════════════════════════════ */
 :root {
-  color-scheme: light;
+  color-scheme: dark;
   --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
   --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
   --font-display: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif;
 
-  --accent: #0071e3;
-  --accent-hover: #0077ed;
-  --accent-dim: rgba(0, 113, 227, 0.08);
-  --accent-border: rgba(0, 113, 227, 0.22);
+  /* Acento: cian tecnologico, legible sobre fondo oscuro */
+  --accent: #2ee6d6;
+  --accent-hover: #4ff3e4;
+  --accent-strong: #12c9ba;
+  --accent-dim: rgba(46, 230, 214, 0.10);
+  --accent-border: rgba(46, 230, 214, 0.30);
+  --accent-glow: rgba(46, 230, 214, 0.28);
+  --accent-contrast: #04211f;
 
-  --status-ok: #1fa855;
-  --status-warn: #c9820a;
-  --status-bad: #e0342c;
+  --status-ok: #35d68a;
+  --status-warn: #e8b13a;
+  --status-bad: #ff6b6b;
 
-  --surface-0: #f5f5f7;
-  --surface-1: #ffffff;
-  --surface-2: #fafafa;
+  /* Superficies: profundidad por elevacion, no por lineas duras */
+  --surface-0: #070a0d;
+  --surface-1: #0e1319;
+  --surface-2: #141b23;
+  --surface-3: #1b242e;
+  --surface-raised: rgba(255, 255, 255, 0.04);
 
-  --border-subtle: rgba(0, 0, 0, 0.06);
-  --border-mid: rgba(0, 0, 0, 0.10);
-  --border-strong: rgba(0, 0, 0, 0.20);
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --border-mid: rgba(255, 255, 255, 0.12);
+  --border-strong: rgba(255, 255, 255, 0.20);
 
-  --text-primary: #1d1d1f;
-  --text-secondary: #3a3a3c;
-  --text-muted: #6e6e73;
+  --text-primary: #eef4f7;
+  --text-secondary: #b9c6d1;
+  --text-muted: #7d8c9a;
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 32px rgba(0, 0, 0, 0.10);
-  --shadow-xl: 0 1px 2px rgba(0, 0, 0, 0.05), 0 24px 48px rgba(0, 0, 0, 0.14);
+  /* Sombra + glow: el halo de acento es lo que da el "aura" */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.40);
+  --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.45), 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.50), 0 18px 48px rgba(0, 0, 0, 0.45);
+  --shadow-xl: 0 8px 20px rgba(0, 0, 0, 0.55), 0 32px 72px rgba(0, 0, 0, 0.55);
+  --glow-accent: 0 0 0 1px var(--accent-border), 0 0 28px -6px var(--accent-glow);
 
   --radius-sm: 10px;
   --radius-md: 14px;
   --radius-lg: 18px;
   --radius-xl: 24px;
-  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --radius-pill: 999px;
 
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --transition-fast: 160ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-base: 220ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 420ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 html, body, #root {
@@ -55,24 +78,43 @@ body {
   font-weight: 400;
   font-size: 13px;
   background: var(--surface-0);
-  background-image: linear-gradient(180deg, #fafafa 0%, #f5f5f7 100%);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   letter-spacing: -0.011em;
 }
 
+/* Aura ambiental: dos focos frios muy difusos sobre el fondo.
+   fixed + -1 para que no intercepte clicks ni se desplace al hacer scroll. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(70% 55% at 12% 0%, rgba(46, 230, 214, 0.10), transparent 62%),
+    radial-gradient(60% 50% at 92% 8%, rgba(64, 132, 255, 0.10), transparent 60%),
+    radial-gradient(90% 70% at 50% 100%, rgba(10, 18, 26, 0.85), transparent 70%);
+}
+
+::selection {
+  background: rgba(46, 230, 214, 0.26);
+  color: var(--text-primary);
+}
+
 /* ── Scrollbar ────────────────────────────── */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.12);
-  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: var(--radius-pill);
   border: 2px solid transparent;
   background-clip: content-box;
+  transition: background var(--transition-fast);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.22);
+  background: var(--accent-border);
   background-clip: content-box;
   border: 2px solid transparent;
 }
@@ -95,14 +137,14 @@ body {
 .prose-chat li { margin: 0.25rem 0; }
 .prose-chat code {
   font-family: var(--font-mono);
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(255, 255, 255, 0.06);
   padding: 0.1rem 0.4rem;
-  border-radius: 4px;
+  border-radius: 5px;
   font-size: 0.85em;
-  color: var(--text-primary);
+  color: var(--accent);
 }
 .prose-chat pre {
-  background: #f6f6f8 !important;
+  background: var(--surface-2) !important;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   padding: 1rem !important;
@@ -126,7 +168,7 @@ body {
 .prose-chat h2 { font-size: 0.95rem; }
 .prose-chat h3 { font-size: 0.875rem; }
 .prose-chat blockquote {
-  border-left: 3px solid var(--border-mid);
+  border-left: 3px solid var(--accent-border);
   padding: 0.25rem 0 0.25rem 1rem;
   color: var(--text-secondary);
   margin: 0.6rem 0;
@@ -134,7 +176,7 @@ body {
 .prose-chat a {
   color: var(--accent);
   text-decoration: none;
-  border-bottom: 1px solid rgba(0, 113, 227, 0.3);
+  border-bottom: 1px solid var(--accent-border);
   transition: border-color var(--transition-fast);
 }
 .prose-chat a:hover { border-color: var(--accent); }
@@ -175,13 +217,14 @@ body {
 /* ── Spinner ──────────────────────────────── */
 @keyframes spin { to { transform: rotate(360deg); } }
 .spinner {
-  border: 2px solid rgba(0, 0, 0, 0.08);
+  border: 2px solid rgba(255, 255, 255, 0.10);
   border-top-color: var(--accent);
   border-radius: 50%;
   width: 16px;
   height: 16px;
   animation: spin 0.7s linear infinite;
   display: inline-block;
+  box-shadow: 0 0 12px -2px var(--accent-glow);
 }
 
 /* ── Cursor blink ─────────────────────────── */
@@ -189,133 +232,504 @@ body {
   0%, 49% { opacity: 1; }
   50%, 100% { opacity: 0; }
 }
-.cursor-blink {
-  animation: cursor-blink 1s step-end infinite;
-}
+.cursor-blink { animation: cursor-blink 1s step-end infinite; }
 
-/* ── Fade-in / Animations ─────────────────── */
+/* ── Animaciones de entrada ───────────────── */
 @keyframes fadeUp {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.fade-up {
-  animation: fadeUp 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
+.fade-up { animation: fadeUp 0.42s var(--ease) both; }
 
 @keyframes fadeIn {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
-.fade-in {
-  animation: fadeIn 0.35s ease-out both;
-}
+.fade-in { animation: fadeIn 0.35s ease-out both; }
 
-/* ── Apple-style card ─────────────────────── */
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.97); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.scale-in { animation: scaleIn 0.32s var(--ease) both; }
+
+/* Cascada: los hijos entran escalonados. Se aplica al contenedor. */
+.stagger > * { animation: fadeUp 0.46s var(--ease) both; }
+.stagger > *:nth-child(1) { animation-delay: 0.02s; }
+.stagger > *:nth-child(2) { animation-delay: 0.06s; }
+.stagger > *:nth-child(3) { animation-delay: 0.10s; }
+.stagger > *:nth-child(4) { animation-delay: 0.14s; }
+.stagger > *:nth-child(5) { animation-delay: 0.18s; }
+.stagger > *:nth-child(6) { animation-delay: 0.22s; }
+.stagger > *:nth-child(7) { animation-delay: 0.26s; }
+.stagger > *:nth-child(8) { animation-delay: 0.30s; }
+
+@keyframes auraPulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+.aura-pulse { animation: auraPulse 2.6s ease-in-out infinite; }
+
+/* ── Card ─────────────────────────────────── */
 .card {
   background: var(--surface-1);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-md);
   transition: box-shadow var(--transition-base), transform var(--transition-base), border-color var(--transition-base);
 }
 .card-hover:hover {
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-lg), 0 0 32px -10px var(--accent-glow);
   transform: translateY(-2px);
-  border-color: var(--border-mid);
+  border-color: var(--accent-border);
 }
 
-/* ── Elvi-Ra style button ─────────────────── */
+/* Card con filo superior de acento: para destacar un panel principal. */
+.card-accent {
+  position: relative;
+  overflow: hidden;
+}
+.card-accent::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: 0.7;
+}
+
+/* ── Botones ──────────────────────────────── */
 .btn-primary {
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-contrast);
   border: 1px solid var(--accent);
   border-radius: var(--radius-sm);
   padding: 8px 18px;
   font-family: var(--font-body);
-  font-weight: 590;
+  font-weight: 620;
   font-size: 13px;
   letter-spacing: -0.006em;
-  text-transform: none;
   cursor: pointer;
   transition: background var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 .btn-primary:hover:not(:disabled) {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
-  box-shadow: 0 6px 16px -6px rgba(0,113,227,0.45);
+  box-shadow: 0 6px 20px -6px var(--accent-glow), 0 0 0 1px var(--accent-border);
 }
-.btn-primary:active:not(:disabled) {
-  transform: scale(0.98);
-}
-.btn-primary:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
+.btn-primary:active:not(:disabled) { transform: scale(0.98); }
+.btn-primary:disabled { opacity: 0.35; cursor: not-allowed; }
 
 .btn-secondary {
-  background: transparent;
+  background: var(--surface-raised);
   color: var(--text-primary);
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--border-mid);
   border-radius: var(--radius-sm);
   padding: 7px 17px;
   font-family: var(--font-body);
   font-weight: 590;
   font-size: 13px;
   letter-spacing: -0.006em;
-  text-transform: none;
   cursor: pointer;
-  transition: background var(--transition-fast), border-color var(--transition-fast);
+  transition: background var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
 }
 .btn-secondary:hover:not(:disabled) {
-  background: rgba(0, 0, 0, 0.04);
-  border-color: rgba(0, 0, 0, 0.30);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--border-strong);
 }
+.btn-secondary:active:not(:disabled) { transform: scale(0.98); }
+.btn-secondary:disabled { opacity: 0.35; cursor: not-allowed; }
 
-/* ── Elvi-Ra style input ──────────────────── */
+/* ── Inputs ───────────────────────────────── */
 .input-field {
-  background: var(--surface-1);
-  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  border: 1px solid var(--border-mid);
   border-radius: var(--radius-sm);
   padding: 8px 12px;
   font-family: var(--font-body);
   font-size: 13px;
   color: var(--text-primary);
   outline: none;
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
   width: 100%;
   box-sizing: border-box;
   letter-spacing: -0.011em;
 }
+.input-field:hover:not(:focus) { border-color: var(--border-strong); }
 .input-field:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.16);
+  background: var(--surface-1);
+  box-shadow: 0 0 0 3px var(--accent-dim), 0 0 22px -8px var(--accent-glow);
 }
-.input-field::placeholder {
-  color: var(--text-muted);
-  opacity: 1;
+.input-field::placeholder { color: var(--text-muted); opacity: 1; }
+
+/* Los select nativos heredan el fondo del SO: se fuerza el panel oscuro
+   para que el desplegable no salga blanco sobre la UI oscura. */
+select.input-field option {
+  background: var(--surface-2);
+  color: var(--text-primary);
 }
 
-/* ── Glass surface (subtle Apple Vision) ──── */
+/* ── Glass ────────────────────────────────── */
 .glass {
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(14, 19, 25, 0.72);
+  backdrop-filter: saturate(160%) blur(20px);
+  -webkit-backdrop-filter: saturate(160%) blur(20px);
+  border: 1px solid var(--border-subtle);
 }
 
-/* ── Textarea reset ───────────────────────── */
+/* ── Textarea ─────────────────────────────── */
 textarea {
   font-family: var(--font-body);
   field-sizing: content;
 }
-textarea::placeholder {
-  color: var(--text-muted);
-  opacity: 1;
+textarea::placeholder { color: var(--text-muted); opacity: 1; }
+
+/* ── Retícula tecnica de fondo ────────────── */
+.tech-dots {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.tech-grid {
+  background-image:
+    linear-gradient(rgba(46, 230, 214, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(46, 230, 214, 0.035) 1px, transparent 1px);
+  background-size: 28px 28px;
 }
 
-/* ── Subtle fine-grain dot pattern (tech touch) ── */
-.tech-dots {
-  background-image: radial-gradient(rgba(0, 0, 0, 0.04) 1px, transparent 1px);
-  background-size: 24px 24px;
-  background-position: 0 0;
+/* Navegacion lateral: el hover solo se puede expresar en CSS, porque los
+   estilos inline de NavLink no admiten :hover. */
+.nav-link:hover {
+  color: var(--text-primary) !important;
+  background: var(--surface-raised) !important;
+}
+.nav-link[aria-current='page']:hover {
+  background: var(--accent-dim) !important;
+}
+
+/* Punto de estado con halo, reutilizable en todo el departamento. */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   CRM — mantiene su identidad verde de consola, ahora alineada con
+   el sistema global: mismos radios, misma profundidad, mismas
+   animaciones. Antes era el unico apartado oscuro y con esquinas
+   rectas; ahora es una variante de acento, no un tema aparte.
+   ══════════════════════════════════════════════════════════════ */
+.crm-tech {
+  --ct-bg: #070b09;
+  --ct-bg-raised: #0c120e;
+  --ct-panel: #0d1410;
+  --ct-panel-2: #121a15;
+  --ct-border: rgba(51, 255, 156, 0.14);
+  --ct-border-strong: rgba(51, 255, 156, 0.32);
+  --ct-green: #33ff9c;
+  --ct-green-dim: rgba(51, 255, 156, 0.5);
+  --ct-green-glow: rgba(51, 255, 156, 0.20);
+  --ct-text: #e6fff3;
+  --ct-text-muted: #7fa896;
+  --ct-red: #ff5a5a;
+
+  /* Re-apunta los tokens compartidos: cualquier componente que ya use
+     var(--text-muted), var(--accent), etc. adopta el verde aqui dentro
+     sin edicion por componente. */
+  --text-primary: var(--ct-text);
+  --text-secondary: var(--ct-text);
+  --text-muted: var(--ct-text-muted);
+  --surface-0: var(--ct-bg);
+  --surface-1: var(--ct-panel);
+  --surface-2: var(--ct-panel-2);
+  --surface-3: #18211b;
+  --border-subtle: var(--ct-border);
+  --border-mid: var(--ct-border);
+  --border-strong: var(--ct-border-strong);
+  --accent: var(--ct-green);
+  --accent-hover: #4dffb0;
+  --accent-strong: #1fe589;
+  --accent-dim: var(--ct-green-glow);
+  --accent-border: var(--ct-border-strong);
+  --accent-glow: var(--ct-green-glow);
+  --accent-contrast: #06120b;
+
+  background: var(--ct-bg);
+  color: var(--ct-text);
+  font-family: var(--font-body);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background-image:
+    radial-gradient(75% 55% at 15% 0%, rgba(51, 255, 156, 0.07), transparent 62%),
+    linear-gradient(rgba(51, 255, 156, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(51, 255, 156, 0.03) 1px, transparent 1px);
+  background-size: auto, 28px 28px, 28px 28px;
+}
+
+.crm-tech ::selection { background: rgba(51, 255, 156, 0.28); }
+.crm-tech ::-webkit-scrollbar-thumb { background: rgba(51, 255, 156, 0.18); }
+.crm-tech ::-webkit-scrollbar-thumb:hover { background: rgba(51, 255, 156, 0.34); }
+
+.crm-tech__header { padding: 22px 28px 0; }
+.crm-tech__title {
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin: 0;
+  color: var(--ct-text);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.crm-tech__title::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ct-green);
+  box-shadow: 0 0 10px var(--ct-green);
+  display: inline-block;
+  animation: ct-blink 2.2s ease-in-out infinite;
+}
+.crm-tech__subtitle {
+  color: var(--ct-text-muted);
+  font-size: 12px;
+  margin-top: 6px;
+  margin-bottom: 0;
+}
+
+@keyframes ct-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* ── Sheet tabs ───────────────────────────── */
+.crm-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 16px 28px 0;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--ct-border);
+}
+.crm-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: transparent;
+  color: var(--ct-text-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  user-select: none;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+.crm-tab:hover {
+  color: var(--ct-text);
+  background: rgba(51, 255, 156, 0.06);
+}
+.crm-tab--active {
+  color: var(--ct-green);
+  background: var(--ct-panel);
+  border-color: var(--ct-border-strong);
+  border-bottom: 1px solid var(--ct-panel);
+  margin-bottom: -1px;
+}
+.crm-tab__count { font-size: 10px; opacity: 0.6; }
+.crm-tab__edit {
+  font: inherit;
+  border: none;
+  border-bottom: 1px solid var(--ct-green);
+  background: transparent;
+  outline: none;
+  width: 110px;
+  color: var(--ct-text);
+}
+.crm-tab__delete {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.4;
+  font-size: 13px;
+  padding: 0;
+  line-height: 1;
+  transition: opacity var(--transition-fast), color var(--transition-fast);
+}
+.crm-tab__delete:hover { opacity: 1; color: var(--ct-red); }
+.crm-tab__add {
+  border: 1px solid var(--ct-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+  color: var(--ct-green);
+  font-size: 15px;
+  font-family: var(--font-mono);
+  padding: 7px 12px;
+  margin-left: 4px;
+  transition: background var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+.crm-tab__add:hover {
+  background: rgba(51, 255, 156, 0.08);
+  border-color: var(--ct-border-strong);
+  box-shadow: 0 0 18px -6px var(--ct-green-glow);
+}
+
+/* ── Toolbar / buttons ────────────────────── */
+.crm-toolbar {
+  padding: 14px 28px;
+  display: flex;
+  justify-content: flex-end;
+}
+.crm-btn {
+  background: transparent;
+  color: var(--ct-green);
+  border: 1px solid var(--ct-border-strong);
+  border-radius: var(--radius-sm);
+  padding: 8px 18px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+}
+.crm-btn:hover:not(:disabled) {
+  background: rgba(51, 255, 156, 0.10);
+  box-shadow: 0 0 20px -4px var(--ct-green-glow);
+}
+.crm-btn:active:not(:disabled) { transform: scale(0.98); }
+.crm-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.crm-btn--ghost { color: var(--ct-text-muted); border-color: var(--ct-border); }
+.crm-btn--ghost:hover:not(:disabled) {
+  color: var(--ct-text);
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: none;
+}
+
+.crm-btn--danger { color: var(--ct-red); border-color: rgba(255, 90, 90, 0.35); }
+.crm-btn--danger:hover:not(:disabled) {
+  background: rgba(255, 90, 90, 0.08);
+  box-shadow: 0 0 20px -4px rgba(255, 90, 90, 0.35);
+}
+
+.crm-error {
+  margin: 0 28px 12px;
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 90, 90, 0.35);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 90, 90, 0.07);
+  color: var(--ct-red);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+/* ── Table panel ──────────────────────────── */
+.crm-panel {
+  margin: 0 28px 28px;
+  border: 1px solid var(--ct-border);
+  border-radius: var(--radius-lg);
+  background: var(--ct-panel);
+  overflow: hidden;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-md);
+  animation: fadeUp 0.42s var(--ease) both;
+}
+
+.crm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.crm-table thead th {
+  text-align: left;
+  padding: 11px 16px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ct-text-muted);
+  border-bottom: 1px solid var(--ct-border);
+  background: var(--ct-panel-2);
+}
+.crm-table tbody tr {
+  border-bottom: 1px solid var(--ct-border);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+.crm-table tbody tr:hover { background: rgba(51, 255, 156, 0.06); }
+.crm-table tbody tr:last-child { border-bottom: none; }
+.crm-table td { padding: 12px 16px; color: var(--ct-text); }
+.crm-table__name { font-weight: 600; }
+.crm-table__notes {
+  font-size: 11px;
+  color: var(--ct-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 320px;
+}
+.crm-table__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+}
+.crm-table__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  box-shadow: 0 0 6px currentColor;
+}
+.crm-table__mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ct-text-muted);
+}
+.crm-empty {
+  padding: 56px 24px;
+  text-align: center;
+  color: var(--ct-text-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+/* El CRM ya no cuadra esquinas: hereda los radios del sistema global.
+   Solo se conserva el contraste del boton primario sobre verde brillante. */
+.crm-tech .btn-primary { color: var(--accent-contrast); }
+.crm-tech h2 {
+  color: var(--ct-text);
+  font-family: var(--font-mono) !important;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 0.95rem !important;
+}
+
+/* ── Accesibilidad: respeta "reducir movimiento" del sistema ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

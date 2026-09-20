@@ -5,6 +5,7 @@ import {
 } from '../lib/api';
 import { STATUS_META, STATUS_OPTIONS } from '../lib/status';
 import { CompanyImages } from './CompanyImages';
+import { CompanyMeetings } from './CompanyMeetings';
 
 interface Props {
   company: Company | null;
@@ -101,7 +102,7 @@ export function CompanyModal({ company, onClose, onSave, onDelete }: Props) {
   return (
     <div
       style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200,
+        position: 'fixed', inset: 0, background: 'rgba(3,6,10,0.72)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', zIndex: 200,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}
       onClick={onClose}
@@ -189,16 +190,18 @@ export function CompanyModal({ company, onClose, onSave, onDelete }: Props) {
           </div>
         )}
 
+        {company && <CompanyMeetings companyId={company.id} />}
+
         {company && <CompanyImages companyId={company.id} />}
 
-        {error && <div style={{ color: '#b3322c', fontSize: 12 }}>{error}</div>}
+        {error && <div style={{ color: '#ff6b6b', fontSize: 12 }}>{error}</div>}
 
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
           {company && onDelete ? (
             <button
               className="btn-secondary"
               onClick={() => { if (window.confirm(`¿Eliminar "${company.name}"?`)) onDelete(); }}
-              style={{ borderColor: '#b3322c', color: '#b3322c' }}
+              style={{ borderColor: '#ff6b6b', color: '#ff6b6b' }}
             >
               Eliminar
             </button>

@@ -32,7 +32,7 @@ export function SheetTabs({ sheets, activeSheetId, onSelect, onCreate, onRename,
   }
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 4, borderBottom: '1px solid var(--border-mid)', padding: '0 24px', overflowX: 'auto' }}>
+    <div className="crm-tabs">
       {sheets.map((sheet) => {
         const active = sheet.id === activeSheetId;
         return (
@@ -40,19 +40,7 @@ export function SheetTabs({ sheets, activeSheetId, onSelect, onCreate, onRename,
             key={sheet.id}
             onClick={() => onSelect(sheet.id)}
             onDoubleClick={() => startEdit(sheet)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '10px 16px',
-              cursor: 'pointer',
-              borderBottom: active ? '2px solid var(--accent)' : '2px solid transparent',
-              color: active ? 'var(--text-primary)' : 'var(--text-muted)',
-              fontWeight: active ? 600 : 400,
-              fontSize: 13,
-              whiteSpace: 'nowrap',
-              userSelect: 'none',
-            }}
+            className={`crm-tab${active ? ' crm-tab--active' : ''}`}
           >
             {editingId === sheet.id ? (
               <input
@@ -65,19 +53,19 @@ export function SheetTabs({ sheets, activeSheetId, onSelect, onCreate, onRename,
                   if (e.key === 'Escape') setEditingId(null);
                 }}
                 onClick={(e) => e.stopPropagation()}
-                style={{ font: 'inherit', border: 'none', borderBottom: '1px solid var(--accent)', background: 'transparent', outline: 'none', width: 120 }}
+                className="crm-tab__edit"
               />
             ) : (
               <span>{sheet.name}</span>
             )}
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, opacity: 0.5 }}>{sheet.companyCount}</span>
+            <span className="crm-tab__count">{sheet.companyCount}</span>
             {sheets.length > 1 && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   if (window.confirm(`¿Eliminar la hoja "${sheet.name}" y todas sus empresas?`)) onDelete(sheet.id);
                 }}
-                style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'inherit', opacity: 0.35, fontSize: 14, padding: 0, lineHeight: 1 }}
+                className="crm-tab__delete"
                 title="Eliminar hoja"
               >
                 ×
@@ -86,19 +74,7 @@ export function SheetTabs({ sheets, activeSheetId, onSelect, onCreate, onRename,
           </div>
         );
       })}
-      <button
-        onClick={handleCreate}
-        style={{
-          border: 'none',
-          background: 'transparent',
-          cursor: 'pointer',
-          color: 'var(--accent)',
-          fontSize: 18,
-          padding: '8px 12px',
-          fontWeight: 600,
-        }}
-        title="Nueva hoja"
-      >
+      <button onClick={handleCreate} className="crm-tab__add" title="Nueva hoja">
         +
       </button>
     </div>

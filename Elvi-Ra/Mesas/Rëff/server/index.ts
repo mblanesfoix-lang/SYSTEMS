@@ -13,7 +13,10 @@ import companiesRoutes from './routes/companies.routes.js';
 import geoRoutes from './routes/geo.routes.js';
 import herzogRoutes from './routes/herzog.routes.js';
 import watchRoutes from './routes/watch.routes.js';
+import trafficRoutes from './routes/traffic.routes.js';
+import meetingsRoutes from './routes/meetings.routes.js';
 import { startWatchCron } from './watch.js';
+import { startMeetingReminderCron } from './meeting-reminders.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -60,11 +63,14 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/crm', sheetsRoutes);
 app.use('/api/crm', companiesRoutes);
+app.use('/api/crm', meetingsRoutes);
 app.use('/api/geo', geoRoutes);
 app.use('/api/herzog', herzogRoutes);
 app.use('/api/watch', watchRoutes);
+app.use('/api/traffic', trafficRoutes);
 
 startWatchCron();
+startMeetingReminderCron();
 
 if (NODE_ENV === 'production') {
   const clientDir = path.resolve(__dirname, '../../dist/client');

@@ -24,7 +24,7 @@ export function CityTooltip({ city, x, y }: Props) {
         minWidth: 200,
         maxWidth: 280,
         backdropFilter: 'blur(12px)',
-        boxShadow: 'var(--shadow-lg)',
+        boxShadow: 'var(--shadow-lg), 0 0 30px -12px var(--accent-glow)',
       }}
     >
       <div style={{ fontSize: 11, opacity: 0.6, marginBottom: 2 }}>

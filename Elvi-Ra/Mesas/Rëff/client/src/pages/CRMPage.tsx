@@ -90,17 +90,17 @@ export function CRMPage() {
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-        <span className="spinner" />
+      <div className="crm-tech" style={{ alignItems: 'center', justifyContent: 'center' }}>
+        <span className="spinner" style={{ borderTopColor: '#33ff9c' }} />
       </div>
     );
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ padding: '24px 24px 0' }}>
-        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', margin: 0 }}>CRM</h1>
-        <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4, marginBottom: 16 }}>
+    <div className="crm-tech">
+      <div className="crm-tech__header">
+        <h1 className="crm-tech__title">CRM</h1>
+        <p className="crm-tech__subtitle">
           Excel inteligente. Organiza empresas por hojas, define su estado y su ubicación para verlas en el Dashboard.
         </p>
       </div>
@@ -114,15 +114,15 @@ export function CRMPage() {
         onDelete={handleDeleteSheet}
       />
 
-      <div style={{ padding: '16px 24px', display: 'flex', justifyContent: 'flex-end' }}>
-        <button className="btn-primary" onClick={() => setModalCompany('new')} disabled={activeSheetId == null}>
-          Añadir empresa
+      <div className="crm-toolbar">
+        <button className="crm-btn" onClick={() => setModalCompany('new')} disabled={activeSheetId == null}>
+          + Añadir empresa
         </button>
       </div>
 
-      {error && <div style={{ padding: '0 24px 12px', color: '#b3322c', fontSize: 12 }}>{error}</div>}
+      {error && <div className="crm-error">{error}</div>}
 
-      <div className="card" style={{ margin: '0 24px 24px', overflow: 'hidden' }}>
+      <div className="crm-panel">
         <CompanyTable companies={companies} onEdit={setModalCompany} />
       </div>
 

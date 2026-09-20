@@ -258,32 +258,98 @@ export async function fetchGlobeCities() {
 
 /* ---------- Herzog ---------- */
 
-export interface HerzogResult {
-  scores: { W: number; I: number; S: number; M: number; E: number; R: number };
-  overall: number;
-  classification: 'ESTRATEGICO' | 'OPERATIVO' | 'NO_CANDIDATO';
-  summary: string;
-  highlights: string[];
-  risks: string[];
+export interface HerzogContactMethod {
+  channel: 'web' | 'email' | 'telefono' | 'linkedin' | 'sede' | string;
+  value: string;
+  note: string;
 }
 
-export async function runHerzogAudit(companyName: string, text: string) {
-  return request<{ result: HerzogResult }>('/api/herzog/audit', {
+/** Tipo de acreditacion: A = Cliente (donde auditar e implantar Nodos), B = Financiador (capacitado para entrar en accionariado). */
+export type HerzogEvalType = 'CLIENTE' | 'FINANCIADOR';
+
+export type HerzogVerdict = 'ACEPTADO' | 'REVISION_MANUAL' | 'RECHAZADO';
+
+/** Las 4 categorias del dictamen. El peso varia segun el tipo (A/B), por eso viaja dentro del resultado. */
+export type HerzogCategoryKey =
+  | 'solvenciaFinanciera'
+  | 'infraestructuraOperativa'
+  | 'transparenciaCompliance'
+  | 'alineacionEstrategica';
+
+export interface HerzogCategoryScore {
+  /** 1-10 */
+  score: number;
+  /** Peso aplicado en el calculo global, en % (los 4 suman 100). */
+  weightPct: number;
+  justification: string;
+}
+
+/** Variable individual detallada. El set cambia segun sea Cliente o Financiador. */
+export interface HerzogVariableScore {
+  label: string;
+  /** 1-10 */
+  score: number;
+  justification: string;
+}
+
+export type HerzogFlagLevel = 'RED' | 'YELLOW';
+
+export interface HerzogFlag {
+  level: HerzogFlagLevel;
+  message: string;
+}
+
+export interface HerzogResult {
+  evalType: HerzogEvalType;
+  /** CIF/NIF si es verificable publicamente; null si no. */
+  taxId: string | null;
+  activity: string;
+  categories: Record<HerzogCategoryKey, HerzogCategoryScore>;
+  variables: HerzogVariableScore[];
+  /** Nota global 0-10, un decimal. */
+  overallScore: number;
+  opacityCount: number;
+  verdict: HerzogVerdict;
+  flags: HerzogFlag[];
+  summary: string;
+  recommendation: string;
+  contact: { methods: HerzogContactMethod[]; noDataFound: boolean };
+  firstContact: { channel: string; approach: string };
+}
+
+export interface HerzogSource {
+  url: string;
+  title: string | null;
+}
+
+export interface HerzogMatchedCompany {
+  id: number;
+  sheetId: number;
+}
+
+export async function runHerzogAudit(companyName: string, text: string, evalType: HerzogEvalType) {
+  return request<{ result: HerzogResult; sources: HerzogSource[]; matchedCompany: HerzogMatchedCompany | null }>('/api/herzog/audit', {
     method: 'POST',
-    body: JSON.stringify({ companyName, text }),
+    body: JSON.stringify({ companyName, text, evalType }),
   });
 }
 
 export interface HerzogAudit {
   id: number;
   companyName: string;
+  evalType: HerzogEvalType;
   inputText: string;
   result: HerzogResult;
+  sources: HerzogSource[];
   createdAt: string;
 }
 
 export async function fetchHerzogHistory() {
   return request<{ audits: HerzogAudit[] }>('/api/herzog/history');
+}
+
+export async function deleteHerzogAudit(id: number) {
+  return request<{ ok: true }>(`/api/herzog/audit/${id}`, { method: 'DELETE' });
 }
 
 /* ---------- Vigilancia (watch) ---------- */
@@ -350,4 +416,170 @@ export async function runWatchNow(companyId?: number) {
     method: 'POST',
     body: JSON.stringify(companyId !== undefined ? { companyId } : {}),
   });
+}
+
+/* ---------- Consola Maestra & Control de Tráfico ---------- */
+
+export type TrafficStatus = 'pendiente' | 'aprobada' | 'denegada' | 'justificacion_requerida';
+
+export interface TrafficRequest {
+  id: number;
+  requesterId: string;
+  requesterName: string;
+  module: string;
+  resource: string;
+  action: string;
+  justification: string | null;
+  status: TrafficStatus;
+  resolvedBy: string | null;
+  resolvedAt: string | null;
+  resolutionNote: string | null;
+  portOpenedAt: string | null;
+  portClosedAt: string | null;
+  requesterSeen: boolean;
+  createdAt: string;
+}
+
+export async function fetchTrafficRequests(status?: TrafficStatus) {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+  return request<{ requests: TrafficRequest[]; isAdmin: boolean }>(`/api/traffic/requests${qs}`);
+}
+
+export async function createTrafficRequest(input: { module: string; resource: string; action: string }) {
+  return request<{ request: TrafficRequest }>('/api/traffic/requests', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function justifyTrafficRequest(id: number, justification: string) {
+  return request<{ request: TrafficRequest }>(`/api/traffic/requests/${id}/justify`, {
+    method: 'POST',
+    body: JSON.stringify({ justification }),
+  });
+}
+
+export async function approveTrafficRequest(id: number) {
+  return request<{ request: TrafficRequest }>(`/api/traffic/requests/${id}/approve`, { method: 'POST' });
+}
+
+export async function denyTrafficRequest(id: number, note?: string) {
+  return request<{ request: TrafficRequest }>(`/api/traffic/requests/${id}/deny`, {
+    method: 'POST',
+    body: JSON.stringify(note ? { note } : {}),
+  });
+}
+
+export async function requireTrafficJustification(id: number) {
+  return request<{ request: TrafficRequest }>(`/api/traffic/requests/${id}/require-justification`, { method: 'POST' });
+}
+
+export async function fetchTrafficUnseenCount() {
+  return request<{ count: number }>('/api/traffic/requests/unseen-count');
+}
+
+export async function ackTrafficRequest(id: number) {
+  return request<{ ok: true }>(`/api/traffic/requests/${id}/ack`, { method: 'POST' });
+}
+
+/* ---------- Calendario de reuniones con empresas ---------- */
+
+export const MEETING_KINDS = ['presencial', 'videollamada', 'llamada', 'visita_planta', 'otro'] as const;
+export type MeetingKind = typeof MEETING_KINDS[number];
+
+export const MEETING_STATUSES = ['agendada', 'realizada', 'cancelada'] as const;
+export type MeetingStatus = typeof MEETING_STATUSES[number];
+
+export const MEETING_KIND_LABEL: Record<MeetingKind, string> = {
+  presencial: 'Presencial',
+  videollamada: 'Videollamada',
+  llamada: 'Llamada',
+  visita_planta: 'Visita a planta',
+  otro: 'Otro',
+};
+
+export const MEETING_STATUS_META: Record<MeetingStatus, { label: string; color: string }> = {
+  agendada: { label: 'Agendada', color: '#2f7fd1' },
+  realizada: { label: 'Realizada', color: '#2f9e5f' },
+  cancelada: { label: 'Cancelada', color: '#8a8a8a' },
+};
+
+export interface Meeting {
+  id: number;
+  companyId: number;
+  companyName: string | null;
+  companyCity: string | null;
+  companyCountry: string | null;
+  sheetId: number;
+  title: string;
+  kind: MeetingKind;
+  status: MeetingStatus;
+  scheduledAt: string;
+  durationMin: number | null;
+  location: string | null;
+  attendees: string | null;
+  summary: string | null;
+  nextSteps: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MeetingInput {
+  title: string;
+  kind: MeetingKind;
+  status: MeetingStatus;
+  scheduledAt: string;
+  durationMin: number | null;
+  location: string | null;
+  attendees: string | null;
+  summary: string | null;
+  nextSteps: string | null;
+}
+
+export interface MeetingsSummary {
+  upcoming: number;
+  next7Days: number;
+  held: number;
+  pendingMinutes: number;
+  nextMeeting: Meeting | null;
+}
+
+export async function fetchMeetings(params: {
+  from?: string; to?: string; sheetId?: number; companyId?: number; status?: MeetingStatus;
+} = {}) {
+  const qs = new URLSearchParams();
+  if (params.from) qs.set('from', params.from);
+  if (params.to) qs.set('to', params.to);
+  if (params.sheetId != null) qs.set('sheetId', String(params.sheetId));
+  if (params.companyId != null) qs.set('companyId', String(params.companyId));
+  if (params.status) qs.set('status', params.status);
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return request<{ meetings: Meeting[] }>(`/api/crm/meetings${suffix}`);
+}
+
+export async function fetchMeetingsSummary() {
+  return request<MeetingsSummary>('/api/crm/meetings/summary');
+}
+
+export async function fetchCompanyMeetings(companyId: number) {
+  return request<{ meetings: Meeting[] }>(`/api/crm/companies/${companyId}/meetings`);
+}
+
+export async function createMeeting(companyId: number, input: Partial<MeetingInput> & { title: string; scheduledAt: string }) {
+  return request<{ meeting: Meeting }>(`/api/crm/companies/${companyId}/meetings`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateMeeting(id: number, input: Partial<MeetingInput> & { companyId?: number }) {
+  return request<{ meeting: Meeting }>(`/api/crm/meetings/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteMeeting(id: number) {
+  return request<{ ok: true }>(`/api/crm/meetings/${id}`, { method: 'DELETE' });
 }

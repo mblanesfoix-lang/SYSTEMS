@@ -11,14 +11,22 @@ import {
   type WatchCompany,
   type WatchNews,
 } from '../lib/api';
+import { HerzogPanel } from './HerzogPanel';
+
+type VigilanciaTab = 'vigilancia' | 'herzog';
+
+const TABS: { key: VigilanciaTab; label: string; hint: string }[] = [
+  { key: 'vigilancia', label: 'Vigilancia', hint: 'Feed inteligente 24/7' },
+  { key: 'herzog', label: 'Herzog', hint: 'Auditoría científica' },
+];
 
 const CATEGORY_META: Record<WatchCategory, { label: string; color: string }> = {
-  residuos_inversion: { label: 'Gestión residual / inversión', color: '#0071e3' },
+  residuos_inversion: { label: 'Gestión residual / inversión', color: '#4a9eff' },
   asociaciones: { label: 'Asociaciones / integraciones', color: '#5e5ce6' },
-  novedades: { label: 'Novedades', color: '#c9a84c' },
+  novedades: { label: 'Novedades', color: '#e8b13a' },
 };
 
-export function VigilanciaPage() {
+function VigilanciaPanel() {
   const [companies, setCompanies] = useState<WatchCompany[]>([]);
   const [news, setNews] = useState<WatchNews[]>([]);
   const [loadingNews, setLoadingNews] = useState(false);
@@ -99,9 +107,8 @@ export function VigilanciaPage() {
   const newsByCompany = (id: number) => news.filter((n) => n.companyId === id);
 
   return (
-    <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 1100 }}>
+    <div className="fade-up" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 1100 }}>
       <div>
-        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', margin: 0 }}>Vigilancia</h1>
         <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>
           Periódico inteligente: Claude busca en la web cada 6h novedades sobre las empresas vigiladas
           (gestión residual / inversión, asociaciones, novedades generales).
@@ -117,7 +124,7 @@ export function VigilanciaPage() {
           <input className="input-field" style={{ flex: '1 1 140px' }} placeholder="País (opcional)" value={newCountry} onChange={(e) => setNewCountry(e.target.value)} />
           <button className="btn-primary" onClick={handleAdd}>Añadir</button>
         </div>
-        {error && <div style={{ color: '#b3322c', fontSize: 12 }}>{error}</div>}
+        {error && <div style={{ color: '#ff6b6b', fontSize: 12 }}>{error}</div>}
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 'auto', alignSelf: 'center' }}>Filtrar categoría:</span>
@@ -161,7 +168,7 @@ export function VigilanciaPage() {
                   </span>
                   <span
                     title={c.active ? 'Activa' : 'Pausada'}
-                    style={{ width: 8, height: 8, borderRadius: '50%', background: c.active ? '#1fa855' : 'var(--text-muted)', flexShrink: 0 }}
+                    style={{ width: 8, height: 8, borderRadius: '50%', background: c.active ? '#35d68a' : 'var(--text-muted)', flexShrink: 0 }}
                   />
                   <span style={{ fontWeight: 600, fontSize: 13 }}>{c.name}</span>
                   {c.sector && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{c.sector}</span>}
@@ -228,6 +235,44 @@ export function VigilanciaPage() {
           })}
         </div>
       </div>
+    </div>
+  );
+}
+
+export function VigilanciaPage() {
+  const [tab, setTab] = useState<VigilanciaTab>('vigilancia');
+
+  return (
+    <div>
+      <div style={{ padding: '24px 24px 0', display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', margin: 0 }}>Vigilancia</h1>
+        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+          {TABS.map((t) => {
+            const active = tab === t.key;
+            return (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setTab(t.key)}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: 'var(--radius-sm)',
+                  cursor: 'pointer',
+                  border: `1px solid ${active ? 'var(--accent-border)' : 'var(--border-mid)'}`,
+                  background: active ? 'var(--accent-dim)' : 'transparent',
+                  color: active ? 'var(--text-primary)' : 'var(--text-muted)',
+                  font: 'inherit',
+                  textAlign: 'left',
+                }}
+              >
+                <div style={{ fontWeight: 600, fontSize: 13 }}>{t.label}</div>
+                <div style={{ fontSize: 11, opacity: 0.7 }}>{t.hint}</div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      {tab === 'vigilancia' ? <VigilanciaPanel /> : <HerzogPanel />}
     </div>
   );
 }

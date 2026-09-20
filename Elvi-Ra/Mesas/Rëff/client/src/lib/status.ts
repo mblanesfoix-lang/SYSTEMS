@@ -1,10 +1,10 @@
 import type { CompanyStatus } from './api';
 
 export const STATUS_META: Record<CompanyStatus, { label: string; color: string }> = {
-  estrategico: { label: 'Estratégico', color: '#1fa855' },
-  operativo: { label: 'Operativo', color: '#0071e3' },
-  pendiente: { label: 'Pendiente', color: '#c9a84c' },
-  no_candidato: { label: 'No candidato', color: '#b3322c' },
+  estrategico: { label: 'Estratégico', color: '#35d68a' },
+  operativo: { label: 'Operativo', color: '#4a9eff' },
+  pendiente: { label: 'Pendiente', color: '#e8b13a' },
+  no_candidato: { label: 'No candidato', color: '#ff6b6b' },
 };
 
 // Priority order used to pick the "dominant" status when several companies

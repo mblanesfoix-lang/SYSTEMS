@@ -1,4 +1,4 @@
-import { MongoClient, Db, ClientSession } from 'mongodb';
+import { MongoClient, Db } from 'mongodb';
 
 let client: MongoClient | null = null;
 let reffDb: Db | null = null;
@@ -16,10 +16,6 @@ export function getReffDb(): Db {
   return reffDb;
 }
 
-export function getReffClient(): MongoClient {
-  if (!client) throw new Error('Mongo no conectado. Llama setMongoClient() primero.');
-  return client;
-}
 
 async function ensureIndexes(): Promise<void> {
   if (!reffDb) return;
@@ -31,6 +27,12 @@ async function ensureIndexes(): Promise<void> {
   await reffDb.collection('watch_companies').createIndex({ active: 1 });
   await reffDb.collection('watch_news').createIndex({ company_id: 1, detected_at: -1 });
   await reffDb.collection('watch_news').createIndex({ dedupe_hash: 1 }, { unique: true });
+  await reffDb.collection('traffic_requests').createIndex({ status: 1 });
+  await reffDb.collection('traffic_requests').createIndex({ requester_id: 1 });
+  await reffDb.collection('company_meetings').createIndex({ company_id: 1, scheduled_at: -1 });
+  await reffDb.collection('company_meetings').createIndex({ sheet_id: 1, scheduled_at: 1 });
+  await reffDb.collection('company_meetings').createIndex({ status: 1, scheduled_at: 1 });
+  await reffDb.collection('company_meetings').createIndex({ reminder_sent_at: 1 });
 }
 
 // Emula AUTOINCREMENT de SQLite vía contador atómico.
@@ -41,17 +43,4 @@ export async function nextSeq(counterName: string): Promise<number> {
     { upsert: true, returnDocument: 'after' },
   );
   return (result as unknown as { seq: number }).seq;
-}
-
-export async function withReffTransaction<T>(fn: (session: ClientSession) => Promise<T>): Promise<T> {
-  const session = getReffClient().startSession();
-  try {
-    let result!: T;
-    await session.withTransaction(async () => {
-      result = await fn(session);
-    });
-    return result;
-  } finally {
-    await session.endSession();
-  }
 }

@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { getReffDb, nextSeq, withReffTransaction } from '../mongo.js';
+import { getReffDb, nextSeq } from '../mongo.js';
 import { authMiddleware } from '../auth.js';
 
 const router = Router();
@@ -102,10 +102,8 @@ router.delete('/sheets/:id', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'No se puede eliminar la única hoja' });
   }
 
-  await withReffTransaction(async (session) => {
-    await db.collection('companies').deleteMany({ sheet_id: id }, { session });
-    await db.collection<SheetDoc>('sheets').deleteOne({ _id: id }, { session });
-  });
+  await db.collection('companies').deleteMany({ sheet_id: id });
+  await db.collection<SheetDoc>('sheets').deleteOne({ _id: id });
   res.json({ ok: true });
 });
 

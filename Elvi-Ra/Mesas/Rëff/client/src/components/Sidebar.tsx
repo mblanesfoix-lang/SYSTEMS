@@ -11,8 +11,8 @@ interface Props {
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', hint: 'Globo 3D' },
   { to: '/crm', label: 'CRM', hint: 'Hojas y empresas' },
-  { to: '/herzog', label: 'Herzog', hint: 'Auditoría científica' },
-  { to: '/vigilancia', label: 'Vigilancia', hint: 'Feed inteligente 24/7' },
+  { to: '/calendario', label: 'Calendario', hint: 'Reuniones con empresas' },
+  { to: '/vigilancia', label: 'Vigilancia', hint: 'Herzog + feed inteligente 24/7' },
 ];
 
 export function Sidebar({ user, onLogout }: Props) {
@@ -24,11 +24,22 @@ export function Sidebar({ user, onLogout }: Props) {
         height: '100vh',
         display: 'flex',
         flexDirection: 'column',
-        background: 'var(--surface-1)',
+        background: 'linear-gradient(180deg, var(--surface-1) 0%, var(--surface-0) 100%)',
         borderRight: '1px solid var(--border-subtle)',
         color: 'var(--text-primary)',
+        position: 'relative',
+        zIndex: 2,
       }}
     >
+      {/* Filo de acento: separa la navegacion del lienzo sin una linea dura. */}
+      <div
+        aria-hidden
+        style={{
+          position: 'absolute', top: 0, right: 0, bottom: 0, width: 1,
+          background: 'linear-gradient(180deg, transparent, var(--accent-border) 22%, var(--accent-border) 78%, transparent)',
+          opacity: 0.55, pointerEvents: 'none',
+        }}
+      />
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '20px 20px 16px' }}>
         <img src={logoSnfi} alt="S-NFI" style={{ height: 22, width: 'auto' }} />
         <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', fontWeight: 700, letterSpacing: '-0.01em' }}>
@@ -52,19 +63,24 @@ export function Sidebar({ user, onLogout }: Props) {
           <NavLink
             key={item.to}
             to={item.to}
+            className="nav-link"
             style={({ isActive }) => ({
               display: 'flex',
               flexDirection: 'column',
               gap: 2,
               padding: '10px 12px',
+              borderRadius: 'var(--radius-sm)',
               textDecoration: 'none',
               color: isActive ? 'var(--text-primary)' : 'var(--text-muted)',
               background: isActive ? 'var(--accent-dim)' : 'transparent',
-              borderLeft: isActive ? '2px solid var(--accent)' : '2px solid transparent',
-              transition: 'background 160ms ease, color 160ms ease',
+              border: `1px solid ${isActive ? 'var(--accent-border)' : 'transparent'}`,
+              boxShadow: isActive ? '0 0 22px -10px var(--accent-glow)' : 'none',
+              transition: 'background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast)',
             })}
           >
-            <span style={{ fontSize: 13, fontWeight: 600, letterSpacing: '-0.01em' }}>{item.label}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, letterSpacing: '-0.01em' }}>{item.label}</span>
+            </span>
             <span style={{ fontSize: 11, opacity: 0.6 }}>{item.hint}</span>
           </NavLink>
         ))}
