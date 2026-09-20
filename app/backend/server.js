@@ -118,7 +118,7 @@ await ensureUsersSeed(mongo);
 // sin arrastrar automaticamente el expediente confidencial.
 const ROLE_MESAS = {
   admin:   ['elvira', 'reff', 'snfiu2', 'ophs', 'sentinel', 'factory', 'finance', 'mna', 'fl', 'fl_expediente', 'pactvm', 'foundry', 'gateway', 'seagle', 'herzog', 'resilience', 'notificaciones'],
-  ray:     ['snfiu2', 'pactvm', 'gateway'],
+  ray:     ['snfiu2', 'pactvm'],
   amir:    ['reff'],
   gonzalo: ['reff', 'snfiu2', 'pactvm', 'gateway'],
   celia:   [],
