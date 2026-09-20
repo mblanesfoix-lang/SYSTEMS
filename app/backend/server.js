@@ -22,9 +22,16 @@ import { callLLM } from './llm.js';
 }
 import { mountElviraCentral } from './elvira-central.js';
 import { mountFinance } from './finance.js';
-import { mountFL } from './fl.js';
+import { mountFinanceCompanies } from './finance-companies.js';
 import { mountMna } from './mna.js';
+import { mountFl } from './fl.js';
+import { mountFlExpediente } from './fl-expediente.js';
 import { mountPactvm } from './pactum-viridi.js';
+import { mountResilience } from './resilience.js';
+import { mountHerzog } from './herzog.js';
+import { mountSeagle } from './seagle.js';
+import { mountMasterGateway } from './master-gateway.js';
+import { mountNotificationCenter, ensureNotificationCenterIndexes } from './notification-center.js';
 import { mountOps } from './ops.js';
 import { mountPaia } from './paia.js';
 import { mountOphsCockpit } from './ophs-cockpit.js';
@@ -38,7 +45,6 @@ import { mountBus } from './routes/bus.routes.js';
 import { mountNotifications } from './routes/notifications.routes.js';
 import { createElviraStore } from './routes/elvira-store.js';
 import { mountReffCrm } from './routes/reff-crm.routes.js';
-import { mountFactory } from './routes/factory.routes.js';
 import { mountElviraBridges } from './routes/elvira-bridges.routes.js';
 import { mountCnmc } from './routes/cnmc.routes.js';
 import { mountSentinelForensicRoutes } from './routes/sentinel-forensic.routes.js';
@@ -105,11 +111,20 @@ const { readElvira, writeElvira } = createElviraStore(ELVIRA_FILE, atomicWriteJs
 await ensureUsersSeed(mongo);
 
 // Mesas accesibles por rol. 'admin' = todo. Others = whitelist.
+// fl_expediente: scope propio del Expediente Fiscal y Juridico (NDA-B bilaterales
+// y documentacion protegida) dentro de F&L. Deliberadamente distinto de 'fl'
+// (licencias/poderes/matriz de riesgo, menos sensible) aunque hoy ambos solo
+// los tenga admin — separa el permiso para el dia que 'fl' se abra a mas roles
+// sin arrastrar automaticamente el expediente confidencial.
 const ROLE_MESAS = {
-  admin:   ['elvira', 'reff', 'snfiu2', 'ophs', 'sentinel', 'factory', 'finance', 'fl', 'mna', 'pactvm', 'foundry'],
-  ray:     ['snfiu2', 'pactvm'],
+  admin:   ['elvira', 'reff', 'snfiu2', 'ophs', 'sentinel', 'factory', 'finance', 'mna', 'fl', 'fl_expediente', 'pactvm', 'foundry', 'gateway', 'seagle', 'herzog', 'resilience', 'notificaciones'],
+  ray:     ['snfiu2', 'pactvm', 'gateway'],
   amir:    ['reff'],
-  gonzalo: ['reff', 'snfiu2', 'pactvm'],
+  gonzalo: ['reff', 'snfiu2', 'pactvm', 'gateway'],
+  celia:   [],
+  maitane: [],
+  arkaitz: [],
+  oscar:   [],
 };
 
 // Prefijos de rutas API por mesa (para protección en backend)
@@ -120,11 +135,16 @@ const MESA_ROUTES = {
   sentinel: ['/api/sentinel', '/api/rack'],
   factory:  ['/api/factory'],
   finance:  ['/api/finance'],
-  fl:       ['/api/fl'],
   mna:      ['/api/mna'],
+  fl:       ['/api/fl'],
   pactvm:   ['/api/pactvm'],
   ophs:     ['/api/ops', '/api/paia', '/api/ophs-cockpit', '/api/grid'],
   foundry:  ['/api/foundry'],
+  gateway:  ['/api/gateway'],
+  seagle:   ['/api/seagle'],
+  herzog:   ['/api/herzog-central'],
+  resilience: ['/api/resilience'],
+  notificaciones: ['/api/notif-center'],
 };
 
 function canAccessMesa(role, mesa) {
@@ -185,7 +205,7 @@ app.use('/api', apiLimiter);
  * módulos — los middlewares de mas abajo solo los invocan dentro de un
  * closure, en tiempo de petición, cuando ya están asignados.
  */
-let adminNotify, busEmit, busEmitAlert, busEvents, auth;
+let adminNotify, busEmit, busEmitAlert, busEvents, auth, listAdminNotifications;
 // (sseClients del bus no se usa fuera de bus.routes.js; se ignora aquí)
 
 /* Captura cualquier caída no controlada del proceso y la sube a notificaciones Admin */
@@ -205,6 +225,20 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => req.ip ? ipKeyGenerator(req.ip) : 'anon',
   message: { error: 'Demasiados intentos de login. Espera 15 minutos.' },
+});
+
+/* FASE 5 (2026-09-20): apiLimiter (120/min/IP) es un techo generico —
+ * insuficiente para rutas que llaman callLLM() (coste real en tokens
+ * Anthropic + timeout de hasta LLM_TIMEOUT_MS cada una: /api/elvira/central/chat,
+ * /api/paia/nodes/:id/insight). Limiter propio, por usuario (no por IP,
+ * varios usuarios detrás del mismo NAT/oficina no deben compartir cupo). */
+const llmLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 12,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user || (req.ip ? ipKeyGenerator(req.ip) : 'anon'),
+  message: { error: 'Demasiadas consultas a la IA. Espera un minuto.' },
 });
 
 /* ---------- Middleware de Auditoría Sentinel ----------
@@ -233,11 +267,11 @@ function sentinelLogger(req, res, next) {
 }
 app.use(sentinelLogger);
 
-const sentinelForensics = createSentinelForensics({ mongo, busEmit: (...args) => busEmit(...args) });
+const sentinelForensics = createSentinelForensics({ mongo, busEmit: (...args) => busEmit(...args), ROLE_MESAS });
 app.use(sentinelForensics.middleware(mesaForPath));
 
 /* ---- Notificaciones Admin (mount temprano: adminNotify es dependencia de sentinelLogger/uncaughtException arriba) ---- */
-({ adminNotify } = mountNotifications(app, { auth: (req, res, next) => auth(req, res, next), requireAdmin, atomicWriteJson, NOTIFICATIONS_FILE }));
+({ adminNotify, listAdminNotifications } = mountNotifications(app, { auth: (req, res, next) => auth(req, res, next), requireAdmin, atomicWriteJson, NOTIFICATIONS_FILE }));
 
 /* ---- Event Bus (mount temprano: busEmit es dependencia compartida por ~10 modulos) ---- */
 ({ busEvents, busEmit, busEmitAlert } = mountBus(app, {
@@ -263,12 +297,24 @@ app.use('/api/u2',        auth, requireMesa('snfiu2'));
 app.use('/api/reff',      auth, requireMesa('reff'));
 app.use('/api/factory',   auth, requireMesa('factory'));
 app.use('/api/finance',   auth, requireMesa('finance'));
-app.use('/api/fl',        auth, requireMesa('fl'));
 app.use('/api/mna',       auth, requireMesa('mna'));
+// /api/fl/expediente/* NO entra por este middleware generico: tiene guard
+// propio (requireMesa('fl_expediente')) montado en fl-expediente.js, distinto
+// de la mesa 'fl' del resto de F&L (licencias/poderes) — ver SEGURIDAD en ese
+// archivo. mesaForPath (usado por sentinelForensics, no por autorizacion)
+// sigue clasificando /api/fl/* como mesa 'fl' a efectos de log forense; eso
+// es correcto y no otorga acceso por si solo.
+app.use('/api/fl', (req, res, next) => (req.path.startsWith('/expediente') ? next() : auth(req, res, next)));
+app.use('/api/fl', (req, res, next) => (req.path.startsWith('/expediente') ? next() : requireMesa('fl')(req, res, next)));
 app.use('/api/pactvm',    auth, requireMesa('pactvm'));
+app.use('/api/resilience', auth, requireMesa('resilience'));
+app.use('/api/herzog-central', auth, requireMesa('herzog'));
+app.use('/api/seagle',    auth, requireMesa('seagle'));
 app.use('/api/ops',       auth, requireMesa('ophs'));
 app.use('/api/paia',      auth, requireMesa('ophs'));
 app.use('/api/ophs-cockpit', auth, requireMesa('ophs'));
+app.use('/api/gateway',   auth, requireMesa('gateway'));
+app.use('/api/notif-center', auth, requireMesa('notificaciones'));
 
 /* ---------- Rëff CRM-adjacent: sheets/companies/search/linkedin/email/overview ---------- */
 const reffCrm = mountReffCrm(app, {
@@ -278,7 +324,7 @@ const reffCrm = mountReffCrm(app, {
 });
 
 /* ==========================================================================
-   S-NFI U2 · energia desperdiciada (REE/ESIOS)
+   S-NFI U-2 · energia desperdiciada (REE/ESIOS)
    Se monta aqui (antes de Pactvm/CIBE/.../Elvira Central) porque su snapshot
    diario (getU2SnapshotToday) lo consumen los closures getU2Snapshot pasados
    a mountPactvm y mountElviraCentral mas abajo.
@@ -286,12 +332,9 @@ const reffCrm = mountReffCrm(app, {
 const u2Ree = mountU2Ree(app, { auth, busEmit, busEmitAlert, busEvents, atomicWriteJson, DATA_DIR });
 
 /* ==========================================================================
-   S-NFI Factory · control cadena de suministro industrial
-   Alcance: ensamblaje BioHybrid, logistica materiales, inventario
-   componentes mecanicos, ciclo mantenimiento nodos desplegados.
-   Datos manuales (CRUD) por ahora; conector ERP/sensores real queda pendiente.
+   S-NFI Factory · en desarrollo pendiente (mesa vaciada, ver CLAUDE.md).
+   Guard 'factory' se mantiene reservado; sin rutas backend activas.
 ========================================================================== */
-mountFactory(app, { mongo });
 
 /* ==========================================================================
    S-NFI Finance · control financiero y valoracion de activos reales
@@ -299,7 +342,35 @@ mountFactory(app, { mongo });
    pasarela cifrada export para asesoria contable externa.
 ========================================================================== */
 mountFinance(app, { auth, requireMesa, mongo });
+mountFinanceCompanies(app, { auth, requireMesa, mongo });
 mountMna(app, { auth, requireMesa, mongo });
+
+/* ==========================================================================
+   CIBE Bunker · modulo bunker de Pactvm Viridi (Instrucciones.txt §3)
+   Creado aqui (antes que en su ubicacion historica junto a mountCibeBunker
+   mas abajo) porque el Expediente Fiscal y Juridico de F&L, mas abajo,
+   tambien lo consume (scope fl.expediente.read) para exigir token Ed25519
+   en la descarga de documentos NDA-B. mountCibeBunker (rutas /api/cibe/*)
+   sigue montandose en su sitio original; aqui solo se crea la instancia.
+========================================================================== */
+const cibe = createCibeBunker({ mongo, busEmit, adminNotify });
+cibe.ready().catch((err) => console.error('[CIBE] Error de arranque (creacion temprana para F&L):', err.message));
+
+/* ==========================================================================
+   S-NFI F&L · Audit Legal - Firmas & Normas (reconstruida 2026-09-08,
+   ver FL-PLAN.md). Licencias multi-planta SEMARNAT/CONAGUA/CFE/MITECO,
+   matriz de responsabilidad legal por proyecto con gating de pagos, motor
+   de alarmas de caducidad de poderes/firmas sobre adminNotify.
+========================================================================== */
+mountFl(app, { auth, requireMesa, mongo, busEmit, adminNotify });
+/* Expediente Fiscal y Juridico Impecable: catalogo fijo de documentacion
+   corporativa (identidad fiscal, PI, dataroom financiero, anclaje comercial)
+   con adjuntos en GridFS y motor propio de alerta de caducidad. Modulo aparte,
+   mismo log inmutable fl_log, pero guard propio 'fl_expediente' (distinto de
+   'fl') por ser documentacion protegida/NDA-B — ver ROLE_MESAS. Archivos
+   cifrados en reposo (AES-256-GCM) y descarga detras de token CIBE
+   (scope fl.expediente.read, modo segun CIBE_MODE). */
+mountFlExpediente(app, { auth, requireMesa, mongo, busEmit, adminNotify, cibe });
 
 /* ==========================================================================
    Pactvm Viridi · guardian doctrinal, cientifico y de cumplimiento bio-ambiental
@@ -307,26 +378,58 @@ mountMna(app, { auth, requireMesa, mongo });
    de auditorias Herzog (db 'reff', sin escritura).
 ========================================================================== */
 mountPactvm(app, {
-  auth, requireMesa, mongo, getMongoClient,
+  auth, requireMesa, requireAdmin, mongo, getMongoClient,
   getU2Snapshot: () => u2Ree.getU2SnapshotToday(),
 });
 
 /* ==========================================================================
-   CIBE Bunker · modulo bunker de Pactvm Viridi (Instrucciones.txt §3)
-   Control de admision zero-trust: tokens Ed25519 firmados y fechados para
-   los endpoints criticos del OPHS Framework. Sin conformidad CIBE la puerta
-   permanece cerrada (Auth-Refusal en log de hash encadenado).
+   S-NFI Resilience (BSS) · inteligencia de deteccion y arbitraje ante fallos
+   de red electrica / eventos sistemicos. Manda senal a Elvi-Ra (busEmit +
+   adminNotify), nunca ejecuta accion fisica (Regla de Oro).
 ========================================================================== */
-const cibe = createCibeBunker({ mongo, busEmit, adminNotify });
-cibe.ready().catch((err) => console.error('[CIBE] Error de arranque:', err.message));
-mountCibeBunker(app, { auth, requireMesa, mongo, bunker: cibe, busEmit });
+mountResilience(app, { auth, requireMesa, mongo, busEmit, adminNotify });
 
 /* ==========================================================================
-   S-NFI F&L (Fiscal & Legal) · custodia legal del Holding
-   NDAs, contratos mercantiles/laborales, cesion de licencias, expediente
-   tecnico-juridico Modelo de Utilidad OEPM. Documentos en GridFS.
+   Herzog (Central) · bunker receptor de toda la informacion/datos de SYSTEMS.
+   Distinto del Herzog interno de OPHS Framework (sigue en elvira-central.js,
+   solo telemetria fisica OPS/PAIA). Transversal: cualquier departamento
+   pide/guarda informacion aqui (metricas, documentos, notas).
 ========================================================================== */
-mountFL(app, { auth, requireMesa, mongo, db: mongo });
+mountHerzog(app, { auth, requireMesa, mongo, busEmit, adminNotify, getU2Snapshot: () => u2Ree.getU2SnapshotToday() });
+
+/* ==========================================================================
+   S-EAGLE · Rëff Core Engine, mesa 5. Revisa la informacion que Herzog
+   retiene: verificar/corregir/compartir. Mapa mundi portales (apartado 1)
+   reutiliza Gob Share en frontend, sin backend propio. Ver seagle.js.
+========================================================================== */
+mountSeagle(app, { auth, requireMesa, mongo });
+
+/* ==========================================================================
+   Puerto Maestro (Master Gateway) · auditoria activa y control de trafico
+   inter-puertos entre Reff, Elvi-Ra y OPHS. Ningun perfil (incluido PhD con
+   credenciales tecnicas) extrae datos cruzados sin pasar por esta consola.
+   Solo Admin decide (aprobar/denegar); crear solicitud es accesible a
+   cualquier mesa con permiso 'gateway' (Regla de Oro: el ser humano
+   autoriza).
+========================================================================== */
+mountMasterGateway(app, { auth, requireMesa, requireAdmin, mongo });
+
+/* ==========================================================================
+   Consola de Notificaciones · mesa transversal admin-only. Unifica lectura
+   de admin_notifications (alertas de sistema) y traffic_requests (Rëff,
+   Consola Maestra) en una sola vista, con acciones 1-clic sobre traffic
+   detrás de requireAdmin real. Ver notification-center.js.
+========================================================================== */
+mountNotificationCenter(app, { auth, requireMesa, requireAdmin, listAdminNotifications });
+await ensureNotificationCenterIndexes();
+
+/* ==========================================================================
+   CIBE Bunker · rutas de administracion (mesa pactvm) + endpoint externo
+   POST /api/cibe/token. La instancia 'cibe' se crea mas arriba (antes de
+   mountFl/mountFlExpediente, que ya la necesitan) — aqui solo se montan
+   las rutas HTTP del bunker sobre esa misma instancia.
+========================================================================== */
+mountCibeBunker(app, { auth, requireMesa, mongo, bunker: cibe, busEmit });
 
 /* ==========================================================================
    OPHS Framework · OPS (telemetria) + PAIA (analitica predictiva) + Cockpit
@@ -335,11 +438,11 @@ mountFL(app, { auth, requireMesa, mongo, db: mongo });
    autoridad de ejecucion sigue siendo de cada dominio.
 ========================================================================== */
 mountOps(app, { auth, requireMesa, mongo, cibe });
-mountPaia(app, { auth, requireMesa, mongo });
+mountPaia(app, { auth, requireMesa, mongo, llmLimiter });
 mountOphsCockpit(app, { auth, requireMesa, mongo, getMongoClient });
 
 /* ==========================================================================
-   Data Foundry · pipeline de ingesta asincrona (doctrina Instrucciones.txt)
+   Lab · pipeline de ingesta asincrona (doctrina Instrucciones.txt)
    Ingress Gateway HMAC (puerto embebido o dedicado via FOUNDRY_INGRESS_PORT),
    bus no bloqueante, salas OPS/PAIA/Herzog/U-2 con circuit breaker propio,
    sifon U-2 en worker thread, metricas travel-time vigiladas por Sentinel.
@@ -360,6 +463,46 @@ const rackState = mountRackState(app, { auth, requireMesa, mongo, busEmit, admin
    pais (REE/REN/RTE/ONEE). El colapso de un TSO no toca a los demas. Mesa ophs.
 ========================================================================== */
 mountGridInterlink(app, { auth, requireMesa, mongo, busEmit, adminNotify, cibe });
+
+/* ==========================================================================
+   K8s · Liveness / Readiness (Fase 0 escalado horizontal)
+   /api/livez  — proceso vivo, sin dependencias externas (kubelet mata/reinicia
+                 el pod si esto no responde: nunca debe tocar Mongo ni red).
+   /api/readyz — listo para tráfico: ping real a Mongo + rol Rack State. Si
+                 Mongo no responde o el rack esta sin quorum, fuera del
+                 Service (kubelet deja de enrutar, no reinicia el pod).
+   /api/ophs/readyz — placeholder namespaced para cuando OPHS se separe a su
+                 propio Deployment (Fase 1); hoy vive en el mismo proceso asi
+                 que refleja el mismo Mongo, sin logica propia todavia.
+========================================================================== */
+app.get('/api/livez', (_req, res) => {
+  res.json({ status: 'ok', service: 'elvira', uptimeSec: Math.floor(process.uptime()) });
+});
+
+app.get('/api/readyz', async (_req, res) => {
+  const checks = { mongo: false, rack: 'n/a' };
+  try {
+    await mongo.command({ ping: 1 });
+    checks.mongo = true;
+  } catch (err) {
+    checks.mongo = false;
+  }
+  if (rackState) {
+    const s = rackState.status();
+    checks.rack = s.role === 'leader' || s.role === 'follower' ? s.role : 'unavailable';
+  }
+  const ready = checks.mongo === true && checks.rack !== 'unavailable';
+  res.status(ready ? 200 : 503).json({ ready, checks, uptimeSec: Math.floor(process.uptime()) });
+});
+
+app.get('/api/ophs/readyz', async (_req, res) => {
+  try {
+    await mongo.command({ ping: 1 });
+    res.status(200).json({ ready: true, note: 'OPHS aun corre en el proceso monolito — readiness real por dominio pendiente de separacion a Deployment propio (Fase 1)' });
+  } catch (err) {
+    res.status(503).json({ ready: false, error: String(err?.message || err) });
+  }
+});
 
 /* ==========================================================================
    ELVI-RA · puentes mock (Sentinel/Herzog) + OPHS scoring + T'Controler
@@ -391,7 +534,7 @@ mountSentinelForensicRoutes(app, { auth, sentinelForensics, busEmit, busEvents }
 mountElviraCentral(app, {
   auth, requireMesa, mongo, getMongoClient,
   callLLM, trackTokens: reffCrm.trackTokens, busEmit, adminNotify,
-  readElvira, cibe,
+  readElvira, cibe, llmLimiter,
   getU2Snapshot: () => u2Ree.getU2SnapshotToday(),
 });
 
@@ -438,16 +581,19 @@ app.get('/', (req, res) => res.redirect('/pages/login.html'));
     const { default: reffGeoRoutes }       = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'geo.routes.js')));
     const { default: reffHerzogRoutes }    = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'herzog.routes.js')));
     const { default: reffWatchRoutes }     = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'watch.routes.js')));
+    const { default: reffTrafficRoutes }   = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'traffic.routes.js')));
+    const { default: reffMeetingsRoutes }  = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'meetings.routes.js')));
     const { startWatchCron }               = await import(toFileUrl(path.join(REFF_SERVER, 'watch.js')));
+    const { startMeetingReminderCron }     = await import(toFileUrl(path.join(REFF_SERVER, 'meeting-reminders.js')));
 
     const reffHealth = (_req, res) => res.json({ status: 'ok', service: 'reff', env: process.env.NODE_ENV || 'development' });
 
     // Issues a short-lived JWT so el cliente React de Rëff autentica con la sesión de Elvi-Ra, sin login propio
     const ELVIRA_TO_REFF_USERNAME = {
-      'mblanes@snficorp.com': 'marc',
-      'nour@snficorp.com': 'nour',
-      'ventures@snficorp.com': 'amir',
-      'gonzalo@snficorp.com': 'gonzalo',
+      'mblanes@s-nficorp.com': 'marc',
+      'nzaroual@s-nficorp.com': 'nour',
+      'ventures@s-nficorp.com': 'amir',
+      'gonzalosb@s-nficorp.com': 'gonzalo',
     };
     app.get('/reff/api/guest-token', async (req, res) => {
       const elviraUser = req.headers['x-elvira-user'];
@@ -471,9 +617,11 @@ app.get('/', (req, res) => res.redirect('/pages/login.html'));
     app.use('/reff/api/auth', reffAuthRoutes);
     app.use('/reff/api/crm',  reffSheetsRoutes);
     app.use('/reff/api/crm',  reffCompaniesRoutes);
+    app.use('/reff/api/crm',  reffMeetingsRoutes);
     app.use('/reff/api/geo',  reffGeoRoutes);
     app.use('/reff/api/herzog', reffHerzogRoutes);
     app.use('/reff/api/watch', reffWatchRoutes);
+    app.use('/reff/api/traffic', reffTrafficRoutes);
 
     // Aliases at root /api so Rëff React client (built with base path "/") resolves correctly
     app.get('/api/guest-token', (_req, res) => res.redirect('/reff/api/guest-token'));
@@ -488,11 +636,14 @@ app.get('/', (req, res) => res.redirect('/pages/login.html'));
     app.use('/api/auth',   reffAuthRoutes);
     app.use('/api/crm',    reffSheetsRoutes);
     app.use('/api/crm',    reffCompaniesRoutes);
+    app.use('/api/crm',    reffMeetingsRoutes);
     app.use('/api/geo',    reffGeoRoutes);
     app.use('/api/herzog', reffHerzogRoutes);
     app.use('/api/watch',  reffWatchRoutes);
+    app.use('/api/traffic', reffTrafficRoutes);
 
     startWatchCron();
+    startMeetingReminderCron();
 
     // Serve Rëff React client — assets built with base "/" so /assets/* must be mirrored
     if (fs.existsSync(REFF_CLIENT)) {
@@ -537,6 +688,90 @@ app.use((err, req, res, _next) => {
   if (res.headersSent) return;
   res.status(500).json({ error: 'Error interno del servidor' });
 });
+
+/* ==========================================================================
+   K8s · Fase 2 — puente entre deteccion de infra (kubelet) y capa de negocio
+   (Sentinel/bus). kubelet reinicia un pod roto sin que Sentinel se entere
+   nunca por si solo (viven en procesos/planos distintos). Este flag,
+   persistido en el mismo volumen que /app/backend/data (PVC en k8s, bind
+   mount en compose), sobrevive al restart del contenedor: si ya existe al
+   arrancar, este boot es una recuperacion tras caida, no un primer arranque.
+========================================================================== */
+const BOOT_FLAG_FILE = path.join(DATA_DIR, '.last_boot');
+{
+  const now = Date.now();
+  let prevBoot = null;
+  try { prevBoot = JSON.parse(fs.readFileSync(BOOT_FLAG_FILE, 'utf8')); } catch (err) { /* primer arranque: sin flag previo */ }
+  if (prevBoot?.ts) {
+    const sinceMs = now - prevBoot.ts;
+    // Boot inmediatamente anterior a <2min de este: kubelet ha reiniciado el
+    // pod (liveness fallo o crash). Si ademas se repite en <2min, es un
+    // crashloop real -> severidad error, no warning.
+    const isRestart = sinceMs < 5 * 60 * 1000; // ventana generosa: cubre CrashLoopBackOff con backoff creciente
+    if (isRestart) {
+      const isLoop = sinceMs < 2 * 60 * 1000 && prevBoot.restartCount > 0;
+      adminNotify({
+        origin: 'K8S', severity: isLoop ? 'error' : 'warning',
+        label: `Pod ${process.env.RACK_ID || process.env.HOSTNAME || 'elvira'} recuperado tras caida`,
+        detail: `reinicio detectado (boot anterior hace ${Math.round(sinceMs / 1000)}s)${isLoop ? ' — patron de crashloop, revisar logs del pod' : ''}`,
+      });
+      busEmit({
+        id: crypto.randomUUID(), ts: new Date().toISOString(),
+        origin: 'K8S', dest: 'SENTINEL', type: 'pod_restart',
+        state: 'DONE', label: 'Pod recuperado tras caida (kubelet)',
+        payload: { sinceMs, restartCount: (prevBoot.restartCount || 0) + 1 }, user: 'system',
+      });
+    }
+  }
+  try {
+    fs.writeFileSync(BOOT_FLAG_FILE, JSON.stringify({ ts: now, restartCount: (prevBoot?.restartCount || 0) + 1 }));
+  } catch (err) { console.error('[k8s-boot-flag] no se pudo persistir:', err.message); }
+}
+
+/* ==========================================================================
+   FASE 4 · Boot Verification — resumen de servicios al arrancar.
+   Mongo ya es dependencia dura mas arriba (await connectMongo() en linea 78:
+   sin Mongo el proceso ni siquiera llega aqui, no hay "modo degraded" posible
+   para el propio Mongo). Esto es solo VISIBILIDAD sobre servicios secundarios
+   que ya degradan solos por diseño en su propio modulo (mock/fallback ya
+   existente, ver comentarios de cada uno) — no bloquea el arranque, informa.
+========================================================================== */
+function bootVerification() {
+  const checks = [];
+  const check = (name, ok, detail) => checks.push({ name, ok, detail });
+
+  check('Mongo', true, 'conectado (dependencia dura, ya verificado arriba)');
+  check('LLM provider', !!process.env.ANTHROPIC_API_KEY || (process.env.LLM_PROVIDER || '').toLowerCase() === 'ollama',
+    process.env.ANTHROPIC_API_KEY ? 'anthropic' : (process.env.LLM_PROVIDER || 'sin configurar — llm.js fallara en caliente al primer uso'));
+  check('Systems (OPHS real)', !!process.env.SYSTEMS_URL,
+    process.env.SYSTEMS_URL ? process.env.SYSTEMS_URL : 'sin configurar — mock local (systems_nodes)');
+  check('S-NFI U2 (ESIOS/REE)', !!(process.env.ESIOS_TOKEN || process.env.ESIOS_API_KEY),
+    (process.env.ESIOS_TOKEN || process.env.ESIOS_API_KEY) ? 'token presente' : 'sin configurar — u2-ree.routes.js usa su propio fallback');
+  check('CIBE Bunker', !!process.env.CIBE_PRIVATE_KEY_PEM,
+    process.env.CIBE_PRIVATE_KEY_PEM ? 'clave privada en env' : 'sin env — cibe-bunker.js genera/persiste par en Mongo (cibe_keys)');
+  check('Rack State (RAFT)', true,
+    process.env.RACK_PEERS ? `cluster: ${process.env.RACK_PEERS}` : 'standalone (quorum 1, sin RACK_PEERS)');
+  check('Foundry ingress dedicado', !!process.env.FOUNDRY_INGRESS_PORT,
+    process.env.FOUNDRY_INGRESS_PORT ? `puerto ${process.env.FOUNDRY_INGRESS_PORT}` : 'sin puerto dedicado — solo gateway embebido /api/foundry/ingress');
+  check('JWT_SECRET', !!process.env.JWT_SECRET, process.env.JWT_SECRET ? 'presente' : 'AUSENTE — revisar si algun modulo lo exige antes de produccion');
+
+  const critical = checks.filter((c) => !c.ok && c.name === 'Mongo');
+  const optional = checks.filter((c) => !c.ok && c.name !== 'Mongo');
+
+  console.log('\n[boot-verification] ------------------------------------');
+  for (const c of checks) {
+    console.log(`  ${c.ok ? 'OK  ' : 'WARN'} · ${c.name.padEnd(24)} ${c.detail}`);
+  }
+  console.log(`[boot-verification] ${optional.length === 0 ? 'todos los servicios configurados' : `${optional.length} servicio(s) secundario(s) en modo degradado/fallback (ver WARN arriba) — arranque continua`}`);
+  console.log('[boot-verification] ------------------------------------\n');
+
+  if (critical.length > 0) {
+    // no debería poder llegar aquí (Mongo ya es hard-fail mas arriba), pero
+    // si algún día deja de serlo, que quede explícito que esto SÍ frenaría el boot.
+    throw new Error(`Boot verification: servicio critico caido: ${critical.map((c) => c.name).join(', ')}`);
+  }
+}
+bootVerification();
 
 const PORT = process.env.PORT || 5173;
 const HOST = process.env.HOST || '0.0.0.0';
