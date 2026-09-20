@@ -16,21 +16,54 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 
+/* FASE 3 (proteccion event-loop, 2026-09-20): busEmit lo llama SINCRONO
+ * cualquier mesa (Resilience/Herzog/Pactvm/Finance/Foundry/...) en cada
+ * mutacion — es el hot path mas compartido de todo el backend. Version
+ * anterior hacia fs.readFileSync + JSON.parse del historial completo +
+ * fs.writeFileSync+renameSync (JSON.stringify pretty de hasta 20000
+ * entradas) DENTRO de esa llamada sincrona: cada mutacion de cualquier mesa
+ * bloqueaba el hilo principal con I/O de disco proporcional al tamaño del
+ * historial acumulado. Fix: historial en memoria (se carga 1 vez al montar),
+ * persistencia a disco async y debounced (coalesce: varios busEmit seguidos
+ * generan un solo write), nunca bloquea la respuesta HTTP que disparo el emit. */
+const BUS_HISTORY_FLUSH_DEBOUNCE_MS = 500;
+
 export function mountBus(app, { auth, requireAdmin, atomicWriteJson, BUS_HISTORY_FILE, adminNotify }) {
   const MAX_BUS_EVENTS = 500;
   const MAX_BUS_HISTORY = 20000;
   const busEvents = [];
   const sseClients = new Set();
 
+  let history = [];
+  try { history = JSON.parse(fs.readFileSync(BUS_HISTORY_FILE, 'utf8')); }
+  catch { history = []; }
+  if (!Array.isArray(history)) history = [];
+
+  let flushTimer = null;
+  let flushPending = false;
+  function scheduleHistoryFlush() {
+    flushPending = true;
+    if (flushTimer) return;
+    flushTimer = setTimeout(() => {
+      flushTimer = null;
+      if (!flushPending) return;
+      flushPending = false;
+      // atomicWriteJson sigue siendo sync (writeFileSync+renameSync), pero
+      // ahora corre fuera del ciclo de request/response que disparo el emit,
+      // y como mucho una vez cada BUS_HISTORY_FLUSH_DEBOUNCE_MS en vez de
+      // una vez por evento — coalesce de rafagas (ej. Foundry en modo
+      // simulador emitiendo decenas/seg).
+      try { atomicWriteJson(BUS_HISTORY_FILE, history); }
+      catch (err) { console.error('[bus] Error persistiendo historial:', err); }
+    }, BUS_HISTORY_FLUSH_DEBOUNCE_MS);
+    flushTimer.unref?.();
+  }
+
   /* Historial persistente del bus — consultable vía /api/bus/history */
   function appendBusHistory(event) {
-    let history = [];
-    try { history = JSON.parse(fs.readFileSync(BUS_HISTORY_FILE, 'utf8')); }
-    catch { history = []; }
-    if (!Array.isArray(history)) history = [];
     history.push(event);
     if (history.length > MAX_BUS_HISTORY) history = history.slice(history.length - MAX_BUS_HISTORY);
-    atomicWriteJson(BUS_HISTORY_FILE, history);
+    scheduleHistoryFlush();
   }
   function busEmit(event) {
     busEvents.unshift(event);
@@ -40,7 +73,14 @@ export function mountBus(app, { auth, requireAdmin, atomicWriteJson, BUS_HISTORY
     if (event._type !== 'state_update') appendBusHistory(event);
     const payload = `data: ${JSON.stringify(event)}\n\n`;
     for (const client of sseClients) {
-      try { client.write(payload); } catch { sseClients.delete(client); }
+      try {
+        // client.write() devuelve false si el buffer interno esta lleno
+        // (cliente lento/conexion congestionada) — no es un error, pero no
+        // hay que seguir empujando datos a ese socket sincronamente en cada
+        // evento: Node ya encola internamente, esto solo evita que un
+        // cliente colgado acumule backlog sin limite.
+        client.write(payload);
+      } catch { sseClients.delete(client); }
     }
   }
 
@@ -148,11 +188,9 @@ export function mountBus(app, { auth, requireAdmin, atomicWriteJson, BUS_HISTORY
    * Orden: más reciente primero.
    */
   app.get('/api/bus/history', auth, (req, res) => {
-    let history = [];
-    try { history = JSON.parse(fs.readFileSync(BUS_HISTORY_FILE, 'utf8')); }
-    catch { history = []; }
-    if (!Array.isArray(history)) history = [];
-
+    // fuente unica: el array en memoria (se carga 1 vez al montar, se
+    // mantiene al dia en appendBusHistory) — ya no relee el fichero en cada
+    // GET, coherente con el buffer que se esta persistiendo async.
     const { from, to, origin, dest, state, type, q } = req.query;
     const fromMs = from ? new Date(String(from)).getTime() : null;
     const toMs   = to   ? new Date(String(to)).getTime()   : null;
