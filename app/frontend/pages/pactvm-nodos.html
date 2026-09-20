@@ -6,8 +6,16 @@
   <title>Nodos por País · Pactvm Viridi · S-NFI</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap">
   <link rel="stylesheet" href="/css/theme.css">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('systemsTheme');
+        if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      } catch (e) {}
+    })();
+  </script>
   <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
   <style>
     .pactvm-hero {
@@ -19,7 +27,7 @@
     }
     .pactvm-hero__title {
       font-family: var(--font-display);
-      font-size: clamp(1.8rem, 3.4vw, 2.6rem);
+      font-size: 12px;
       font-weight: 800;
       letter-spacing: -0.02em;
       margin: 0 0 10px;
@@ -62,21 +70,34 @@
   <nav class="nav">
     <div class="brand">
       <img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;">
-      SYSTEMS
+      <span class="brand-mark">S-NFI Systems (c)</span>
     </div>
     <div class="row" style="gap:18px;">
-      <span class="mono" id="userTag">...</span>
-      <button class="btn ghost" id="logoutBtn">Cerrar sesión</button>
+      <div class="user-menu" id="userMenu">
+        <button class="user-menu__trigger mono" id="userTag" aria-haspopup="true" aria-expanded="false">…</button>
+        <div class="user-menu__dropdown" id="userDropdown" hidden>
+          <div class="user-menu__section">
+            <span class="user-menu__label">Cambiar contraseña</span>
+            <input class="user-menu__input" type="password" id="pwdCurrent" placeholder="Contraseña actual" autocomplete="current-password">
+            <input class="user-menu__input" type="password" id="pwdNew" placeholder="Nueva contraseña" autocomplete="new-password">
+            <input class="user-menu__input" type="password" id="pwdConfirm" placeholder="Confirmar nueva" autocomplete="new-password">
+            <p class="user-menu__error" id="pwdError" hidden></p>
+            <button class="btn sage" id="pwdSubmit" style="width:100%;margin-top:4px;">Actualizar</button>
+          </div>
+          <div class="user-menu__divider"></div>
+          <button class="user-menu__item user-menu__item--danger" id="logoutBtn">Cerrar sesión</button>
+        </div>
+      </div>
     </div>
   </nav>
 
   <main class="container">
-    <div class="breadcrumb-row" style="display:flex; align-items:center; gap:8px; font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: -0.005em; color: var(--text-muted); margin-bottom: 22px;">
-      <a href="/pages/dashboard.html" style="color:inherit; text-decoration:none;">Systems</a>
-      <span style="opacity:.35;">/</span>
-      <a href="/pages/pactum-viridi.html" style="color:inherit; text-decoration:none;">Pactvm Viridi</a>
-      <span style="opacity:.35;">/</span>
-      <span style="color: var(--text-primary); font-weight:600;">Nodos por País</span>
+    <div class="breadcrumb-row">
+      <a href="/pages/dashboard.html">Systems</a>
+      <span class="sep">/</span>
+      <a href="/pages/pactum-viridi.html">Pactvm Viridi</a>
+      <span class="sep">/</span>
+      <span class="active">Nodos por País</span>
     </div>
 
     <div class="pactvm-hero reveal">
@@ -123,12 +144,14 @@
         <div class="sf"><label>Código ISO-2</label><input class="input" id="cnCode" style="width:70px;" placeholder="ES" maxlength="2"></div>
         <div class="sf"><label>País</label><input class="input" id="cnLabel" placeholder="España"></div>
         <div class="sf"><label>Residuo est. T/día</label><input class="input" id="cnWaste" style="width:130px;" placeholder="45000"></div>
+        <div class="sf"><label>Nodos (manual, opcional)</label><input class="input" id="cnNodesOverride" style="width:130px;" placeholder="auto"></div>
         <div class="sf"><label>Fuente</label><input class="input" id="cnSource" style="min-width:200px;" placeholder="MITECO 2026 / estimación propia"></div>
         <button class="btn sage" id="cnAddBtn">Añadir</button>
       </div>
       <div style="overflow-x:auto; margin-top:12px;">
         <table class="tbl" id="cnTable">
           <thead><tr><th>País</th><th>Residuo T/día</th><th>Nodos necesarios</th><th>Estado</th><th>Fuente</th><th></th></tr></thead>
+          <!-- Nodos necesarios: auto = ceil(residuo/150 T/día), o valor manual si cn-nodes-override != vacío -->
           <tbody id="cnBody"><tr class="empty-row"><td colspan="6">Cargando…</td></tr></tbody>
         </table>
       </div>
@@ -137,15 +160,52 @@
 
   <script src="/vendor/topojson-client.min.js"></script>
   <script type="module">
-    import { api, getUser, requireAuth, clearSession, escapeHtml } from '/js/api.js';
+    import { api, getUser, requireAuth, clearSession, toast, escapeHtml } from '/js/api.js';
+    import { mountThemeToggle } from '/js/theme.js';
     import { mountOfficeBg } from '/js/office-bg.js';
     requireAuth();
+    mountThemeToggle(document.querySelector('nav.nav .row'));
     mountOfficeBg();
     document.getElementById('userTag').textContent = getUser() || '';
     document.getElementById('logoutBtn').addEventListener('click', async () => {
       try { await api.logout(); } catch {}
       clearSession();
       location.href = '/pages/login.html';
+    });
+
+    // User menu dropdown
+    const userMenuTrigger = document.getElementById('userTag');
+    const userMenuDropdown = document.getElementById('userDropdown');
+    userMenuTrigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = !userMenuDropdown.hidden;
+      userMenuDropdown.hidden = open;
+      userMenuTrigger.setAttribute('aria-expanded', String(!open));
+    });
+    document.addEventListener('click', (e) => {
+      if (!document.getElementById('userMenu').contains(e.target)) {
+        userMenuDropdown.hidden = true;
+        userMenuTrigger.setAttribute('aria-expanded', 'false');
+      }
+    });
+    document.getElementById('pwdSubmit').addEventListener('click', async () => {
+      const cur = document.getElementById('pwdCurrent').value;
+      const neu = document.getElementById('pwdNew').value;
+      const con = document.getElementById('pwdConfirm').value;
+      const errEl = document.getElementById('pwdError');
+      errEl.hidden = true;
+      if (!cur || !neu || !con) { errEl.textContent = 'Rellena todos los campos'; errEl.hidden = false; return; }
+      if (neu !== con) { errEl.textContent = 'Las contraseñas no coinciden'; errEl.hidden = false; return; }
+      try {
+        await api.changePassword(cur, neu);
+        toast('Contraseña actualizada');
+        userMenuDropdown.hidden = true;
+        userMenuTrigger.setAttribute('aria-expanded', 'false');
+        ['pwdCurrent','pwdNew','pwdConfirm'].forEach(id => document.getElementById(id).value = '');
+      } catch (ex) {
+        errEl.textContent = ex.message || 'Error al cambiar contraseña';
+        errEl.hidden = false;
+      }
     });
 
     function showError(msg) {
@@ -272,7 +332,7 @@ const UNTRACKED_FILL = '#1a2432';
       if (!row) { box.textContent = `${a2}: sin datos registrados.`; return; }
       box.innerHTML = `<b>${escapeHtml(row.label)}</b> (${row.code})<br>` +
         `residuo est.: ${row.wasteEstTDay} T/día<br>` +
-        `nodos necesarios: <b>${row.nodesNeeded}</b><br>` +
+        `nodos necesarios: <b>${row.nodesNeeded}</b> ${row.nodesOverride != null ? '(manual)' : '(auto)'}<br>` +
         `estado: ${COUNTRY_NODE_STATUSES[row.status]?.label || row.status}`;
     }
 
@@ -299,7 +359,9 @@ const UNTRACKED_FILL = '#1a2432';
         body.innerHTML = rows.map(r => `<tr data-id="${r.id}" data-code="${r.code}">
           <td>${escapeHtml(r.label)} <span class="mono" style="color:var(--text-muted);">(${r.code})</span></td>
           <td class="mono"><input class="input cn-waste" style="width:110px;" value="${r.wasteEstTDay}"></td>
-          <td class="mono" style="font-weight:700;">${r.nodesNeeded}</td>
+          <td class="mono" style="font-weight:700;">
+            <input class="input cn-nodes-override" style="width:70px;" value="${r.nodesOverride ?? ''}" placeholder="${r.nodesNeeded}" title="Vacío = automático (ceil(residuo/150)). Rellena para forzar valor manual.">
+          </td>
           <td>${selectHtml(COUNTRY_NODE_STATUSES, r.status, 'cn-status')}</td>
           <td style="font-size:0.78rem; max-width:260px;">${escapeHtml(r.source || '')}</td>
           <td><button class="btn ghost btn--sm cn-del">Eliminar</button></td>
@@ -309,6 +371,14 @@ const UNTRACKED_FILL = '#1a2432';
           tr.addEventListener('click', (e) => { if (!e.target.closest('button,select,input')) selectCountry(tr.dataset.code); });
           tr.querySelector('.cn-waste').addEventListener('change', async (e) => {
             try { await api.pactvmCountryNodePatch(id, { wasteEstTDay: Number(e.target.value) }); loadCountryNodes(); loadSummary(); } catch (ex) { showError(ex.message); }
+          });
+          tr.querySelector('.cn-nodes-override').addEventListener('change', async (e) => {
+            const raw = e.target.value.trim();
+            const nodesOverride = raw === '' ? null : Number(raw);
+            if (nodesOverride !== null && (!Number.isFinite(nodesOverride) || nodesOverride < 0 || !Number.isInteger(nodesOverride))) {
+              return showError('Nodos manual debe ser entero >= 0 (o vacío para automático)');
+            }
+            try { await api.pactvmCountryNodePatch(id, { nodesOverride }); loadCountryNodes(); loadSummary(); } catch (ex) { showError(ex.message); }
           });
           tr.querySelector('.cn-status').addEventListener('change', async (e) => {
             try { await api.pactvmCountryNodePatch(id, { status: e.target.value }); } catch (ex) { showError(ex.message); }
@@ -324,14 +394,20 @@ const UNTRACKED_FILL = '#1a2432';
       const code = document.getElementById('cnCode').value.trim().toUpperCase();
       const label = document.getElementById('cnLabel').value.trim();
       const wasteEstTDay = Number(document.getElementById('cnWaste').value.trim());
+      const nodesOverrideRaw = document.getElementById('cnNodesOverride').value.trim();
+      const nodesOverride = nodesOverrideRaw === '' ? null : Number(nodesOverrideRaw);
       if (!/^[A-Z]{2}$/.test(code)) return showError('Código ISO-2 inválido');
       if (!label) return showError('Indica el país');
       if (!Number.isFinite(wasteEstTDay) || wasteEstTDay < 0) return showError('Residuo estimado inválido');
+      if (nodesOverride !== null && (!Number.isFinite(nodesOverride) || nodesOverride < 0 || !Number.isInteger(nodesOverride))) {
+        return showError('Nodos manual debe ser entero >= 0 (o vacío para automático)');
+      }
       try {
-        await api.pactvmCountryNodeAdd({ code, label, wasteEstTDay, source: document.getElementById('cnSource').value.trim() || null });
+        await api.pactvmCountryNodeAdd({ code, label, wasteEstTDay, nodesOverride, source: document.getElementById('cnSource').value.trim() || null });
         document.getElementById('cnCode').value = '';
         document.getElementById('cnLabel').value = '';
         document.getElementById('cnWaste').value = '';
+        document.getElementById('cnNodesOverride').value = '';
         document.getElementById('cnSource').value = '';
         loadCountryNodes(); loadSummary();
       } catch (ex) { showError(ex.message || 'Error al crear país'); }

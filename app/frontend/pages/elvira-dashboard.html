@@ -6,15 +6,23 @@
   <title>Elvi-Ra · S-NFI</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap">
   <link rel="stylesheet" href="/css/theme.css">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('systemsTheme');
+        if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      } catch (e) {}
+    })();
+  </script>
   <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
 </head>
 <body>
   <nav class="nav">
     <div class="brand">
       <a href="/pages/dashboard.html" style="color:inherit; text-decoration:none;">
-        <img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;"> SYSTEMS
+        <img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;"> <span class="brand-mark">S-NFI Systems (c)</span>
       </a>
       <span class="mono" style="opacity:0.5; margin:0 8px;">/</span>
       <span>Elvi-Ra</span>
@@ -38,45 +46,6 @@
     </div>
   </nav>
 
-  <style>
-    .user-menu { position: relative; }
-    .user-menu__trigger {
-      background: none; border: none; cursor: pointer;
-      padding: 6px 10px; border-radius: var(--radius-sm);
-      font-size: 0.82rem; color: var(--text-2);
-      transition: background 0.15s;
-    }
-    .user-menu__trigger:hover { background: rgba(20,24,32,0.06); color: var(--text-1); }
-    .user-menu__dropdown {
-      position: absolute; right: 0; top: calc(100% + 8px);
-      background: #fff; border: 1px solid var(--border);
-      border-radius: var(--radius); box-shadow: 0 8px 32px rgba(0,0,0,0.10);
-      min-width: 240px; padding: 12px 0; z-index: 100;
-    }
-    .user-menu__section { padding: 4px 14px 8px; display: flex; flex-direction: column; gap: 6px; }
-    .user-menu__label { font-size: 0.72rem; font-family: var(--font-mono); color: var(--text-3); letter-spacing: -0.005em; margin-bottom: 2px; }
-    .user-menu__input {
-      width: 100%; padding: 7px 10px; border: 1px solid var(--border);
-      border-radius: var(--radius-sm); font-size: 0.82rem; font-family: var(--font-sans);
-      background: var(--bg); color: var(--text-1); outline: none; box-sizing: border-box;
-    }
-    .user-menu__input:focus { border-color: var(--accent-blue); }
-    .user-menu__error { font-size: 0.78rem; color: #c0392b; margin: 2px 0 0; }
-    .user-menu__divider { height: 1px; background: var(--border); margin: 4px 0; }
-    .user-menu__item {
-      display: block; width: 100%; text-align: left;
-      padding: 9px 14px; background: none; border: none; cursor: pointer;
-      font-size: 0.85rem; font-family: var(--font-sans); color: var(--text-1);
-      transition: background 0.12s;
-    }
-    .user-menu__item:hover { background: rgba(20,24,32,0.04); }
-    .user-menu__item--danger { color: #c0392b; }
-    .user-menu__item--danger:hover { background: rgba(192,57,43,0.06); }
-    /* Above the background canvas but below .nav (z-index 30 in theme.css),
-       so the notifications dropdown inside the nav receives clicks */
-    main.container { position: relative; z-index: 1; }
-  </style>
-
   <main class="container">
     <header class="reveal">
       <span class="kicker">Dominio Elvi-Ra · Palanca de acción</span>
@@ -95,14 +64,8 @@
           <p class="mono" style="margin-top:10px;">acceso directo →</p>
         </a>
 
-        <a class="tile reveal delay-4" href="/pages/sentinel.html" data-mesa="sentinel" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
-          <h3>Sentinel</h3>
-          <p>Seguridad y telemetría. Trazabilidad forense de IPs, hash chain inmutable, rate limiting en rutas sensibles, cola de revisión y bloqueo manual. Solo Admin.</p>
-          <p class="mono" style="margin-top:10px;">acceso directo →</p>
-        </a>
-
         <a class="tile reveal delay-4" href="/pages/foundry.html" data-mesa="foundry" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
-          <h3>Data Foundry</h3>
+          <h3>Lab</h3>
           <p>Mesa doctrinal: litografía de datos ASML + fundición TSMC. Ingesta asíncrona en salas limpias (OPS, PAIA, Herzog, U-2), circuit breakers y métricas de pipeline. Solo Admin.</p>
           <p class="mono" style="margin-top:10px;">acceso directo →</p>
         </a>
@@ -124,24 +87,17 @@
           <span class="mesa-status-detail"></span>
           <span class="mesa-status-error"></span>
         </div>
-        <div class="mesa-status-card" data-mesa="sentinel">
-          <div class="mesa-status-head">
-            <span class="mesa-status-name">Sentinel</span>
-            <span class="mesa-status-dot checking"></span>
-          </div>
-          <span class="mesa-status-label">comprobando...</span>
-          <span class="mesa-status-detail"></span>
-          <span class="mesa-status-error"></span>
-        </div>
       </div>
     </section>
   </main>
 
   <script type="module">
     import { api, getUser, getToken, clearSession, requireAuth, toast } from '/js/api.js';
+    import { mountThemeToggle } from '/js/theme.js';
     import { mountAdminNotifications } from '/js/notifications.js';
     import { mountOfficeBg, mountSphereBg } from '/js/office-bg.js';
     requireAuth();
+    mountThemeToggle(document.querySelector('nav.nav .row'));
     mountOfficeBg();
     mountSphereBg();
     const user = getUser() || '';
@@ -154,7 +110,7 @@
         headers: { Authorization: `Bearer ${getToken()}` }
       }).then(r => r.json());
       const allowed = new Set(perms.mesas || []);
-      const domainMesas = ['elvira', 'sentinel', 'foundry'];
+      const domainMesas = ['elvira', 'foundry'];
       if (!domainMesas.some(m => allowed.has(m))) {
         location.href = '/pages/dashboard.html';
       }
@@ -250,9 +206,6 @@
     function refreshMesaStatus() {
       checkMesa('elvira', '/api/elvira/overview', {
         parse: d => `${d.metrics?.totalCompanies ?? 0} empresas`
-      });
-      checkMesa('sentinel', '/api/sentinel/ip-stats', {
-        parse: d => `${Array.isArray(d) ? d.length : 0} IPs monitorizadas`
       });
     }
 

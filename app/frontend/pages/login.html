@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SYSTEMS · Acceso</title>
+  <title>S-NFI Systems</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap">
   <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
   <style>
     :root {
@@ -19,7 +19,7 @@
       --line-soft: rgba(255,255,255,0.06);
       --accent: #3dffd2;
       --accent-dim: rgba(61,255,210,0.5);
-      --font-body: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      --font-body: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
       --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
       --ease: cubic-bezier(0.16, 1, 0.3, 1);
     }
@@ -87,15 +87,67 @@
       opacity: 0;
       animation: rise 0.8s 0.9s var(--ease) forwards;
     }
+    /* ---- marca de portada: letras cromadas sobre halo grafito/rojo AMG ----
+       El halo va en ::before (capa propia, desenfocada) en vez de en
+       text-shadow: asi el resplandor no ensucia el filo de las letras,
+       que deben leerse como metal pulido. Paleta de presentacion (grafito +
+       rojo AMG), no neon: contenida, seria, sin gritar. */
+    .hero-mark {
+      position: relative;
+      display: inline-block;
+    }
+    .hero-mark::before {
+      content: '';
+      position: absolute;
+      left: 50%; top: 50%;
+      width: 165%; height: 260%;
+      transform: translate(-50%, -50%);
+      background: radial-gradient(
+        ellipse at center,
+        rgba(180, 24, 24, 0.16) 0%,
+        rgba(120, 20, 20, 0.08) 40%,
+        rgba(80, 16, 16, 0.03) 65%,
+        rgba(80, 16, 16, 0) 80%
+      );
+      filter: blur(18px);
+      pointer-events: none;
+      z-index: -1;
+      animation: neonBreath 6.5s ease-in-out infinite;
+    }
     .hero-copy h1 {
-      margin: 14px 0 0;
-      font-size: clamp(1.6rem, 2.6vw, 2.15rem);
-      font-weight: 600;
-      letter-spacing: -0.02em;
-      line-height: 1.18;
-      color: var(--ink);
-      opacity: 0;
-      animation: rise 0.8s 1.05s var(--ease) forwards;
+      margin: 0;
+      font-size: 15px;
+      font-weight: 500;
+      letter-spacing: 0.5em;
+      text-transform: uppercase;
+      text-indent: 0.5em; /* compensa el tracking para que quede centrado */
+      line-height: 1.2;
+      /* cromado: degradado plateado frio, recortado sobre el texto */
+      background: linear-gradient(
+        160deg,
+        #ffffff 0%, #d8dee4 22%, #9aa4ad 40%,
+        #f2f5f7 52%, #aab3bb 68%, #dfe5ea 84%, #8f989f 100%
+      );
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.55));
+    }
+    /* Reserva: si el navegador no recorta degradado sobre texto, el color
+       plano evita que el titulo quede invisible. */
+    @supports not ((-webkit-background-clip: text) or (background-clip: text)) {
+      .hero-copy h1 { color: #dfe5ea; -webkit-text-fill-color: #dfe5ea; }
+    }
+    .hero-copy h1 .cmark {
+      font-size: 0.62em;
+      letter-spacing: 0.06em;
+      vertical-align: super;
+      opacity: 0.75;
+    }
+    @keyframes neonBreath {
+      0%, 100% { opacity: 0.72; }
+      50%      { opacity: 1; }
     }
     .hero-copy p {
       margin: 12px auto 0;
@@ -207,15 +259,6 @@
       border-radius: 10px;
       transition: background-color 9999s ease-in-out 0s;
     }
-    .field-suffix {
-      font-family: var(--font-mono);
-      font-size: 0.76rem;
-      color: var(--ink-dim);
-      padding-right: 14px;
-      user-select: none;
-      pointer-events: none;
-      white-space: nowrap;
-    }
 
     .submit {
       width: 100%;
@@ -294,22 +337,17 @@
     <section class="hero" aria-hidden="true">
       <canvas id="heroCanvas"></canvas>
       <div class="hero-copy">
-        <div class="mark">South Navarre Fresh Innovations</div>
-        <h1>Infraestructura industrial<br>bajo gobierno soberano.</h1>
-        <p>OEM deep-tech. Optimización adaptativa y control centralizado sobre la red física S-NFI BioHybrid.</p>
+        <h1 class="hero-mark">S-NFI</h1>
       </div>
     </section>
 
     <section class="panel">
       <div class="card" id="loginCard">
-        <div class="kicker">Systems</div>
-        <h2>Acceso al panel</h2>
         <form id="loginForm" autocomplete="off">
           <div class="field">
             <label class="field-label" for="username">Usuario</label>
             <div class="field-wrap">
-              <input class="field-input" id="username" name="username" type="password" placeholder="nombre" required autocomplete="username" spellcheck="false">
-              <span class="field-suffix" id="domainSuffix">@snficorp.com</span>
+              <input class="field-input" id="username" name="username" type="email" placeholder="usuario@empresa.com" required autocomplete="username" spellcheck="false">
             </div>
           </div>
           <div class="field">
@@ -323,7 +361,6 @@
         </form>
         <div class="card-foot">
           <span><span class="dot"></span>Enlace seguro</span>
-          <span>S-NFI Corp.</span>
         </div>
       </div>
     </section>
@@ -459,19 +496,13 @@
     const err = document.getElementById('err');
     const btn = document.getElementById('submitBtn');
     const userInput = document.getElementById('username');
-    const suffix = document.getElementById('domainSuffix');
-
-    userInput.addEventListener('input', () => {
-      suffix.style.visibility = userInput.value.includes('@') ? 'hidden' : 'visible';
-    });
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       err.textContent = '';
       btn.disabled = true;
       btn.textContent = 'Verificando';
-      let username = userInput.value.trim();
-      if (username && !username.includes('@')) username += '@snficorp.com';
+      const username = userInput.value.trim();
       const password = document.getElementById('password').value;
       try {
         const r = await api.login(username, password);

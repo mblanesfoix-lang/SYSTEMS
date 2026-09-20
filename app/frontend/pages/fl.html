@@ -6,8 +6,16 @@
   <title>S-NFI F&amp;L · S-NFI</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap">
   <link rel="stylesheet" href="/css/theme.css">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('systemsTheme');
+        if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      } catch (e) {}
+    })();
+  </script>
   <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
   <style>
     .fl-hero {
@@ -19,7 +27,7 @@
     }
     .fl-hero__title {
       font-family: var(--font-display);
-      font-size: clamp(1.8rem, 3.4vw, 2.6rem);
+      font-size: 12px;
       font-weight: 800;
       letter-spacing: -0.02em;
       margin: 0 0 10px;
@@ -50,11 +58,13 @@
       border: 1px solid var(--border-mid); border-radius: var(--radius); overflow: hidden; margin-bottom: 24px; background: var(--bg-card);
     }
     @media (max-width: 1000px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
-    .kpi-cell { padding: 20px 22px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .kpi-cell { padding: 20px 22px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); position: relative; }
     .kpi-cell:nth-child(5n) { border-right: none; }
+    .kpi-cell.alert::before { content: ''; position: absolute; top: 0; left: 0; width: 3px; height: 100%; background: #d80300; }
     .kpi-label { font-family: var(--font-mono); font-size: 0.55rem; letter-spacing: 0.04em; color: var(--text-muted); margin-bottom: 10px; }
     .kpi-val { font-family: var(--font-display); font-size: 1.8rem; font-weight: 800; letter-spacing: -0.03em; }
     .kpi-val.warn { color: #d80300; }
+    .kpi-val.good { color: #00a878; }
 
     .fl-panel { display: none; }
     .fl-panel.active { display: block; }
@@ -64,58 +74,162 @@
     .add-row .sf label { font-size: 0.62rem; letter-spacing: -0.005em; color: var(--text-muted); font-family: var(--font-mono); }
     .add-row .input { min-width: 120px; }
 
-    .status-pill { font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.02em; padding: 3px 10px; border-radius: var(--radius-pill); display: inline-block; }
-    .status-activo { background: rgba(0,168,120,0.12); color: #00a878; }
-    .status-vencido { background: rgba(216,3,0,0.10); color: #d80300; }
-    .status-rescindido { background: rgba(120,120,120,0.14); color: var(--text-muted); }
-    .status-preparacion { background: rgba(120,120,120,0.14); color: var(--text-muted); }
-    .status-presentado { background: rgba(0,113,227,0.10); color: var(--accent-blue-text); }
-    .status-en_examen { background: rgba(200,150,0,0.12); color: #c89600; }
-    .status-concedido { background: rgba(0,168,120,0.12); color: #00a878; }
-    .status-denegado { background: rgba(216,3,0,0.10); color: #d80300; }
+    .status-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.02em;
+      padding: 3px 10px; border-radius: var(--radius-pill); background: var(--bg-elevated); border: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    .status-dot-sm { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 
-    .piece-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 8px; }
-    @media (max-width: 900px) { .piece-grid { grid-template-columns: repeat(2, 1fr); } }
-    .piece-cell { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; }
-    .piece-cell .piece-name { font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.02em; color: var(--text-muted); margin-bottom: 6px; }
-    .piece-cell select { width: 100%; font-size: 0.78rem; }
+    .picker-row {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 18px; flex-wrap: wrap;
+      padding: 12px 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    }
+    .picker-row label { font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: -0.005em; color: var(--text-muted); }
+    .picker-row select { min-width: 220px; }
 
-    .docs-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-    .doc-chip { font-family: var(--font-mono); font-size: 0.68rem; background: var(--bg); border: 1px solid var(--border); padding: 3px 10px; border-radius: var(--radius-pill); display: inline-flex; align-items: center; gap: 6px; }
-    .doc-chip button { border: none; background: none; color: var(--text-muted); cursor: pointer; padding: 0; font-size: 0.9rem; line-height: 1; }
-    .doc-chip button:hover { color: #d80300; }
+    .progress-bar { width: 100%; max-width: 120px; height: 6px; border-radius: 3px; background: var(--bg-elevated); overflow: hidden; border: 1px solid var(--border); }
+    .progress-bar__fill { height: 100%; background: var(--accent-blue); transition: width 0.3s var(--ease); }
+    .progress-bar__fill.full { background: #00a878; }
 
-    .empty-row td { text-align: center; color: var(--text-muted); font-size: 0.82rem; padding: 24px !important; }
+    .sub-block { border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; margin-top: 18px; }
+    .sub-block h4 { margin: 0 0 12px; font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: -0.005em; color: var(--text-muted); }
+
+    .risk-badge { font-family: var(--font-mono); font-size: 0.58rem; padding: 3px 9px; border-radius: var(--radius-pill); font-weight: 600; letter-spacing: 0.02em; }
+    .risk-CRITICO { background: rgba(216,3,0,0.12); color: #d80300; }
+    .risk-ALTO { background: rgba(255,149,0,0.14); color: #cc7a00; }
+    .risk-MEDIO { background: rgba(0,113,227,0.12); color: #0071e3; }
+    .risk-BAJO { background: rgba(0,168,120,0.12); color: #00a878; }
+
+    .empty-row td, .empty-state { text-align: center; color: var(--text-muted); font-size: 0.82rem; padding: 24px !important; }
+    .gating-tag { font-family: var(--font-mono); font-size: 0.55rem; color: #d80300; }
+
+    /* ---- Expediente Fiscal y Juridico Impecable ---- */
+    .exp-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 18px; }
+
+    .exp-alert-box { border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 18px; margin-bottom: 18px; background: var(--bg-card); }
+    .exp-alert-box h4 { margin: 0 0 10px; font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: -0.005em; color: var(--text-muted); }
+    .exp-alert-item { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid var(--border); font-size: 0.8rem; }
+    .exp-alert-item:first-of-type { border-top: none; }
+    .exp-alert-item .sev { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .exp-alert-item .sev.error { background: #d80300; }
+    .exp-alert-item .sev.warning { background: #cc7a00; }
+    .exp-alert-item .slot { font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-muted); flex-shrink: 0; }
+
+    /* Layout CRM: lista de carpetas a la izquierda, ficha del documento a la derecha */
+    .exp-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 380px); gap: 18px; align-items: start; }
+    @media (max-width: 1020px) { .exp-layout { grid-template-columns: 1fr; } }
+
+    .exp-bloque { border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 14px; }
+    .exp-bloque > h3 { margin: 0 0 3px; font-size: 0.9rem; letter-spacing: -0.02em; }
+    .exp-bloque > p.desc { margin: 0 0 12px; font-size: 0.74rem; color: var(--text-muted); max-width: 640px; }
+    .exp-bloque__count { font-family: var(--font-mono); font-size: 0.58rem; color: var(--text-muted); font-weight: 400; margin-left: 6px; }
+
+    .exp-row {
+      display: flex; align-items: center; gap: 10px; padding: 9px 10px;
+      border: 1px solid transparent; border-radius: var(--radius-sm); cursor: pointer;
+      transition: background 0.15s var(--ease), border-color 0.15s var(--ease);
+    }
+    .exp-row:hover { background: var(--bg-elevated); }
+    .exp-row.selected { border-color: var(--accent-blue); background: rgba(0,113,227,0.05); }
+    .exp-row__clip { font-size: 0.8rem; flex-shrink: 0; width: 16px; text-align: center; }
+    .exp-row__name { flex: 1; min-width: 0; font-size: 0.82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .exp-row__meta { font-family: var(--font-mono); font-size: 0.56rem; color: var(--text-muted); flex-shrink: 0; white-space: nowrap; }
+    .exp-row__meta.warn { color: #cc7a00; }
+    .exp-row__meta.bad { color: #d80300; }
+    .exp-bloque__empty { font-size: 0.76rem; color: var(--text-muted); padding: 8px 10px; }
+
+    .exp-ficha { border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; position: sticky; top: 90px; }
+    .exp-ficha h3 { margin: 0 0 2px; font-size: 0.9rem; letter-spacing: -0.02em; }
+    .exp-ficha .sf { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+    .exp-ficha .sf label { font-size: 0.6rem; color: var(--text-muted); font-family: var(--font-mono); }
+    .exp-ficha .input { font-size: 0.8rem; padding: 7px 9px; width: 100%; }
+    .exp-ficha textarea.input { resize: vertical; min-height: 60px; font-family: var(--font-body); }
+    .exp-ficha__grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .exp-ficha__actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+    .exp-ficha__hint { font-size: 0.7rem; color: var(--text-muted); margin: 0 0 12px; }
+
+    /* Vista por defecto de la ficha: titulo + zona del PDF. Lo demas, plegado. */
+    .exp-ficha__carpeta { font-family: var(--font-mono); font-size: 0.56rem; letter-spacing: 0.04em; color: var(--text-muted); margin-bottom: 6px; }
+    .exp-ficha__titulo { margin: 0 0 6px; font-size: 1rem; line-height: 1.3; letter-spacing: -0.02em; }
+    .exp-ficha__desc { margin: 0 0 12px; font-size: 0.76rem; color: var(--text-muted); line-height: 1.45; }
+    .exp-ficha__alerta { font-size: 0.74rem; padding: 8px 11px; border-radius: var(--radius-sm); margin-bottom: 12px; border: 1px solid; }
+    .exp-ficha__alerta.warning { color: #cc7a00; border-color: rgba(255,149,0,0.35); background: rgba(255,149,0,0.08); }
+    .exp-ficha__alerta.error { color: #d80300; border-color: rgba(216,3,0,0.3); background: rgba(216,3,0,0.07); }
+    .exp-ficha__pdf { margin-bottom: 12px; }
+    .exp-ficha__resumen { display: flex; gap: 14px; flex-wrap: wrap; font-family: var(--font-mono); font-size: 0.58rem; color: var(--text-muted); padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+
+    .exp-toggle {
+      width: 100%; margin: 12px 0 0; padding: 8px; cursor: pointer;
+      background: none; border: 1px solid var(--border); border-radius: var(--radius-sm);
+      font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-secondary);
+      transition: border-color 0.15s var(--ease), color 0.15s var(--ease);
+    }
+    .exp-toggle:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
+    .exp-detalles { margin-top: 14px; }
+
+    .exp-file { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 8px; font-size: 0.76rem; background: var(--bg-elevated); }
+    .exp-file__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .exp-file__meta { font-family: var(--font-mono); font-size: 0.56rem; color: var(--text-muted); flex-shrink: 0; }
+    .exp-file__act { background: none; border: none; cursor: pointer; font-family: var(--font-mono); font-size: 0.56rem; color: var(--accent-blue); padding: 2px 3px; }
+    .exp-file__act.danger { color: #d80300; }
+
+    .exp-drop { border: 1px dashed var(--border); border-radius: var(--radius-sm); padding: 14px; text-align: center; font-size: 0.74rem; color: var(--text-muted); cursor: pointer; transition: border-color 0.2s var(--ease), background 0.2s var(--ease); }
+    .exp-drop:hover, .exp-drop.dragover { border-color: var(--accent-blue); background: rgba(0,113,227,0.04); color: var(--text-primary); }
+    /* Sin archivo todavia: es la accion principal de la ficha, pesa mas */
+    .exp-drop--vacio { padding: 26px 14px; font-size: 0.8rem; }
+
+    .exp-state { font-family: var(--font-mono); font-size: 0.56rem; padding: 3px 9px; border-radius: var(--radius-pill); font-weight: 600; letter-spacing: 0.02em; white-space: nowrap; }
+    .exp-state-vigente { background: rgba(0,168,120,0.12); color: #00a878; }
+    .exp-state-por_caducar { background: rgba(255,149,0,0.14); color: #cc7a00; }
+    .exp-state-caducado { background: rgba(216,3,0,0.12); color: #d80300; }
+    .exp-state-pendiente { background: var(--bg-elevated); color: var(--text-muted); }
+    .exp-state-en_tramite { background: rgba(0,113,227,0.12); color: #0071e3; }
+    .exp-state-no_aplica { background: var(--bg-elevated); color: var(--text-muted); }
   </style>
 </head>
 <body>
   <nav class="nav">
     <div class="brand">
       <img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;">
-      SYSTEMS
+      <span class="brand-mark">S-NFI Systems (c)</span>
     </div>
     <div class="row" style="gap:18px;">
-      <span class="mono" id="userTag">...</span>
-      <button class="btn ghost" id="logoutBtn">Cerrar sesión</button>
+      <div class="user-menu" id="userMenu">
+        <button class="user-menu__trigger mono" id="userTag" aria-haspopup="true" aria-expanded="false">…</button>
+        <div class="user-menu__dropdown" id="userDropdown" hidden>
+          <div class="user-menu__section">
+            <span class="user-menu__label">Cambiar contraseña</span>
+            <input class="user-menu__input" type="password" id="pwdCurrent" placeholder="Contraseña actual" autocomplete="current-password">
+            <input class="user-menu__input" type="password" id="pwdNew" placeholder="Nueva contraseña" autocomplete="new-password">
+            <input class="user-menu__input" type="password" id="pwdConfirm" placeholder="Confirmar nueva" autocomplete="new-password">
+            <p class="user-menu__error" id="pwdError" hidden></p>
+            <button class="btn sage" id="pwdSubmit" style="width:100%;margin-top:4px;">Actualizar</button>
+          </div>
+          <div class="user-menu__divider"></div>
+          <button class="user-menu__item user-menu__item--danger" id="logoutBtn">Cerrar sesión</button>
+        </div>
+      </div>
     </div>
   </nav>
 
   <main class="container">
-    <div class="breadcrumb-row" style="display:flex; align-items:center; gap:8px; font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: -0.005em; color: var(--text-muted); margin-bottom: 22px;">
-      <a href="/pages/dashboard.html" style="color:inherit; text-decoration:none;">Systems</a>
-      <span style="opacity:.35;">/</span>
-      <a href="/pages/reff-dashboard.html" style="color:inherit; text-decoration:none;">Rëff</a>
-      <span style="opacity:.35;">/</span>
-      <span style="color: var(--text-primary); font-weight:600;">S-NFI F&amp;L</span>
+    <div class="breadcrumb-row">
+      <a href="/pages/dashboard.html">Systems</a>
+      <span class="sep">/</span>
+      <a href="/pages/reff-dashboard.html">Rëff</a>
+      <span class="sep">/</span>
+      <span class="active">S-NFI F&amp;L</span>
     </div>
 
     <div class="fl-hero reveal">
-      <span class="kicker">Mesa · Fiscal &amp; Legal</span>
+      <span class="kicker">Mesa · Audit Legal</span>
       <h1 class="fl-hero__title">S-NFI <em style="font-style:normal;color:var(--accent-blue);">F&amp;L</em></h1>
       <p class="fl-hero__sub">
-        Custodia legal inexpugnable del Holding: almacenamiento y auditoría de NDAs, contratos mercantiles y
-        laborales, estructura de cesión de licencias, y expediente técnico-jurídico de base para la solicitud
-        del Modelo de Utilidad ante la OEPM.
+        Firmas &amp; Normas. Licencias y permisos multi-planta ante SEMARNAT, CONAGUA, CFE y MITECO;
+        matriz de responsabilidad civil/penal por proyecto con bloqueo de pagos ante control sin
+        verificar; alarma de caducidad de poderes corporativos y firmas digitales.
       </p>
     </div>
 
@@ -123,121 +237,341 @@
 
     <div class="kpi-grid reveal" id="summaryKpis">
       <div class="kpi-cell">
-        <div class="kpi-label">NDAs</div>
-        <div class="kpi-val" id="kpiNdasVal">—</div>
+        <div class="kpi-label">ICRL · cumplimiento regulatorio</div>
+        <div class="kpi-val" id="kpiIcrl">—</div>
       </div>
-      <div class="kpi-cell">
-        <div class="kpi-label">Contratos</div>
-        <div class="kpi-val" id="kpiContractsVal">—</div>
+      <div class="kpi-cell" id="kpiIrvCell">
+        <div class="kpi-label">IRV · riesgo vencimiento</div>
+        <div class="kpi-val" id="kpiIrv">—</div>
       </div>
-      <div class="kpi-cell">
-        <div class="kpi-label">Licencias</div>
-        <div class="kpi-val" id="kpiLicensesVal">—</div>
+      <div class="kpi-cell" id="kpiInfraccionesCell">
+        <div class="kpi-label">Infracciones</div>
+        <div class="kpi-val" id="kpiInfracciones">—</div>
       </div>
-      <div class="kpi-cell">
-        <div class="kpi-label">Expedientes OEPM</div>
-        <div class="kpi-val" id="kpiOepmVal">—</div>
+      <div class="kpi-cell" id="kpiPoderesCell">
+        <div class="kpi-label">Poderes/firmas en alerta</div>
+        <div class="kpi-val" id="kpiPoderes">—</div>
       </div>
-      <div class="kpi-cell">
-        <div class="kpi-label">Vencen &lt; 30 días</div>
-        <div class="kpi-val" id="kpiExpiringVal">—</div>
+      <div class="kpi-cell" id="kpiControlesCell">
+        <div class="kpi-label">Controles legales en alerta</div>
+        <div class="kpi-val" id="kpiControles">—</div>
       </div>
     </div>
 
     <div class="mode-tabs reveal">
-      <button class="mode-tab active" data-panel="ndas">NDAs</button>
-      <button class="mode-tab" data-panel="contratos">Contratos</button>
-      <button class="mode-tab" data-panel="licencias">Licencias</button>
-      <button class="mode-tab" data-panel="oepm">Expediente OEPM</button>
-    </div>
-
-    <!-- NDAs -->
-    <div class="fl-panel active card reveal" id="panel-ndas" style="padding:20px;">
-      <div class="add-row">
-        <div class="sf"><label>Contraparte</label><input class="input" id="ndaCounterparty" placeholder="Empresa / persona"></div>
-        <div class="sf"><label>Alcance</label><input class="input" id="ndaScope" placeholder="Objeto de confidencialidad" style="min-width:220px;"></div>
-        <div class="sf"><label>Firmado</label><input class="input" type="date" id="ndaSigned"></div>
-        <div class="sf"><label>Vigente desde</label><input class="input" type="date" id="ndaFrom"></div>
-        <div class="sf"><label>Vigente hasta</label><input class="input" type="date" id="ndaTo"></div>
-        <button class="btn sage" id="ndaAddBtn">Añadir NDA</button>
-      </div>
-      <div style="overflow-x:auto;">
-        <table class="tbl" id="ndaTable">
-          <thead><tr><th>Contraparte</th><th>Vigencia</th><th>Estado</th><th>Documentos</th><th></th></tr></thead>
-          <tbody id="ndaBody"><tr class="empty-row"><td colspan="5">Cargando…</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- CONTRATOS -->
-    <div class="fl-panel card reveal" id="panel-contratos" style="padding:20px;">
-      <div class="add-row">
-        <div class="sf"><label>Tipo</label>
-          <select class="input" id="ctrType">
-            <option value="mercantil">Mercantil</option>
-            <option value="laboral">Laboral</option>
-          </select>
-        </div>
-        <div class="sf"><label>Partes</label><input class="input" id="ctrParties" placeholder="S-NFI Corp. / Proveedor X"></div>
-        <div class="sf"><label>Objeto</label><input class="input" id="ctrObject" placeholder="Objeto del contrato" style="min-width:220px;"></div>
-        <div class="sf"><label>Vigente desde</label><input class="input" type="date" id="ctrFrom"></div>
-        <div class="sf"><label>Vigente hasta</label><input class="input" type="date" id="ctrTo"></div>
-        <button class="btn sage" id="ctrAddBtn">Añadir contrato</button>
-      </div>
-      <div style="overflow-x:auto;">
-        <table class="tbl" id="ctrTable">
-          <thead><tr><th>Tipo</th><th>Partes</th><th>Vigencia</th><th>Estado</th><th>Documentos</th><th></th></tr></thead>
-          <tbody id="ctrBody"><tr class="empty-row"><td colspan="6">Cargando…</td></tr></tbody>
-        </table>
-      </div>
+      <button class="mode-tab active" data-panel="licencias">Licencias</button>
+      <button class="mode-tab" data-panel="matriz">Matriz Legal</button>
+      <button class="mode-tab" data-panel="poderes">Poderes &amp; Firmas</button>
+      <button class="mode-tab" data-panel="inspecciones">Inspecciones</button>
+      <button class="mode-tab" data-panel="expediente">Expediente Fiscal y Jurídico</button>
     </div>
 
     <!-- LICENCIAS -->
-    <div class="fl-panel card reveal" id="panel-licencias" style="padding:20px;">
+    <div class="fl-panel active card reveal" id="panel-licencias" style="padding:20px;">
+      <div class="sub-block">
+        <h4>Instalaciones</h4>
+        <div class="add-row">
+          <div class="sf"><label>Nombre</label><input class="input" id="instNombre" placeholder="Planta Solar Norte"></div>
+          <div class="sf"><label>País</label>
+            <select class="input" id="instPais">
+              <option value="">—</option>
+              <option value="México">México</option>
+              <option value="España">España</option>
+            </select>
+          </div>
+          <div class="sf"><label>Región/Estado</label><input class="input" id="instRegion" placeholder="Opcional"></div>
+          <button class="btn sage" id="instAddBtn">Añadir instalación</button>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="tbl" id="instTable">
+            <thead><tr><th>Nombre</th><th>País</th><th>Región</th><th>Licencias</th><th></th></tr></thead>
+            <tbody id="instBody"><tr class="empty-row"><td colspan="5">Cargando…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="picker-row">
+        <label>Instalación</label>
+        <select id="licInstSelect"><option value="">Todas</option></select>
+      </div>
+
       <div class="add-row">
-        <div class="sf"><label>Licenciante</label><input class="input" id="licLicensor" placeholder="S-NFI Corp."></div>
-        <div class="sf"><label>Licenciatario</label><input class="input" id="licLicensee" placeholder="Tercero"></div>
-        <div class="sf"><label>Territorio</label><input class="input" id="licTerritory" placeholder="ES / EU / global"></div>
-        <div class="sf"><label>Exclusiva</label>
-          <select class="input" id="licExclusive">
-            <option value="false">No</option>
-            <option value="true">Sí</option>
+        <div class="sf"><label>Instalación</label>
+          <select class="input" id="licInstalacion"></select>
+        </div>
+        <div class="sf"><label>Dependencia</label>
+          <select class="input" id="licDependencia">
+            <option value="SEMARNAT">SEMARNAT</option>
+            <option value="CONAGUA">CONAGUA</option>
+            <option value="CFE">CFE</option>
+            <option value="MITECO">MITECO</option>
+            <option value="OTRO_LOCAL">Otro local</option>
           </select>
         </div>
-        <div class="sf"><label>Royalties / fee</label><input class="input" id="licFee" placeholder="% o importe"></div>
-        <div class="sf"><label>Contrato vinculado</label><select class="input" id="licContract"><option value="">Ninguno</option></select></div>
-        <div class="sf"><label>Vigente desde</label><input class="input" type="date" id="licFrom"></div>
-        <div class="sf"><label>Vigente hasta</label><input class="input" type="date" id="licTo"></div>
+        <div class="sf"><label>Tipo de permiso</label><input class="input" id="licTipo" placeholder="MIA, AAI, Código de Red..."></div>
+        <div class="sf"><label>Folio/Oficio</label><input class="input" id="licFolio" placeholder="Opcional"></div>
+        <div class="sf"><label>Emisión</label><input class="input" type="date" id="licEmision"></div>
+        <div class="sf"><label>Vencimiento</label><input class="input" type="date" id="licVencimiento"></div>
+        <div class="sf"><label>Días alerta</label><input class="input" id="licDiasAlerta" style="width:80px;" placeholder="180"></div>
         <button class="btn sage" id="licAddBtn">Añadir licencia</button>
       </div>
       <div style="overflow-x:auto;">
         <table class="tbl" id="licTable">
-          <thead><tr><th>Licenciante → Licenciatario</th><th>Territorio</th><th>Vigencia</th><th>Estado</th><th>Documentos</th><th></th></tr></thead>
+          <thead><tr><th>Dependencia</th><th>Tipo</th><th>Folio</th><th>Vencimiento</th><th>Estado</th><th></th></tr></thead>
           <tbody id="licBody"><tr class="empty-row"><td colspan="6">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+
+      <div class="sub-block" id="licDetailBlock" style="display:none;">
+        <h4 id="licDetailTitle">Detalle de licencia</h4>
+        <div id="licKpisBox" style="margin-bottom:16px; font-size:0.82rem; color:var(--text-muted);"></div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:24px;">
+          <div>
+            <h4>Métricas medidas</h4>
+            <div class="add-row">
+              <div class="sf"><label>Parámetro</label>
+                <select class="input" id="metTipo">
+                  <option value="Volumen_Agua_m3">Volumen Agua (m3)</option>
+                  <option value="Factor_Potencia">Factor Potencia</option>
+                  <option value="Descarga_BOD">Descarga BOD</option>
+                  <option value="CO2_Emisiones">CO2 Emisiones</option>
+                  <option value="Otro">Otro</option>
+                </select>
+              </div>
+              <div class="sf"><label>Límite</label><input class="input" id="metLimite" style="width:90px;"></div>
+              <div class="sf"><label>Real</label><input class="input" id="metReal" style="width:90px;"></div>
+              <div class="sf"><label>Unidad</label><input class="input" id="metUnidad" style="width:70px;" placeholder="m3"></div>
+              <div class="sf"><label>Fecha</label><input class="input" type="date" id="metFecha"></div>
+              <button class="btn ghost" id="metAddBtn">Registrar</button>
+            </div>
+            <div style="overflow-x:auto;">
+              <table class="tbl" id="metTable">
+                <thead><tr><th>Parámetro</th><th>Límite</th><th>Real</th><th>Cumple</th><th>Fecha</th></tr></thead>
+                <tbody id="metBody"><tr class="empty-row"><td colspan="5">Selecciona una licencia.</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div>
+            <h4>Condicionantes / obligaciones</h4>
+            <div class="add-row">
+              <div class="sf"><label>Código</label><input class="input" id="condCodigo" style="width:100px;" placeholder="COND-01"></div>
+              <div class="sf"><label>Frecuencia</label>
+                <select class="input" id="condFrecuencia">
+                  <option value="Única">Única</option>
+                  <option value="Mensual">Mensual</option>
+                  <option value="Trimestral">Trimestral</option>
+                  <option value="Semestral">Semestral</option>
+                  <option value="Anual">Anual</option>
+                  <option value="Por_Evento">Por evento</option>
+                </select>
+              </div>
+              <div class="sf"><label>Criticidad</label>
+                <select class="input" id="condCriticidad">
+                  <option value="Alta">Alta</option>
+                  <option value="Media" selected>Media</option>
+                  <option value="Baja">Baja</option>
+                </select>
+              </div>
+              <button class="btn ghost" id="condAddBtn">Añadir</button>
+            </div>
+            <div class="sf" style="max-width:100%; margin-bottom:10px;"><label>Descripción</label><input class="input" id="condDescripcion" style="width:100%;" placeholder="Requisito exigido por la licencia"></div>
+            <div style="overflow-x:auto;">
+              <table class="tbl" id="condTable">
+                <thead><tr><th>Código</th><th>Avance</th><th>Estado</th><th>Criticidad</th></tr></thead>
+                <tbody id="condBody"><tr class="empty-row"><td colspan="4">Selecciona una licencia.</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MATRIZ LEGAL -->
+    <div class="fl-panel card reveal" id="panel-matriz" style="padding:20px;">
+      <div class="sub-block">
+        <h4>Proyectos legales</h4>
+        <div class="add-row">
+          <div class="sf"><label>Nombre del proyecto</label><input class="input" id="proyNombre" placeholder="Expansión Planta Norte"></div>
+          <button class="btn sage" id="proyAddBtn">Añadir proyecto</button>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="tbl" id="proyTable">
+            <thead><tr><th>Proyecto</th><th>Bloqueado</th><th>ICE</th><th>TMM</th><th>Garantes homologados</th><th></th></tr></thead>
+            <tbody id="proyBody"><tr class="empty-row"><td colspan="6">Cargando…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="picker-row">
+        <label>Proyecto seleccionado</label>
+        <select id="matrizProySelect"></select>
+      </div>
+
+      <div class="sub-block">
+        <h4>Hitos</h4>
+        <div class="add-row">
+          <div class="sf"><label>Nombre del hito</label><input class="input" id="hitoNombre" placeholder="Cierre financiero fase 1"></div>
+          <div class="sf"><label style="display:flex; align-items:center; gap:6px; margin-top:14px;"><input type="checkbox" id="hitoFinanciero"> Hito financiero</label></div>
+          <button class="btn ghost" id="hitoAddBtn">Añadir hito</button>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="tbl" id="hitoTable">
+            <thead><tr><th>Hito</th><th>Financiero</th><th>Estado</th><th></th></tr></thead>
+            <tbody id="hitoBody"><tr class="empty-row"><td colspan="4">Selecciona un proyecto.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="sub-block">
+        <h4>Matriz de responsabilidad legal</h4>
+        <div class="add-row">
+          <div class="sf"><label>Tipo de riesgo</label>
+            <select class="input" id="riesgoTipo">
+              <option value="PENAL">Penal</option>
+              <option value="CIVIL">Civil</option>
+              <option value="TRIBUTARIO_FISCAL">Tributario/Fiscal</option>
+              <option value="LABORAL">Laboral</option>
+            </select>
+          </div>
+          <div class="sf"><label>Nivel</label>
+            <select class="input" id="riesgoNivel">
+              <option value="CRITICO">Crítico</option>
+              <option value="ALTO">Alto</option>
+              <option value="MEDIO">Medio</option>
+              <option value="BAJO">Bajo</option>
+            </select>
+          </div>
+          <div class="sf"><label>Hito (opcional)</label><select class="input" id="riesgoHito"><option value="">Sin hito</option></select></div>
+          <div class="sf"><label>Garante (username)</label><input class="input" id="riesgoGarante" placeholder="nour"></div>
+          <div class="sf"><label style="display:flex; align-items:center; gap:6px; margin-top:14px;"><input type="checkbox" id="riesgoGating" checked> Bloquea pago</label></div>
+          <button class="btn ghost" id="riesgoAddBtn">Añadir control</button>
+        </div>
+        <div class="sf" style="max-width:100%; margin-bottom:10px;"><label>Descripción del riesgo</label><input class="input" id="riesgoDescripcion" style="width:100%;" placeholder="Descripción del riesgo legal / delito / sanción"></div>
+        <div class="sf" style="max-width:100%; margin-bottom:10px;"><label>Control preventivo</label><input class="input" id="riesgoControl" style="width:100%;" placeholder="Acción o validación requerida"></div>
+        <div style="overflow-x:auto;">
+          <table class="tbl" id="riesgoTable">
+            <thead><tr><th>Riesgo</th><th>Nivel</th><th>Garante</th><th>Gating</th><th>Estado</th><th>Evidencia</th></tr></thead>
+            <tbody id="riesgoBody"><tr class="empty-row"><td colspan="6">Selecciona un proyecto.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- PODERES & FIRMAS -->
+    <div class="fl-panel card reveal" id="panel-poderes" style="padding:20px;">
+      <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:16px; max-width:640px;">
+        Motor de alarmas de caducidad de poderes corporativos y firmas digitales. El sistema revisa
+        diariamente los registros y notifica al Admin cuando un poder entra en ventana de alerta o
+        caduca, para que no se pase por alto la renovación.
+      </p>
+      <div class="add-row">
+        <div class="sf"><label>Titular</label><input class="input" id="poderTitular" placeholder="Nombre del apoderado"></div>
+        <div class="sf"><label>Tipo</label>
+          <select class="input" id="poderTipo">
+            <option value="Poder_Notarial">Poder Notarial</option>
+            <option value="Firma_Digital">Firma Digital</option>
+            <option value="Certificado_Representacion">Certificado Representación</option>
+            <option value="Otro">Otro</option>
+          </select>
+        </div>
+        <div class="sf"><label>Entidad</label><input class="input" id="poderEntidad" placeholder="Opcional"></div>
+        <div class="sf"><label>Emisión</label><input class="input" type="date" id="poderEmision"></div>
+        <div class="sf"><label>Caducidad</label><input class="input" type="date" id="poderCaducidad"></div>
+        <div class="sf"><label>Días alerta</label><input class="input" id="poderDiasAlerta" style="width:80px;" placeholder="60"></div>
+        <button class="btn sage" id="poderAddBtn">Registrar poder</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="tbl" id="poderTable">
+          <thead><tr><th>Titular</th><th>Tipo</th><th>Entidad</th><th>Caducidad</th><th>Estado</th><th></th></tr></thead>
+          <tbody id="poderBody"><tr class="empty-row"><td colspan="6">Cargando…</td></tr></tbody>
         </table>
       </div>
     </div>
 
-    <!-- EXPEDIENTE OEPM -->
-    <div class="fl-panel card reveal" id="panel-oepm" style="padding:20px;">
-      <p style="font-size:0.82rem; color:var(--text-muted); line-height:1.6; max-width:680px; margin-top:0;">
-        Expediente técnico-jurídico de base para la solicitud del Modelo de Utilidad ante la OEPM. Cada expediente
-        agrupa las cuatro piezas requeridas (memoria descriptiva, reivindicaciones, planos, resumen) con su estado
-        individual, más el número de expediente y fecha de presentación una vez formalizada.
-      </p>
+    <!-- INSPECCIONES -->
+    <div class="fl-panel card reveal" id="panel-inspecciones" style="padding:20px;">
       <div class="add-row">
-        <div class="sf"><label>Título</label><input class="input" id="oepmTitle" placeholder="Nombre del Modelo de Utilidad" style="min-width:260px;"></div>
-        <div class="sf"><label>Descripción</label><input class="input" id="oepmDescription" placeholder="Opcional" style="min-width:260px;"></div>
-        <button class="btn sage" id="oepmAddBtn">Añadir expediente</button>
+        <div class="sf"><label>Instalación</label><select class="input" id="inspInstalacion"></select></div>
+        <div class="sf"><label>Autoridad</label>
+          <select class="input" id="inspAutoridad">
+            <option value="SEMARNAT">SEMARNAT</option>
+            <option value="PROFEPA">PROFEPA</option>
+            <option value="CONAGUA">CONAGUA</option>
+            <option value="CFE">CFE</option>
+            <option value="MITECO">MITECO</option>
+            <option value="OTRA">Otra</option>
+          </select>
+        </div>
+        <div class="sf"><label>Fecha visita</label><input class="input" type="date" id="inspFecha"></div>
+        <div class="sf"><label>Resultado</label>
+          <select class="input" id="inspResultado">
+            <option value="Sin_Observaciones">Sin observaciones</option>
+            <option value="Con_Observaciones">Con observaciones</option>
+            <option value="Apercibimiento">Apercibimiento</option>
+            <option value="Clausura_Parcial">Clausura parcial</option>
+            <option value="Clausura_Total">Clausura total</option>
+          </select>
+        </div>
+        <div class="sf"><label>Multa (€)</label><input class="input" id="inspMulta" style="width:100px;" placeholder="0"></div>
+        <button class="btn sage" id="inspAddBtn">Registrar inspección</button>
       </div>
-      <div id="oepmList"></div>
+      <div style="overflow-x:auto;">
+        <table class="tbl" id="inspTable">
+          <thead><tr><th>Instalación</th><th>Autoridad</th><th>Fecha</th><th>Resultado</th><th>Multa</th><th>Estatus</th></tr></thead>
+          <tbody id="inspBody"><tr class="empty-row"><td colspan="6">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- EXPEDIENTE FISCAL Y JURIDICO IMPECABLE -->
+    <div class="fl-panel card reveal" id="panel-expediente" style="padding:20px;">
+      <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:16px; max-width:720px;">
+        CRM de documentación corporativa. Cuatro carpetas fijas; dentro das de alta los documentos que
+        necesites, con su PDF (también Word, hoja de cálculo o imagen), fecha de caducidad y días de
+        preaviso. El sistema revisa el expediente al arrancar y cada 24 h, y notifica al Admin cuando
+        un documento entra en ventana de alerta, caduca o sigue sin archivo adjunto.
+      </p>
+
+      <div class="exp-kpis">
+        <div class="kpi-cell"><div class="kpi-label">COMPLETITUD</div><div class="kpi-val" id="expKpiCompletitud">—</div></div>
+        <div class="kpi-cell"><div class="kpi-label">DOCUMENTOS</div><div class="kpi-val" id="expKpiTotal">—</div></div>
+        <div class="kpi-cell"><div class="kpi-label">VIGENTES</div><div class="kpi-val good" id="expKpiVigentes">—</div></div>
+        <div class="kpi-cell" id="expKpiPorCaducarCell"><div class="kpi-label">POR CADUCAR</div><div class="kpi-val" id="expKpiPorCaducar">—</div></div>
+        <div class="kpi-cell" id="expKpiCaducadosCell"><div class="kpi-label">CADUCADOS</div><div class="kpi-val" id="expKpiCaducados">—</div></div>
+        <div class="kpi-cell" id="expKpiFaltantesCell"><div class="kpi-label">SIN ARCHIVO</div><div class="kpi-val" id="expKpiFaltantes">—</div></div>
+      </div>
+
+      <div id="expAlertas"></div>
+
+      <div class="picker-row" style="justify-content:space-between;">
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+          <input class="input" id="expSearch" placeholder="Buscar por nombre, emisor, referencia…" style="min-width:240px;">
+          <select class="input" id="expFiltroBloque"><option value="">Todas las carpetas</option></select>
+          <select class="input" id="expFiltroEstado"><option value="">Todos los estados</option></select>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn" id="expRevisarBtn">Revisar caducidades</button>
+          <button class="btn sage" id="expNuevoBtn">Nuevo documento</button>
+        </div>
+      </div>
+
+      <div class="exp-layout">
+        <div id="expBloques"><p class="empty-state">Cargando expediente…</p></div>
+        <aside class="exp-ficha" id="expFicha">
+          <p class="empty-state">Selecciona un documento de la lista, o crea uno nuevo.</p>
+        </aside>
+      </div>
     </div>
   </main>
 
   <script type="module">
-    import { api, getUser, requireAuth, clearSession, toast, escapeHtml, uploadFlDoc, downloadFlDoc } from '/js/api.js';
+    import { api, getUser, requireAuth, clearSession, toast, escapeHtml, uploadFlExpedienteDoc, openFlExpedienteDoc } from '/js/api.js';
+    import { mountThemeToggle } from '/js/theme.js';
     import { mountOfficeBg } from '/js/office-bg.js';
     requireAuth();
+    mountThemeToggle(document.querySelector('nav.nav .row'));
     mountOfficeBg();
     document.getElementById('userTag').textContent = getUser() || '';
     document.getElementById('logoutBtn').addEventListener('click', async () => {
@@ -246,28 +580,48 @@
       location.href = '/pages/login.html';
     });
 
+    const userMenuTrigger = document.getElementById('userTag');
+    const userMenuDropdown = document.getElementById('userDropdown');
+    userMenuTrigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = !userMenuDropdown.hidden;
+      userMenuDropdown.hidden = open;
+      userMenuTrigger.setAttribute('aria-expanded', String(!open));
+    });
+    document.addEventListener('click', (e) => {
+      if (!document.getElementById('userMenu').contains(e.target)) {
+        userMenuDropdown.hidden = true;
+        userMenuTrigger.setAttribute('aria-expanded', 'false');
+      }
+    });
+    document.getElementById('pwdSubmit').addEventListener('click', async () => {
+      const cur = document.getElementById('pwdCurrent').value;
+      const neu = document.getElementById('pwdNew').value;
+      const con = document.getElementById('pwdConfirm').value;
+      const errEl = document.getElementById('pwdError');
+      errEl.hidden = true;
+      if (!cur || !neu || !con) { errEl.textContent = 'Rellena todos los campos'; errEl.hidden = false; return; }
+      if (neu !== con) { errEl.textContent = 'Las contraseñas no coinciden'; errEl.hidden = false; return; }
+      try {
+        await api.changePassword(cur, neu);
+        toast('Contraseña actualizada');
+        userMenuDropdown.hidden = true;
+        userMenuTrigger.setAttribute('aria-expanded', 'false');
+        ['pwdCurrent','pwdNew','pwdConfirm'].forEach(id => document.getElementById(id).value = '');
+      } catch (ex) {
+        errEl.textContent = ex.message || 'Error al cambiar contraseña';
+        errEl.hidden = false;
+      }
+    });
+
     function showError(msg) {
       const box = document.getElementById('errorBox');
       box.textContent = msg;
       box.style.display = msg ? 'block' : 'none';
     }
-
-    const PIECE_LABELS = {
-      memoria_descriptiva: 'Memoria descriptiva',
-      reivindicaciones: 'Reivindicaciones',
-      planos: 'Planos',
-      resumen: 'Resumen',
-    };
-    const OEPM_STATUS_LABELS = {
-      preparacion: 'En preparación', presentado: 'Presentado', en_examen: 'En examen',
-      concedido: 'Concedido', denegado: 'Denegado',
-    };
-
-    const today = new Date().toISOString().slice(0, 10);
-    document.getElementById('ndaSigned').value = today;
-    document.getElementById('ndaFrom').value = today;
-    document.getElementById('ctrFrom').value = today;
-    document.getElementById('licFrom').value = today;
+    function pill(label, color) {
+      return `<span class="status-pill"><span class="status-dot-sm" style="background:${color};"></span>${escapeHtml(label)}</span>`;
+    }
 
     // ---- Tabs ----
     document.querySelectorAll('.mode-tab').forEach(tab => {
@@ -283,334 +637,894 @@
     async function loadSummary() {
       try {
         const s = await api.flSummary();
-        document.getElementById('kpiNdasVal').textContent = s.ndasCount ?? 0;
-        document.getElementById('kpiContractsVal').textContent = s.contractsCount ?? 0;
-        document.getElementById('kpiLicensesVal').textContent = s.licensesCount ?? 0;
-        document.getElementById('kpiOepmVal').textContent = s.oepmCount ?? 0;
-        const expEl = document.getElementById('kpiExpiringVal');
-        expEl.textContent = s.expiringSoon ?? 0;
-        expEl.classList.toggle('warn', (s.expiringSoon ?? 0) > 0);
+        document.getElementById('kpiIcrl').textContent = s.icrl != null ? `${s.icrl}%` : '—';
+        document.getElementById('kpiIcrl').classList.toggle('warn', s.icrl != null && s.icrl < 98);
+        document.getElementById('kpiIrv').textContent = `${s.irv ?? 0}%`;
+        document.getElementById('kpiIrvCell').classList.toggle('alert', (s.irv ?? 0) > 0);
+        document.getElementById('kpiIrv').classList.toggle('warn', (s.irv ?? 0) > 0);
+        document.getElementById('kpiInfracciones').textContent = s.contadorInfracciones ?? 0;
+        document.getElementById('kpiInfraccionesCell').classList.toggle('alert', (s.contadorInfracciones ?? 0) > 0);
+        document.getElementById('kpiInfracciones').classList.toggle('warn', (s.contadorInfracciones ?? 0) > 0);
+        document.getElementById('kpiPoderes').textContent = s.poderesEnAlerta ?? 0;
+        document.getElementById('kpiPoderesCell').classList.toggle('alert', (s.poderesEnAlerta ?? 0) > 0);
+        document.getElementById('kpiPoderes').classList.toggle('warn', (s.poderesEnAlerta ?? 0) > 0);
+        document.getElementById('kpiControles').textContent = s.controlesLegalesEnAlerta ?? 0;
+        document.getElementById('kpiControlesCell').classList.toggle('alert', (s.controlesLegalesEnAlerta ?? 0) > 0);
+        document.getElementById('kpiControles').classList.toggle('warn', (s.controlesLegalesEnAlerta ?? 0) > 0);
       } catch (ex) { showError(ex.message || 'Error al cargar resumen'); }
     }
 
-    function statusPill(status) {
-      return `<span class="status-pill status-${status}">${status.replace('_', ' ')}</span>`;
-    }
-    function vigencia(r) {
-      return `${escapeHtml(r.validFrom)} → ${r.validTo ? escapeHtml(r.validTo) : 'indefinida'}`;
-    }
+    /* ============================= LICENCIAS ============================= */
 
-    // ---- Documentos adjuntos (genérico por kind/id) ----
-    async function renderDocs(kind, entityId, container) {
-      container.innerHTML = 'cargando…';
+    let instalaciones = [];
+    let licenciaSeleccionada = null;
+
+    async function loadInstalaciones() {
+      const body = document.getElementById('instBody');
       try {
-        const docs = await api.flDocsList(kind, entityId);
-        container.innerHTML = docs.map(d => `
-          <span class="doc-chip" data-doc-id="${d.id}">
-            ${escapeHtml(d.filename)}
-            <button class="doc-dl" title="Descargar">⬇</button>
-            <button class="doc-rm" title="Eliminar">&times;</button>
-          </span>
-        `).join('') || '<span class="mono" style="font-size:0.72rem;color:var(--text-muted);">sin documentos</span>';
-        container.querySelectorAll('.doc-dl').forEach(btn => btn.addEventListener('click', async (e) => {
-          const chip = e.target.closest('.doc-chip');
-          const doc = docs.find(d => d.id === chip.dataset.docId);
-          try { await downloadFlDoc(doc.id, doc.filename); } catch (ex) { showError(ex.message); }
-        }));
-        container.querySelectorAll('.doc-rm').forEach(btn => btn.addEventListener('click', async (e) => {
-          const chip = e.target.closest('.doc-chip');
-          try { await api.flDocDelete(chip.dataset.docId); renderDocs(kind, entityId, container); } catch (ex) { showError(ex.message); }
-        }));
-      } catch (ex) { container.innerHTML = '<span class="mono" style="font-size:0.72rem;color:var(--text-muted);">error al cargar</span>'; }
+        instalaciones = await api.flInstalacionesList();
+        const licCounts = await Promise.all(instalaciones.map(i => api.flLicenciasList({ id_instalacion: i.id }).then(l => l.length).catch(() => 0)));
+        if (instalaciones.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="5">Sin instalaciones registradas.</td></tr>'; }
+        else {
+          body.innerHTML = instalaciones.map((i, idx) => `<tr data-id="${i.id}">
+            <td>${escapeHtml(i.nombre_instalacion)}</td>
+            <td>${escapeHtml(i.pais || '—')}</td>
+            <td>${escapeHtml(i.region_estado || '—')}</td>
+            <td class="mono">${licCounts[idx]}</td>
+            <td><button class="btn ghost btn--sm inst-del" ${licCounts[idx] > 0 ? 'disabled title="tiene licencias asociadas"' : ''}>Eliminar</button></td>
+          </tr>`).join('');
+          body.querySelectorAll('.inst-del').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+              const id = e.target.closest('tr').dataset.id;
+              try { await api.flInstalacionDelete(id); loadInstalaciones(); } catch (ex) { showError(ex.message); }
+            });
+          });
+        }
+        const options = instalaciones.map(i => `<option value="${i.id}">${escapeHtml(i.nombre_instalacion)}</option>`).join('');
+        document.getElementById('licInstSelect').innerHTML = '<option value="">Todas</option>' + options;
+        document.getElementById('licInstalacion').innerHTML = options || '<option value="">Sin instalaciones</option>';
+        document.getElementById('inspInstalacion').innerHTML = options || '<option value="">Sin instalaciones</option>';
+      } catch (ex) { showError(ex.message || 'Error al cargar instalaciones'); }
     }
 
-    function docsCellHtml(rowId) {
-      return `
-        <div class="docs-row" data-entity-id="${rowId}">
-          <div class="docs-list"></div>
-          <label class="btn ghost btn--sm" style="cursor:pointer; margin:0;">
-            + doc
-            <input type="file" accept=".pdf,.doc,.docx" style="display:none;" class="doc-upload-input">
-          </label>
-        </div>
-      `;
-    }
-    function wireDocsCell(row, kind, entityId) {
-      const container = row.querySelector('.docs-list');
-      renderDocs(kind, entityId, container);
-      const input = row.querySelector('.doc-upload-input');
-      input.addEventListener('change', async () => {
-        const file = input.files[0];
-        if (!file) return;
-        try { await uploadFlDoc(kind, entityId, file); renderDocs(kind, entityId, container); }
-        catch (ex) { showError(ex.message || 'Error al subir documento'); }
-        input.value = '';
-      });
-    }
-
-    // ---- NDAs ----
-    async function loadNdas() {
-      const body = document.getElementById('ndaBody');
-      try {
-        const rows = await api.flNdasList();
-        if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="5">Sin NDAs registrados.</td></tr>'; return; }
-        body.innerHTML = rows.map(r => `<tr data-id="${r.id}">
-          <td>${escapeHtml(r.counterparty)}${r.scope ? `<div class="mono" style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">${escapeHtml(r.scope)}</div>` : ''}</td>
-          <td class="mono">${vigencia(r)}</td>
-          <td>${statusPill(r.status)}</td>
-          <td>${docsCellHtml(r.id)}</td>
-          <td>
-            <select class="input nda-status" style="font-size:0.72rem;">
-              <option value="activo" ${r.status === 'activo' ? 'selected' : ''}>Activo</option>
-              <option value="rescindido" ${r.status === 'rescindido' ? 'selected' : ''}>Rescindido</option>
-            </select>
-            <button class="btn ghost btn--sm nda-del">Eliminar</button>
-          </td>
-        </tr>`).join('');
-        body.querySelectorAll('tr[data-id]').forEach(tr => wireDocsCell(tr, 'nda', tr.dataset.id));
-        body.querySelectorAll('.nda-status').forEach(sel => sel.addEventListener('change', async (e) => {
-          const id = e.target.closest('tr').dataset.id;
-          try { await api.flNdaPatch(id, { status: e.target.value }); loadNdas(); loadSummary(); } catch (ex) { showError(ex.message); }
-        }));
-        body.querySelectorAll('.nda-del').forEach(btn => btn.addEventListener('click', async (e) => {
-          const id = e.target.closest('tr').dataset.id;
-          try { await api.flNdaDelete(id); loadNdas(); loadSummary(); } catch (ex) { showError(ex.message); }
-        }));
-      } catch (ex) { showError(ex.message || 'Error al cargar NDAs'); }
-    }
-    document.getElementById('ndaAddBtn').addEventListener('click', async () => {
+    document.getElementById('instAddBtn').addEventListener('click', async () => {
       showError('');
-      const counterparty = document.getElementById('ndaCounterparty').value.trim();
-      if (!counterparty) return showError('Indica la contraparte');
+      const nombre_instalacion = document.getElementById('instNombre').value.trim();
+      if (!nombre_instalacion) return showError('Indica el nombre de la instalación');
       try {
-        await api.flNdaAdd({
-          counterparty,
-          scope: document.getElementById('ndaScope').value.trim(),
-          signedAt: document.getElementById('ndaSigned').value,
-          validFrom: document.getElementById('ndaFrom').value,
-          validTo: document.getElementById('ndaTo').value || null,
+        await api.flInstalacionAdd({
+          nombre_instalacion,
+          pais: document.getElementById('instPais').value || null,
+          region_estado: document.getElementById('instRegion').value.trim() || null,
         });
-        document.getElementById('ndaCounterparty').value = '';
-        document.getElementById('ndaScope').value = '';
-        document.getElementById('ndaTo').value = '';
-        loadNdas(); loadSummary();
-      } catch (ex) { showError(ex.message || 'Error al crear NDA'); }
+        document.getElementById('instNombre').value = '';
+        document.getElementById('instRegion').value = '';
+        loadInstalaciones();
+      } catch (ex) { showError(ex.message || 'Error al crear instalación'); }
     });
 
-    // ---- Contratos ----
-    async function loadContracts() {
-      const body = document.getElementById('ctrBody');
-      try {
-        const rows = await api.flContractsList();
-        if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="6">Sin contratos registrados.</td></tr>'; return; }
-        body.innerHTML = rows.map(r => `<tr data-id="${r.id}">
-          <td class="mono">${escapeHtml(r.type)}</td>
-          <td>${escapeHtml(r.parties)}<div class="mono" style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">${escapeHtml(r.objectDesc)}</div></td>
-          <td class="mono">${vigencia(r)}</td>
-          <td>${statusPill(r.status)}</td>
-          <td>${docsCellHtml(r.id)}</td>
-          <td>
-            <select class="input ctr-status" style="font-size:0.72rem;">
-              <option value="activo" ${r.status === 'activo' ? 'selected' : ''}>Activo</option>
-              <option value="rescindido" ${r.status === 'rescindido' ? 'selected' : ''}>Rescindido</option>
-            </select>
-            <button class="btn ghost btn--sm ctr-del">Eliminar</button>
-          </td>
-        </tr>`).join('');
-        body.querySelectorAll('tr[data-id]').forEach(tr => wireDocsCell(tr, 'contract', tr.dataset.id));
-        body.querySelectorAll('.ctr-status').forEach(sel => sel.addEventListener('change', async (e) => {
-          const id = e.target.closest('tr').dataset.id;
-          try { await api.flContractPatch(id, { status: e.target.value }); loadContracts(); loadSummary(); } catch (ex) { showError(ex.message); }
-        }));
-        body.querySelectorAll('.ctr-del').forEach(btn => btn.addEventListener('click', async (e) => {
-          const id = e.target.closest('tr').dataset.id;
-          try { await api.flContractDelete(id); loadContracts(); loadSummary(); loadLicenseContractOptions(); } catch (ex) { showError(ex.message); }
-        }));
-      } catch (ex) { showError(ex.message || 'Error al cargar contratos'); }
-    }
-    document.getElementById('ctrAddBtn').addEventListener('click', async () => {
-      showError('');
-      const parties = document.getElementById('ctrParties').value.trim();
-      const objectDesc = document.getElementById('ctrObject').value.trim();
-      if (!parties) return showError('Indica las partes');
-      if (!objectDesc) return showError('Indica el objeto del contrato');
-      try {
-        await api.flContractAdd({
-          type: document.getElementById('ctrType').value,
-          parties,
-          objectDesc,
-          validFrom: document.getElementById('ctrFrom').value,
-          validTo: document.getElementById('ctrTo').value || null,
-        });
-        document.getElementById('ctrParties').value = '';
-        document.getElementById('ctrObject').value = '';
-        document.getElementById('ctrTo').value = '';
-        loadContracts(); loadSummary(); loadLicenseContractOptions();
-      } catch (ex) { showError(ex.message || 'Error al crear contrato'); }
-    });
+    const ESTADO_TRAMITE_COLOR = {
+      Vigente: '#00a878', En_Renovación: '#0071e3', Vencido: '#d80300',
+      En_Prevención: '#cc7a00', Revocado: '#d80300', No_Aplica: '#8a8a8a',
+    };
 
-    // ---- Licencias ----
-    async function loadLicenseContractOptions() {
-      try {
-        const rows = await api.flContractsList();
-        const sel = document.getElementById('licContract');
-        const keep = sel.value;
-        sel.innerHTML = '<option value="">Ninguno</option>' + rows.map(r => `<option value="${r.id}">${escapeHtml(r.parties)} (${escapeHtml(r.type)})</option>`).join('');
-        sel.value = keep;
-      } catch {}
-    }
-    async function loadLicenses() {
+    async function loadLicencias() {
       const body = document.getElementById('licBody');
+      const instId = document.getElementById('licInstSelect').value;
       try {
-        const rows = await api.flLicensesList();
+        const rows = await api.flLicenciasList(instId ? { id_instalacion: instId } : {});
         if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="6">Sin licencias registradas.</td></tr>'; return; }
-        body.innerHTML = rows.map(r => `<tr data-id="${r.id}">
-          <td>${escapeHtml(r.licensor)} → ${escapeHtml(r.licensee)}${r.exclusive ? ' <span class="mono" style="font-size:0.65rem;color:var(--accent-blue);">Exclusiva</span>' : ''}${r.royaltyFee ? `<div class="mono" style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">${escapeHtml(r.royaltyFee)}</div>` : ''}</td>
-          <td class="mono">${escapeHtml(r.territory || '—')}</td>
-          <td class="mono">${vigencia(r)}</td>
-          <td>${statusPill(r.status)}</td>
-          <td>${docsCellHtml(r.id)}</td>
-          <td>
-            <select class="input lic-status" style="font-size:0.72rem;">
-              <option value="activo" ${r.status === 'activo' ? 'selected' : ''}>Activo</option>
-              <option value="rescindido" ${r.status === 'rescindido' ? 'selected' : ''}>Rescindido</option>
-            </select>
-            <button class="btn ghost btn--sm lic-del">Eliminar</button>
-          </td>
+        body.innerHTML = rows.map(l => `<tr data-id="${l.id}" class="lic-row" style="cursor:pointer;">
+          <td>${escapeHtml(l.dependencia)}</td>
+          <td>${escapeHtml(l.tipo_permiso)}</td>
+          <td>${escapeHtml(l.numero_oficio_folio || '—')}</td>
+          <td class="mono">${l.fecha_vencimiento || '—'}</td>
+          <td>${pill(l.estado_tramite, ESTADO_TRAMITE_COLOR[l.estado_tramite] || '#8a8a8a')}</td>
+          <td><button class="btn ghost btn--sm lic-del">Eliminar</button></td>
         </tr>`).join('');
-        body.querySelectorAll('tr[data-id]').forEach(tr => wireDocsCell(tr, 'license', tr.dataset.id));
-        body.querySelectorAll('.lic-status').forEach(sel => sel.addEventListener('change', async (e) => {
-          const id = e.target.closest('tr').dataset.id;
-          try { await api.flLicensePatch(id, { status: e.target.value }); loadLicenses(); loadSummary(); } catch (ex) { showError(ex.message); }
-        }));
-        body.querySelectorAll('.lic-del').forEach(btn => btn.addEventListener('click', async (e) => {
-          const id = e.target.closest('tr').dataset.id;
-          try { await api.flLicenseDelete(id); loadLicenses(); loadSummary(); } catch (ex) { showError(ex.message); }
-        }));
+        body.querySelectorAll('.lic-row').forEach(tr => {
+          tr.addEventListener('click', (e) => {
+            if (e.target.closest('.lic-del')) return;
+            openLicenciaDetail(tr.dataset.id);
+          });
+        });
+        body.querySelectorAll('.lic-del').forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const id = e.target.closest('tr').dataset.id;
+            if (!confirm('¿Eliminar licencia? Se borrarán métricas y condicionantes asociados.')) return;
+            try { await api.flLicenciaDelete(id); loadLicencias(); loadSummary(); } catch (ex) { showError(ex.message); }
+          });
+        });
       } catch (ex) { showError(ex.message || 'Error al cargar licencias'); }
     }
+    document.getElementById('licInstSelect').addEventListener('change', loadLicencias);
+
     document.getElementById('licAddBtn').addEventListener('click', async () => {
       showError('');
-      const licensor = document.getElementById('licLicensor').value.trim();
-      const licensee = document.getElementById('licLicensee').value.trim();
-      if (!licensor) return showError('Indica el licenciante');
-      if (!licensee) return showError('Indica el licenciatario');
+      const id_instalacion = document.getElementById('licInstalacion').value;
+      const tipo_permiso = document.getElementById('licTipo').value.trim();
+      if (!id_instalacion) return showError('Añade una instalación primero');
+      if (!tipo_permiso) return showError('Indica el tipo de permiso');
+      const fecha_emision = document.getElementById('licEmision').value;
+      const fecha_vencimiento = document.getElementById('licVencimiento').value;
+      if (!fecha_emision || !fecha_vencimiento) return showError('Indica fecha de emisión y vencimiento');
       try {
-        await api.flLicenseAdd({
-          licensor,
-          licensee,
-          territory: document.getElementById('licTerritory').value.trim(),
-          exclusive: document.getElementById('licExclusive').value === 'true',
-          royaltyFee: document.getElementById('licFee').value.trim(),
-          contractId: document.getElementById('licContract').value || null,
-          validFrom: document.getElementById('licFrom').value,
-          validTo: document.getElementById('licTo').value || null,
+        await api.flLicenciaAdd({
+          id_instalacion,
+          dependencia: document.getElementById('licDependencia').value,
+          tipo_permiso,
+          numero_oficio_folio: document.getElementById('licFolio').value.trim() || null,
+          fecha_emision,
+          fecha_vencimiento,
+          dias_alerta_vencimiento: Number(document.getElementById('licDiasAlerta').value) || 180,
         });
-        document.getElementById('licLicensor').value = '';
-        document.getElementById('licLicensee').value = '';
-        document.getElementById('licTerritory').value = '';
-        document.getElementById('licFee').value = '';
-        document.getElementById('licTo').value = '';
-        loadLicenses(); loadSummary();
+        document.getElementById('licTipo').value = '';
+        document.getElementById('licFolio').value = '';
+        document.getElementById('licEmision').value = '';
+        document.getElementById('licVencimiento').value = '';
+        loadLicencias(); loadSummary();
       } catch (ex) { showError(ex.message || 'Error al crear licencia'); }
     });
 
-    // ---- Expediente OEPM ----
-    async function loadOepm() {
-      const list = document.getElementById('oepmList');
+    const METRICA_LABEL = { Volumen_Agua_m3: 'Vol. Agua (m3)', Factor_Potencia: 'Factor Potencia', Descarga_BOD: 'Descarga BOD', CO2_Emisiones: 'CO2 Emisiones', Otro: 'Otro' };
+
+    async function openLicenciaDetail(licenciaId) {
+      licenciaSeleccionada = licenciaId;
+      document.getElementById('licDetailBlock').style.display = 'block';
+      document.getElementById('licDetailTitle').textContent = `Detalle de licencia`;
+      await Promise.all([loadMetricas(), loadCondicionantes(), loadLicenciaKpis()]);
+      document.getElementById('licDetailBlock').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    async function loadLicenciaKpis() {
+      const box = document.getElementById('licKpisBox');
       try {
-        const rows = await api.flOepmList();
-        if (rows.length === 0) { list.innerHTML = '<p class="mono" style="color:var(--text-muted);font-size:0.82rem;">Sin expedientes registrados.</p>'; return; }
-        list.innerHTML = rows.map(r => `
-          <div class="card" style="padding:16px 18px; margin-bottom:14px;" data-id="${r.id}">
-            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
-              <div>
-                <strong>${escapeHtml(r.title)}</strong>
-                ${r.description ? `<div class="mono" style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">${escapeHtml(r.description)}</div>` : ''}
-              </div>
-              <div style="display:flex; gap:8px; align-items:center;">
-                ${statusPill(r.status)}
-                <button class="btn ghost btn--sm oepm-del">Eliminar</button>
-              </div>
-            </div>
-            <div class="add-row" style="margin-top:12px; margin-bottom:8px;">
-              <div class="sf"><label>Estado expediente</label>
-                <select class="input oepm-status" style="font-size:0.72rem;">
-                  ${Object.entries(OEPM_STATUS_LABELS).map(([k, v]) => `<option value="${k}" ${r.status === k ? 'selected' : ''}>${v}</option>`).join('')}
-                </select>
-              </div>
-              <div class="sf"><label>Nº expediente OEPM</label><input class="input oepm-filing" value="${escapeHtml(r.filingNumber || '')}" placeholder="ES..." style="width:140px;"></div>
-              <div class="sf"><label>Fecha presentación</label><input class="input oepm-filed" type="date" value="${r.filedAt || ''}"></div>
-              <button class="btn ghost btn--sm oepm-save">Guardar</button>
-            </div>
-            <div class="piece-grid">
-              ${OEPM_PIECE_KEYS_HTML(r)}
-            </div>
-            <div style="margin-top:10px;">
-              <span class="kicker" style="font-size:0.6rem;">Documentos</span>
-              ${docsCellHtml(r.id)}
-            </div>
-          </div>
-        `).join('');
-        list.querySelectorAll('[data-id]').forEach(card => {
-          const id = card.dataset.id;
-          wireDocsCell(card, 'oepm', id);
-          card.querySelector('.oepm-del').addEventListener('click', async () => {
-            try { await api.flOepmDelete(id); loadOepm(); loadSummary(); } catch (ex) { showError(ex.message); }
-          });
-          card.querySelector('.oepm-save').addEventListener('click', async () => {
-            try {
-              await api.flOepmPatch(id, {
-                status: card.querySelector('.oepm-status').value,
-                filingNumber: card.querySelector('.oepm-filing').value.trim() || null,
-                filedAt: card.querySelector('.oepm-filed').value || null,
-              });
-              toast('Expediente actualizado');
-              loadOepm();
-            } catch (ex) { showError(ex.message || 'Error al guardar'); }
-          });
-          card.querySelectorAll('.piece-cell select').forEach(sel => sel.addEventListener('change', async (e) => {
-            try {
-              await api.flOepmPatch(id, { pieceKey: e.target.dataset.pieceKey, pieceStatus: e.target.value });
-              loadOepm();
-            } catch (ex) { showError(ex.message || 'Error al actualizar pieza'); }
-          }));
-        });
-      } catch (ex) { showError(ex.message || 'Error al cargar expedientes OEPM'); }
+        const k = await api.flLicenciaKpis(licenciaSeleccionada);
+        const parts = Object.entries(k).filter(([key]) => key !== 'dependencia').map(([key, val]) => `<strong>${key}</strong>: ${val != null ? val + '%' : 'sin datos'}`);
+        box.innerHTML = parts.length ? parts.join(' &nbsp;·&nbsp; ') : 'Sin KPIs específicos para esta dependencia todavía.';
+      } catch (ex) { box.textContent = ''; }
     }
-    function OEPM_PIECE_KEYS_HTML(r) {
-      return Object.keys(PIECE_LABELS).map(key => {
-        const piece = r.pieces?.[key] || { status: 'pendiente' };
-        return `
-          <div class="piece-cell">
-            <div class="piece-name">${PIECE_LABELS[key]}</div>
-            <select data-piece-key="${key}">
-              <option value="pendiente" ${piece.status === 'pendiente' ? 'selected' : ''}>Pendiente</option>
-              <option value="borrador" ${piece.status === 'borrador' ? 'selected' : ''}>Borrador</option>
-              <option value="listo" ${piece.status === 'listo' ? 'selected' : ''}>Listo</option>
-            </select>
-          </div>
-        `;
-      }).join('');
+
+    async function loadMetricas() {
+      const body = document.getElementById('metBody');
+      try {
+        const rows = await api.flMetricasList(licenciaSeleccionada);
+        if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="5">Sin métricas registradas.</td></tr>'; return; }
+        body.innerHTML = rows.map(m => `<tr>
+          <td>${METRICA_LABEL[m.tipo_parametro] || m.tipo_parametro}</td>
+          <td class="mono">${m.valor_limite_autorizado} ${escapeHtml(m.unidad_medida || '')}</td>
+          <td class="mono">${m.valor_real_medido} ${escapeHtml(m.unidad_medida || '')}</td>
+          <td>${m.cumple_limite_legal ? pill('Cumple', '#00a878') : pill('Incumple', '#d80300')}</td>
+          <td class="mono">${m.fecha_medicion}</td>
+        </tr>`).join('');
+      } catch (ex) { showError(ex.message || 'Error al cargar métricas'); }
     }
-    document.getElementById('oepmAddBtn').addEventListener('click', async () => {
+    document.getElementById('metAddBtn').addEventListener('click', async () => {
       showError('');
-      const title = document.getElementById('oepmTitle').value.trim();
-      if (!title) return showError('Indica el título del expediente');
+      if (!licenciaSeleccionada) return;
+      const valor_limite_autorizado = document.getElementById('metLimite').value;
+      const valor_real_medido = document.getElementById('metReal').value;
+      const fecha_medicion = document.getElementById('metFecha').value;
+      if (!valor_limite_autorizado || !valor_real_medido || !fecha_medicion) return showError('Rellena límite, valor real y fecha');
       try {
-        await api.flOepmAdd({ title, description: document.getElementById('oepmDescription').value.trim() });
-        document.getElementById('oepmTitle').value = '';
-        document.getElementById('oepmDescription').value = '';
-        loadOepm(); loadSummary();
-      } catch (ex) { showError(ex.message || 'Error al crear expediente'); }
+        await api.flMetricaAdd(licenciaSeleccionada, {
+          tipo_parametro: document.getElementById('metTipo').value,
+          valor_limite_autorizado: Number(valor_limite_autorizado),
+          valor_real_medido: Number(valor_real_medido),
+          unidad_medida: document.getElementById('metUnidad').value.trim(),
+          fecha_medicion,
+        });
+        document.getElementById('metLimite').value = '';
+        document.getElementById('metReal').value = '';
+        document.getElementById('metUnidad').value = '';
+        loadMetricas(); loadLicenciaKpis();
+      } catch (ex) { showError(ex.message || 'Error al registrar métrica'); }
     });
 
+    const COND_ESTADO_COLOR = { Cumplido: '#00a878', Pendiente: '#8a8a8a', En_Revision: '#0071e3', Incumplido: '#d80300', Atrasado: '#cc7a00' };
+
+    async function loadCondicionantes() {
+      const body = document.getElementById('condBody');
+      try {
+        const rows = await api.flCondicionantesList(licenciaSeleccionada);
+        if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="4">Sin condicionantes registrados.</td></tr>'; return; }
+        body.innerHTML = rows.map(c => `<tr data-id="${c.id}">
+          <td>${escapeHtml(c.codigo_condicionante)}</td>
+          <td><div class="progress-bar"><div class="progress-bar__fill ${c.porcentaje_avance >= 100 ? 'full' : ''}" style="width:${c.porcentaje_avance}%;"></div></div></td>
+          <td>
+            <select class="input cond-estado" style="font-size:0.7rem; padding:3px 6px;">
+              ${Object.keys(COND_ESTADO_COLOR).map(k => `<option value="${k}" ${k === c.estado_cumplimiento ? 'selected' : ''}>${k.replace('_',' ')}</option>`).join('')}
+            </select>
+          </td>
+          <td>${pill(c.criticidad, c.criticidad === 'Alta' ? '#d80300' : c.criticidad === 'Media' ? '#cc7a00' : '#00a878')}</td>
+        </tr>`).join('');
+        body.querySelectorAll('tr[data-id]').forEach(tr => {
+          tr.querySelector('.cond-estado').addEventListener('change', async (e) => {
+            try { await api.flCondicionantePatch(tr.dataset.id, { estado_cumplimiento: e.target.value }); loadCondicionantes(); loadSummary(); } catch (ex) { showError(ex.message); }
+          });
+        });
+      } catch (ex) { showError(ex.message || 'Error al cargar condicionantes'); }
+    }
+    document.getElementById('condAddBtn').addEventListener('click', async () => {
+      showError('');
+      if (!licenciaSeleccionada) return;
+      const codigo_condicionante = document.getElementById('condCodigo').value.trim();
+      if (!codigo_condicionante) return showError('Indica el código del condicionante');
+      try {
+        await api.flCondicionanteAdd(licenciaSeleccionada, {
+          codigo_condicionante,
+          descripcion_requisito: document.getElementById('condDescripcion').value.trim(),
+          frecuencia_cumplimiento: document.getElementById('condFrecuencia').value,
+          criticidad: document.getElementById('condCriticidad').value,
+        });
+        document.getElementById('condCodigo').value = '';
+        document.getElementById('condDescripcion').value = '';
+        loadCondicionantes();
+      } catch (ex) { showError(ex.message || 'Error al crear condicionante'); }
+    });
+
+    /* ============================= MATRIZ LEGAL ============================= */
+
+    let proyectos = [];
+    let proyectoSeleccionado = null;
+    let hitosProyecto = [];
+
+    async function loadProyectos() {
+      const body = document.getElementById('proyBody');
+      try {
+        proyectos = await api.flProyectosList();
+        if (proyectos.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="6">Sin proyectos registrados.</td></tr>'; }
+        else {
+          const kpis = await Promise.all(proyectos.map(p => api.flProyectoKpis(p.id).catch(() => ({}))));
+          body.innerHTML = proyectos.map((p, idx) => `<tr>
+            <td>${escapeHtml(p.nombre)}</td>
+            <td>${p.bloqueado ? pill('Bloqueado', '#d80300') : pill('Activo', '#00a878')}</td>
+            <td class="mono">${kpis[idx].ice != null ? kpis[idx].ice + '%' : '—'}</td>
+            <td class="mono">${kpis[idx].tmmHoras != null ? kpis[idx].tmmHoras + 'h' : '—'}</td>
+            <td class="mono">${kpis[idx].tasaGarantes != null ? kpis[idx].tasaGarantes + '%' : '—'}</td>
+            <td><button class="btn ghost btn--sm proy-toggle" data-id="${p.id}" data-bloqueado="${p.bloqueado}">${p.bloqueado ? 'Desbloquear' : 'Bloquear'}</button></td>
+          </tr>`).join('');
+          body.querySelectorAll('.proy-toggle').forEach(btn => {
+            btn.addEventListener('click', async () => {
+              try { await api.flProyectoBloquear(btn.dataset.id, btn.dataset.bloqueado !== 'true'); loadProyectos(); } catch (ex) { showError(ex.message); }
+            });
+          });
+        }
+        const options = proyectos.map(p => `<option value="${p.id}">${escapeHtml(p.nombre)}</option>`).join('');
+        const sel = document.getElementById('matrizProySelect');
+        const prev = sel.value;
+        sel.innerHTML = options || '<option value="">Sin proyectos</option>';
+        if (proyectos.some(p => p.id === prev)) sel.value = prev;
+        proyectoSeleccionado = sel.value || null;
+      } catch (ex) { showError(ex.message || 'Error al cargar proyectos'); }
+    }
+    document.getElementById('proyAddBtn').addEventListener('click', async () => {
+      showError('');
+      const nombre = document.getElementById('proyNombre').value.trim();
+      if (!nombre) return showError('Indica el nombre del proyecto');
+      try {
+        await api.flProyectoAdd({ nombre });
+        document.getElementById('proyNombre').value = '';
+        loadProyectos();
+      } catch (ex) { showError(ex.message || 'Error al crear proyecto'); }
+    });
+
+    document.getElementById('matrizProySelect').addEventListener('change', (e) => {
+      proyectoSeleccionado = e.target.value;
+      loadHitos(); loadMatrizRiesgo();
+    });
+
+    async function loadHitos() {
+      const body = document.getElementById('hitoBody');
+      const hitoSelect = document.getElementById('riesgoHito');
+      if (!proyectoSeleccionado) { body.innerHTML = '<tr class="empty-row"><td colspan="4">Selecciona un proyecto.</td></tr>'; return; }
+      try {
+        hitosProyecto = await api.flHitosList(proyectoSeleccionado);
+        hitoSelect.innerHTML = '<option value="">Sin hito</option>' + hitosProyecto.map(h => `<option value="${h.id}">${escapeHtml(h.nombre)}</option>`).join('');
+        if (hitosProyecto.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="4">Sin hitos registrados.</td></tr>'; return; }
+        body.innerHTML = hitosProyecto.map(h => `<tr data-id="${h.id}">
+          <td>${escapeHtml(h.nombre)}</td>
+          <td>${h.es_hito_financiero ? 'Sí' : 'No'}</td>
+          <td>
+            <select class="input hito-status" style="font-size:0.7rem; padding:3px 6px;">
+              ${['PLANIFICADO','EN_EJECUCION','APROBADO_PARA_PAGO','COMPLETADO'].map(s => `<option value="${s}" ${s === h.status ? 'selected' : ''}>${s.replace(/_/g,' ')}</option>`).join('')}
+            </select>
+          </td>
+          <td class="hito-gating-msg" style="color:#d80300; font-size:0.72rem;"></td>
+        </tr>`).join('');
+        body.querySelectorAll('tr[data-id]').forEach(tr => {
+          tr.querySelector('.hito-status').addEventListener('change', async (e) => {
+            const msgCell = tr.querySelector('.hito-gating-msg');
+            msgCell.textContent = '';
+            try {
+              await api.flHitoTransicion(tr.dataset.id, e.target.value);
+              loadHitos(); loadMatrizRiesgo(); loadProyectos();
+            } catch (ex) {
+              if (ex.message === 'LegalGatingError') {
+                msgCell.textContent = 'Bloqueado: controles gating sin verificar';
+                e.target.value = e.target.dataset.prev || 'PLANIFICADO';
+              } else {
+                showError(ex.message);
+              }
+            }
+          });
+        });
+      } catch (ex) { showError(ex.message || 'Error al cargar hitos'); }
+    }
+    document.getElementById('hitoAddBtn').addEventListener('click', async () => {
+      showError('');
+      if (!proyectoSeleccionado) return showError('Selecciona un proyecto');
+      const nombre = document.getElementById('hitoNombre').value.trim();
+      if (!nombre) return showError('Indica el nombre del hito');
+      try {
+        await api.flHitoAdd(proyectoSeleccionado, { nombre, es_hito_financiero: document.getElementById('hitoFinanciero').checked });
+        document.getElementById('hitoNombre').value = '';
+        document.getElementById('hitoFinanciero').checked = false;
+        loadHitos();
+      } catch (ex) { showError(ex.message || 'Error al crear hito'); }
+    });
+
+    const CONTROL_ESTADO_COLOR = { PENDIENTE: '#8a8a8a', VERIFICADO: '#00a878', EN_ALERTA: '#d80300', EXCEPCION_APROBADA: '#0071e3' };
+
+    async function loadMatrizRiesgo() {
+      const body = document.getElementById('riesgoBody');
+      if (!proyectoSeleccionado) { body.innerHTML = '<tr class="empty-row"><td colspan="6">Selecciona un proyecto.</td></tr>'; return; }
+      try {
+        const rows = await api.flMatrizRiesgoList(proyectoSeleccionado);
+        if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="6">Sin controles registrados.</td></tr>'; return; }
+        body.innerHTML = rows.map(c => `<tr data-id="${c.id}">
+          <td>${escapeHtml(c.risk_description)}<br><span class="mono" style="font-size:0.6rem; color:var(--text-muted);">${escapeHtml(c.legal_risk_type)}</span></td>
+          <td><span class="risk-badge risk-${c.risk_level}">${c.risk_level}</span></td>
+          <td>${escapeHtml(c.duty_of_guarantor_user_id)}</td>
+          <td>${c.is_gating_control ? '<span class="gating-tag">BLOQUEA PAGO</span>' : '—'}</td>
+          <td>${pill(c.status.replace(/_/g,' '), CONTROL_ESTADO_COLOR[c.status])}</td>
+          <td>${c.status === 'VERIFICADO'
+            ? `<span class="mono" style="font-size:0.65rem;">✓ ${c.verified_at ? new Date(c.verified_at).toLocaleDateString('es-ES') : ''}</span>`
+            : `<button class="btn ghost btn--sm riesgo-verificar" data-id="${c.id}">Verificar</button>`}</td>
+        </tr>`).join('');
+        body.querySelectorAll('.riesgo-verificar').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const url = prompt('URL/referencia de la evidencia de cumplimiento (obligatoria para verificar):');
+            if (!url) return;
+            try {
+              await api.flMatrizRiesgoVerificar(btn.dataset.id, url);
+              toast('Control verificado, firma digital generada');
+              loadMatrizRiesgo(); loadProyectos(); loadSummary();
+            } catch (ex) { showError(ex.message || 'Error al verificar control'); }
+          });
+        });
+      } catch (ex) { showError(ex.message || 'Error al cargar matriz de riesgo'); }
+    }
+    document.getElementById('riesgoAddBtn').addEventListener('click', async () => {
+      showError('');
+      if (!proyectoSeleccionado) return showError('Selecciona un proyecto');
+      const risk_description = document.getElementById('riesgoDescripcion').value.trim();
+      const duty_of_guarantor_user_id = document.getElementById('riesgoGarante').value.trim();
+      if (!risk_description) return showError('Indica la descripción del riesgo');
+      if (!duty_of_guarantor_user_id) return showError('Indica el usuario garante');
+      try {
+        await api.flMatrizRiesgoAdd({
+          project_id: proyectoSeleccionado,
+          milestone_id: document.getElementById('riesgoHito').value || null,
+          legal_risk_type: document.getElementById('riesgoTipo').value,
+          risk_level: document.getElementById('riesgoNivel').value,
+          risk_description,
+          duty_of_guarantor_user_id,
+          preventive_control_description: document.getElementById('riesgoControl').value.trim(),
+          is_gating_control: document.getElementById('riesgoGating').checked,
+        });
+        document.getElementById('riesgoDescripcion').value = '';
+        document.getElementById('riesgoGarante').value = '';
+        document.getElementById('riesgoControl').value = '';
+        loadMatrizRiesgo(); loadProyectos();
+      } catch (ex) { showError(ex.message || 'Error al crear control'); }
+    });
+
+    /* ============================= PODERES & FIRMAS ============================= */
+
+    const PODER_ESTADO_COLOR = { Vigente: '#00a878', Por_Caducar: '#cc7a00', Caducado: '#d80300', Renovado: '#0071e3' };
+
+    async function loadPoderes() {
+      const body = document.getElementById('poderBody');
+      try {
+        const rows = await api.flPoderesList();
+        if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="6">Sin poderes registrados.</td></tr>'; return; }
+        body.innerHTML = rows.map(p => `<tr data-id="${p.id}">
+          <td>${escapeHtml(p.titular)}</td>
+          <td>${escapeHtml(p.tipo.replace(/_/g,' '))}</td>
+          <td>${escapeHtml(p.entidad || '—')}</td>
+          <td class="mono">${p.fecha_caducidad}</td>
+          <td>${pill(p.estado.replace(/_/g,' '), PODER_ESTADO_COLOR[p.estado])}</td>
+          <td><button class="btn ghost btn--sm poder-del">Eliminar</button></td>
+        </tr>`).join('');
+        body.querySelectorAll('.poder-del').forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+            const id = e.target.closest('tr').dataset.id;
+            try { await api.flPoderDelete(id); loadPoderes(); loadSummary(); } catch (ex) { showError(ex.message); }
+          });
+        });
+      } catch (ex) { showError(ex.message || 'Error al cargar poderes'); }
+    }
+    document.getElementById('poderAddBtn').addEventListener('click', async () => {
+      showError('');
+      const titular = document.getElementById('poderTitular').value.trim();
+      const fecha_emision = document.getElementById('poderEmision').value;
+      const fecha_caducidad = document.getElementById('poderCaducidad').value;
+      if (!titular) return showError('Indica el titular');
+      if (!fecha_emision || !fecha_caducidad) return showError('Indica fecha de emisión y caducidad');
+      try {
+        await api.flPoderAdd({
+          titular,
+          tipo: document.getElementById('poderTipo').value,
+          entidad: document.getElementById('poderEntidad').value.trim() || null,
+          fecha_emision, fecha_caducidad,
+          dias_alerta: Number(document.getElementById('poderDiasAlerta').value) || 60,
+        });
+        document.getElementById('poderTitular').value = '';
+        document.getElementById('poderEntidad').value = '';
+        document.getElementById('poderEmision').value = '';
+        document.getElementById('poderCaducidad').value = '';
+        loadPoderes(); loadSummary();
+      } catch (ex) { showError(ex.message || 'Error al registrar poder'); }
+    });
+
+    /* ============================= INSPECCIONES ============================= */
+
+    const RESULTADO_COLOR = { Sin_Observaciones: '#00a878', Con_Observaciones: '#cc7a00', Apercibimiento: '#d80300', Clausura_Parcial: '#d80300', Clausura_Total: '#d80300' };
+
+    async function loadInspecciones() {
+      const body = document.getElementById('inspBody');
+      try {
+        const rows = await api.flInspeccionesList();
+        if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="6">Sin inspecciones registradas.</td></tr>'; return; }
+        const instName = new Map(instalaciones.map(i => [i.id, i.nombre_instalacion]));
+        body.innerHTML = rows.map(i => `<tr>
+          <td>${escapeHtml(instName.get(i.id_instalacion) || '—')}</td>
+          <td>${escapeHtml(i.autoridad_inspectora)}</td>
+          <td class="mono">${i.fecha_visita}</td>
+          <td>${pill(i.resultado_visita.replace(/_/g,' '), RESULTADO_COLOR[i.resultado_visita])}</td>
+          <td class="mono">${i.monto_multa_economica ? '€' + i.monto_multa_economica.toLocaleString('es-ES') : '—'}</td>
+          <td class="mono">${i.estatus_resolucion.replace(/_/g,' ')}</td>
+        </tr>`).join('');
+      } catch (ex) { showError(ex.message || 'Error al cargar inspecciones'); }
+    }
+    document.getElementById('inspAddBtn').addEventListener('click', async () => {
+      showError('');
+      const id_instalacion = document.getElementById('inspInstalacion').value;
+      const fecha_visita = document.getElementById('inspFecha').value;
+      if (!id_instalacion) return showError('Añade una instalación primero');
+      if (!fecha_visita) return showError('Indica la fecha de la visita');
+      try {
+        await api.flInspeccionAdd({
+          id_instalacion,
+          autoridad_inspectora: document.getElementById('inspAutoridad').value,
+          fecha_visita,
+          resultado_visita: document.getElementById('inspResultado').value,
+          monto_multa_economica: Number(document.getElementById('inspMulta').value) || 0,
+        });
+        document.getElementById('inspFecha').value = '';
+        document.getElementById('inspMulta').value = '';
+        loadInspecciones(); loadSummary();
+      } catch (ex) { showError(ex.message || 'Error al registrar inspección'); }
+    });
+
+    // ---- Expediente Fiscal y Juridico Impecable (CRM documental) ----
+    const EXP_ESTADOS_LBL = {
+      pendiente: 'Pendiente', en_tramite: 'En trámite', vigente: 'Vigente',
+      por_caducar: 'Por caducar', caducado: 'Caducado', no_aplica: 'No aplica',
+    };
+    const EXP_REGIMEN_LBL = {
+      si: 'Caduca (entra en alerta)',
+      no: 'Perpetuo (sin caducidad)',
+      revision: 'Revisión periódica',
+    };
+
+    let expMeta = null;       // catalogo de carpetas/estados/regimenes
+    let expDocs = [];         // cache plana de documentos cargados
+    let expSelId = null;      // documento abierto en la ficha
+    let expCreando = false;   // ficha en modo alta
+    let expDetallesAbiertos = false; // plegado de fechas/emisor/notas en la ficha
+
+    function expFmtBytes(n) {
+      if (!Number.isFinite(n) || n <= 0) return '';
+      if (n < 1024) return `${n} B`;
+      if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+      return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+    }
+
+    async function loadExpedienteMeta() {
+      if (expMeta) return expMeta;
+      expMeta = await api.flExpedienteMeta();
+      const selB = document.getElementById('expFiltroBloque');
+      expMeta.bloques.forEach(b => {
+        const o = document.createElement('option');
+        o.value = b.key; o.textContent = b.label;
+        selB.appendChild(o);
+      });
+      const selE = document.getElementById('expFiltroEstado');
+      expMeta.estados.forEach(e => {
+        const o = document.createElement('option');
+        o.value = e; o.textContent = EXP_ESTADOS_LBL[e] || e;
+        selE.appendChild(o);
+      });
+      return expMeta;
+    }
+
+    async function loadExpedienteSummary() {
+      try {
+        const s = await api.flExpedienteSummary();
+        document.getElementById('expKpiCompletitud').textContent = `${s.completitudPct ?? 0}%`;
+        document.getElementById('expKpiTotal').textContent = s.totalDocumentos ?? 0;
+        document.getElementById('expKpiVigentes').textContent = s.vigentes ?? 0;
+        document.getElementById('expKpiPorCaducar').textContent = s.porCaducar ?? 0;
+        document.getElementById('expKpiPorCaducarCell').classList.toggle('alert', (s.porCaducar ?? 0) > 0);
+        document.getElementById('expKpiPorCaducar').classList.toggle('warn', (s.porCaducar ?? 0) > 0);
+        document.getElementById('expKpiCaducados').textContent = s.caducados ?? 0;
+        document.getElementById('expKpiCaducadosCell').classList.toggle('alert', (s.caducados ?? 0) > 0);
+        document.getElementById('expKpiCaducados').classList.toggle('warn', (s.caducados ?? 0) > 0);
+        document.getElementById('expKpiFaltantes').textContent = s.faltantes ?? 0;
+        document.getElementById('expKpiFaltantesCell').classList.toggle('alert', (s.faltantes ?? 0) > 0);
+      } catch (ex) { showError(ex.message || 'Error al cargar resumen del expediente'); }
+    }
+
+    async function loadExpedienteAlertas() {
+      const box = document.getElementById('expAlertas');
+      try {
+        const { alertas } = await api.flExpedienteAlertas();
+        if (!alertas.length) {
+          box.innerHTML = '<div class="exp-alert-box"><h4>ALERTAS ACTIVAS</h4><div style="font-size:0.8rem; color:var(--text-muted);">Sin avisos: todos los documentos están aportados y en plazo.</div></div>';
+          return;
+        }
+        box.innerHTML = `
+          <div class="exp-alert-box">
+            <h4>ALERTAS ACTIVAS · ${alertas.length}</h4>
+            ${alertas.map(a => `
+              <div class="exp-alert-item" data-goto="${escapeHtml(a.docId)}" style="cursor:pointer;">
+                <span class="sev ${a.severity}"></span>
+                <span class="slot">${escapeHtml(a.bloque)}</span>
+                <span>${escapeHtml(a.mensaje)}</span>
+              </div>`).join('')}
+          </div>`;
+      } catch (ex) { box.innerHTML = ''; showError(ex.message || 'Error al cargar alertas'); }
+    }
+
+    function expRowMeta(doc) {
+      if (doc.alerta?.tipo === 'caducado') return { txt: `caducado hace ${Math.abs(doc.diasRestantes)} d`, cls: 'bad' };
+      if (doc.alerta?.tipo === 'por_caducar') return { txt: `caduca en ${doc.diasRestantes} d`, cls: doc.diasRestantes <= 15 ? 'bad' : 'warn' };
+      if (doc.alerta?.tipo === 'faltante') return { txt: 'sin archivo', cls: 'warn' };
+      if (doc.fecha_caducidad) return { txt: `vence ${doc.fecha_caducidad}`, cls: '' };
+      return { txt: EXP_ESTADOS_LBL[doc.estado] || doc.estado, cls: '' };
+    }
+
+    async function loadExpediente() {
+      const cont = document.getElementById('expBloques');
+      const filtros = {
+        bloque: document.getElementById('expFiltroBloque').value,
+        estado: document.getElementById('expFiltroEstado').value,
+        q: document.getElementById('expSearch').value.trim(),
+      };
+      try {
+        const { bloques } = await api.flExpediente(filtros);
+        expDocs = bloques.flatMap(b => b.documentos);
+        cont.innerHTML = bloques.map(b => `
+          <div class="exp-bloque">
+            <h3>${escapeHtml(b.label)}<span class="exp-bloque__count">${b.documentos.length} doc.</span></h3>
+            <p class="desc">${escapeHtml(b.descripcion)}</p>
+            ${b.documentos.length
+              ? b.documentos.map(d => {
+                  const m = expRowMeta(d);
+                  return `
+                    <div class="exp-row${d.id === expSelId ? ' selected' : ''}" data-doc="${escapeHtml(d.id)}">
+                      <span class="exp-row__clip">${d.file_id ? '●' : '○'}</span>
+                      <span class="exp-row__name">${escapeHtml(d.nombre)}</span>
+                      <span class="exp-state exp-state-${escapeHtml(d.estado)}">${escapeHtml(EXP_ESTADOS_LBL[d.estado] || d.estado)}</span>
+                      <span class="exp-row__meta ${m.cls}">${escapeHtml(m.txt)}</span>
+                    </div>`;
+                }).join('')
+              : '<div class="exp-bloque__empty">Sin documentos en esta carpeta.</div>'}
+          </div>`).join('');
+      } catch (ex) {
+        cont.innerHTML = '<p class="empty-state">No se pudo cargar el expediente.</p>';
+        showError(ex.message || 'Error al cargar el expediente');
+      }
+    }
+
+    // Ficha lateral: alta (doc null) o edicion de un documento existente.
+    function expRenderFicha(doc) {
+      const ficha = document.getElementById('expFicha');
+      if (!doc && !expCreando) {
+        ficha.innerHTML = '<p class="empty-state">Selecciona un documento de la lista, o crea uno nuevo.</p>';
+        return;
+      }
+      const d = doc || { bloque: expMeta?.bloques?.[0]?.key || 'A', regimen: 'si', estado: 'pendiente', dias_alerta: 60 };
+      const nuevo = !doc;
+      const carpeta = (expMeta?.bloques || []).find(b => b.key === d.bloque);
+
+      // Los detalles (fechas, emisor, referencia, estado, regimen, notas) van
+      // plegados: el uso normal es "veo el titulo y suelto el PDF". Se rellenan
+      // mas tarde, cuando el humano tenga los datos.
+      const detalles = `
+        <div class="exp-detalles" ${expDetallesAbiertos || nuevo ? '' : 'hidden'}>
+          ${nuevo ? `
+            <div class="sf"><label>Nombre del documento</label>
+              <input class="input" data-f="nombre" value="${escapeHtml(d.nombre || '')}" placeholder="Ej. Certificado de Codigo DUNS">
+            </div>` : `
+            <div class="sf"><label>Nombre del documento</label>
+              <input class="input" data-f="nombre" value="${escapeHtml(d.nombre || '')}">
+            </div>`}
+          <div class="sf"><label>Carpeta</label>
+            <select class="input" data-f="bloque">
+              ${(expMeta?.bloques || []).map(b => `<option value="${b.key}"${b.key === d.bloque ? ' selected' : ''}>${escapeHtml(b.label)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="sf"><label>Descripción / qué acredita</label>
+            <textarea class="input" data-f="descripcion" placeholder="Opcional">${escapeHtml(d.descripcion || '')}</textarea>
+          </div>
+          <div class="exp-ficha__grid2">
+            <div class="sf"><label>Estado</label>
+              <select class="input" data-f="estado">
+                ${(expMeta?.estados || []).map(e => `<option value="${e}"${e === d.estado ? ' selected' : ''}>${escapeHtml(EXP_ESTADOS_LBL[e] || e)}</option>`).join('')}
+              </select>
+            </div>
+            <div class="sf"><label>Régimen</label>
+              <select class="input" data-f="regimen">
+                ${(expMeta?.regimenes || []).map(r => `<option value="${r}"${r === d.regimen ? ' selected' : ''}>${escapeHtml(EXP_REGIMEN_LBL[r] || r)}</option>`).join('')}
+              </select>
+            </div>
+            <div class="sf"><label>Emisión</label><input class="input" type="date" data-f="fecha_emision" value="${d.fecha_emision || ''}"></div>
+            <div class="sf"><label>Caducidad</label><input class="input" type="date" data-f="fecha_caducidad" value="${d.fecha_caducidad || ''}"></div>
+            <div class="sf"><label>Días de aviso</label><input class="input" type="number" min="0" data-f="dias_alerta" value="${d.dias_alerta ?? 60}"></div>
+            <div class="sf"><label>Emisor</label><input class="input" data-f="emisor" value="${escapeHtml(d.emisor || '')}" placeholder="Notaría, OEPM…"></div>
+          </div>
+          <div class="sf"><label>Referencia</label>
+            <input class="input" data-f="referencia" value="${escapeHtml(d.referencia || '')}" placeholder="Nº protocolo / expediente">
+          </div>
+          <div class="sf"><label>Notas</label>
+            <textarea class="input" data-f="notas" placeholder="Opcional">${escapeHtml(d.notas || '')}</textarea>
+          </div>
+          <div class="exp-ficha__actions">
+            <button class="btn sage" data-act="${nuevo ? 'create' : 'save'}">${nuevo ? 'Crear documento' : 'Guardar cambios'}</button>
+            ${nuevo
+              ? '<button class="btn" data-act="cancel">Cancelar</button>'
+              : '<button class="btn" data-act="del-doc" style="color:#d80300;">Eliminar</button>'}
+          </div>
+        </div>`;
+
+      if (nuevo) {
+        ficha.innerHTML = `
+          <h3>Nuevo documento</h3>
+          <p class="exp-ficha__hint">Ponle nombre y elige carpeta. El PDF se adjunta después, desde su ficha.</p>
+          ${detalles}`;
+        return;
+      }
+
+      // Aviso del documento (caducidad o falta de archivo), si lo hay.
+      const av = d.alerta
+        ? `<div class="exp-ficha__alerta ${d.alerta.severity}">${escapeHtml(d.alerta.mensaje)}</div>`
+        : '';
+
+      ficha.innerHTML = `
+        <div class="exp-ficha__carpeta">${escapeHtml(carpeta?.label || d.bloque)}</div>
+        <h3 class="exp-ficha__titulo">${escapeHtml(d.nombre)}</h3>
+        ${d.descripcion ? `<p class="exp-ficha__desc">${escapeHtml(d.descripcion)}</p>` : ''}
+        ${av}
+
+        <div class="exp-ficha__pdf">
+          ${d.file_id ? `
+            <div class="exp-file">
+              <span class="exp-file__name">${escapeHtml(d.file_name || 'documento')}</span>
+              <span class="exp-file__meta">${expFmtBytes(d.file_size)}</span>
+              <button class="exp-file__act" data-act="open">Abrir</button>
+              <button class="exp-file__act" data-act="download">Descargar</button>
+              <button class="exp-file__act danger" data-act="del-file">Quitar</button>
+            </div>` : ''}
+          <div class="exp-drop${d.file_id ? '' : ' exp-drop--vacio'}" data-act="drop">
+            ${d.file_id ? 'Sustituir archivo: arrastra aquí o haz clic' : 'Arrastra el PDF aquí o haz clic para subirlo'}
+          </div>
+          <input type="file" hidden data-f="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp">
+        </div>
+
+        <div class="exp-ficha__resumen">
+          <span>${escapeHtml(EXP_ESTADOS_LBL[d.estado] || d.estado)}</span>
+          <span>${d.fecha_caducidad ? `caduca ${escapeHtml(d.fecha_caducidad)}` : 'sin fecha de caducidad'}</span>
+        </div>
+
+        <button class="exp-toggle" data-act="toggle-detalles">
+          ${expDetallesAbiertos ? 'Ocultar detalles' : 'Editar detalles (fechas, emisor, notas…)'}
+        </button>
+        ${detalles}`;
+    }
+
+    function expSeleccionar(id) {
+      // Cambiar de documento cierra los detalles: se vuelve a la vista simple
+      // (titulo + PDF). Al refrescar el MISMO documento se conserva abierto.
+      if (id !== expSelId) expDetallesAbiertos = false;
+      expCreando = false;
+      expSelId = id;
+      document.querySelectorAll('#expBloques .exp-row').forEach(r => r.classList.toggle('selected', r.dataset.doc === id));
+      expRenderFicha(expDocs.find(d => d.id === id) || null);
+    }
+
+    function expLeerFicha() {
+      const ficha = document.getElementById('expFicha');
+      const val = (f) => ficha.querySelector(`[data-f="${f}"]`)?.value ?? '';
+      return {
+        nombre: val('nombre').trim(),
+        bloque: val('bloque'),
+        descripcion: val('descripcion').trim() || null,
+        estado: val('estado'),
+        regimen: val('regimen'),
+        fecha_emision: val('fecha_emision') || null,
+        fecha_caducidad: val('fecha_caducidad') || null,
+        dias_alerta: Number(val('dias_alerta')) || 0,
+        emisor: val('emisor').trim() || null,
+        referencia: val('referencia').trim() || null,
+        notas: val('notas').trim(),
+      };
+    }
+
+    async function expRefrescar(selId) {
+      await loadExpediente();
+      loadExpedienteSummary();
+      loadExpedienteAlertas();
+      if (selId) expSeleccionar(selId);
+    }
+
+    async function expSubirArchivo(docId, file) {
+      if (!file) return;
+      try {
+        await uploadFlExpedienteDoc(docId, file);
+        toast('Archivo subido');
+        await expRefrescar(docId);
+      } catch (ex) { showError(ex.message || 'Error al subir el archivo'); }
+    }
+
+    // ---- Eventos: lista ----
+    document.getElementById('expBloques').addEventListener('click', (e) => {
+      const row = e.target.closest('.exp-row');
+      if (row) expSeleccionar(row.dataset.doc);
+    });
+
+    document.getElementById('expAlertas').addEventListener('click', (e) => {
+      const item = e.target.closest('[data-goto]');
+      if (item) expSeleccionar(item.dataset.goto);
+    });
+
+    // ---- Eventos: ficha (delegacion, se repinta entera en cada recarga) ----
+    const expFichaEl = document.getElementById('expFicha');
+
+    expFichaEl.addEventListener('click', async (e) => {
+      const btn = e.target.closest('[data-act]');
+      if (!btn) return;
+      const act = btn.dataset.act;
+      const doc = expDocs.find(d => d.id === expSelId);
+
+      if (act === 'cancel') { expCreando = false; expRenderFicha(doc || null); return; }
+      if (act === 'drop') { expFichaEl.querySelector('[data-f="file"]').click(); return; }
+
+      // Plegar/desplegar sin repintar: conserva lo que el humano este escribiendo.
+      if (act === 'toggle-detalles') {
+        expDetallesAbiertos = !expDetallesAbiertos;
+        expFichaEl.querySelector('.exp-detalles').hidden = !expDetallesAbiertos;
+        btn.textContent = expDetallesAbiertos ? 'Ocultar detalles' : 'Editar detalles (fechas, emisor, notas…)';
+        return;
+      }
+
+      if (act === 'open' || act === 'download') {
+        if (!doc?.file_id) return;
+        try { await openFlExpedienteDoc(doc.file_id, doc.file_name, act === 'download'); }
+        catch (ex) { showError(ex.message || 'Error al abrir el archivo'); }
+        return;
+      }
+
+      if (act === 'del-file') {
+        if (!doc || !confirm('¿Quitar el archivo adjunto de este documento?')) return;
+        try {
+          await api.flExpedienteArchivoDel(doc.id);
+          toast('Archivo eliminado');
+          await expRefrescar(doc.id);
+        } catch (ex) { showError(ex.message || 'Error al quitar el archivo'); }
+        return;
+      }
+
+      if (act === 'del-doc') {
+        if (!doc || !confirm(`¿Eliminar "${doc.nombre}" del expediente? También se borra su archivo adjunto.`)) return;
+        try {
+          await api.flExpedienteDocDelete(doc.id);
+          toast('Documento eliminado');
+          expSelId = null;
+          expRenderFicha(null);
+          await expRefrescar(null);
+        } catch (ex) { showError(ex.message || 'Error al eliminar el documento'); }
+        return;
+      }
+
+      if (act === 'create') {
+        const payload = expLeerFicha();
+        if (!payload.nombre) return showError('Indica el nombre del documento');
+        try {
+          const creado = await api.flExpedienteDocAdd(payload);
+          toast('Documento creado');
+          expCreando = false;
+          await expRefrescar(creado.id);
+        } catch (ex) { showError(ex.message || 'Error al crear el documento'); }
+        return;
+      }
+
+      if (act === 'save') {
+        if (!doc) return;
+        const payload = expLeerFicha();
+        if (!payload.nombre) return showError('El nombre no puede quedar vacío');
+        try {
+          await api.flExpedienteDocPatch(doc.id, payload);
+          toast('Documento actualizado');
+          await expRefrescar(doc.id);
+        } catch (ex) { showError(ex.message || 'Error al guardar el documento'); }
+      }
+    });
+
+    expFichaEl.addEventListener('change', (e) => {
+      if (e.target.matches('[data-f="file"]') && expSelId) {
+        expSubirArchivo(expSelId, e.target.files[0]);
+        e.target.value = '';
+      }
+    });
+
+    expFichaEl.addEventListener('dragover', (e) => {
+      const drop = e.target.closest('[data-act="drop"]');
+      if (!drop) return;
+      e.preventDefault();
+      drop.classList.add('dragover');
+    });
+    expFichaEl.addEventListener('dragleave', (e) => {
+      e.target.closest('[data-act="drop"]')?.classList.remove('dragover');
+    });
+    expFichaEl.addEventListener('drop', (e) => {
+      const drop = e.target.closest('[data-act="drop"]');
+      if (!drop) return;
+      e.preventDefault();
+      drop.classList.remove('dragover');
+      if (expSelId) expSubirArchivo(expSelId, e.dataTransfer.files[0]);
+    });
+
+    // ---- Eventos: barra superior ----
+    document.getElementById('expNuevoBtn').addEventListener('click', () => {
+      expCreando = true;
+      expSelId = null;
+      document.querySelectorAll('#expBloques .exp-row').forEach(r => r.classList.remove('selected'));
+      expRenderFicha(null);
+    });
+
+    document.getElementById('expRevisarBtn').addEventListener('click', async () => {
+      try {
+        const r = await api.flExpedienteRevisar();
+        toast(r.total ? `${r.total} aviso(s) activo(s)` : 'Expediente al día');
+        await expRefrescar(expSelId);
+      } catch (ex) { showError(ex.message || 'Error al revisar el expediente'); }
+    });
+
+    let expSearchTimer = null;
+    document.getElementById('expSearch').addEventListener('input', () => {
+      clearTimeout(expSearchTimer);
+      expSearchTimer = setTimeout(loadExpediente, 250);
+    });
+    document.getElementById('expFiltroBloque').addEventListener('change', loadExpediente);
+    document.getElementById('expFiltroEstado').addEventListener('change', loadExpediente);
+
     // ---- Init ----
-    loadSummary();
-    loadNdas();
-    loadContracts().then(loadLicenseContractOptions);
-    loadLicenses();
-    loadOepm();
+    (async () => {
+      await loadInstalaciones();
+      loadSummary();
+      loadLicencias();
+      loadProyectos().then(() => { loadHitos(); loadMatrizRiesgo(); });
+      loadPoderes();
+      loadInspecciones();
+      await loadExpedienteMeta();
+      loadExpediente();
+      loadExpedienteSummary();
+      loadExpedienteAlertas();
+    })();
   </script>
 </body>
 </html>

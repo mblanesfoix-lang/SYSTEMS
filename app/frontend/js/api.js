@@ -247,7 +247,6 @@ Object.assign(api, {
   flExpedienteDocPatch:    (id, payload) => req('PATCH', `/api/fl/expediente/documentos/${id}`, payload),
   flExpedienteDocDelete:   (id) => req('DELETE', `/api/fl/expediente/documentos/${id}`),
   flExpedienteArchivoDel:  (docId) => req('DELETE', `/api/fl/expediente/documentos/${docId}/archivo`),
-  flExpedienteVerifyPin:   (pin) => req('POST', '/api/fl/expediente/verify-pin', { pin }),
 
   // Pactvm Viridi · cumplimiento bio-ambiental (CIBE, politicas, accesos, Herzog)
   pactvmSummary:           () => req('GET', '/api/pactvm/summary'),

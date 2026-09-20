@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VDR · Pactvm Viridi · S-NFI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/css/theme.css">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('systemsTheme');
+        if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
+  <style>
+    .pactvm-hero {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px 40px;
+      margin-bottom: 24px;
+    }
+    .pactvm-hero__title {
+      font-family: var(--font-display);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin: 0 0 10px;
+    }
+    .pactvm-hero__sub {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      max-width: 680px;
+      line-height: 1.65;
+      margin: 0;
+    }
+    .kpi-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 0;
+      border: 1px solid var(--border-mid); border-radius: var(--radius); overflow: hidden; margin-bottom: 24px; background: var(--bg-card);
+    }
+    @media (max-width: 900px) { .kpi-grid { grid-template-columns: repeat(1, 1fr); } }
+    .kpi-cell {
+      padding: 20px 22px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
+      position: relative;
+    }
+    .kpi-cell:last-child { border-right: none; }
+    .kpi-label { font-family: var(--font-mono); font-size: 0.55rem; letter-spacing: 0.04em; color: var(--text-muted); margin-bottom: 10px; }
+    .kpi-val { font-family: var(--font-display); font-size: 1.8rem; font-weight: 800; letter-spacing: -0.03em; }
+
+    .add-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; align-items: flex-end; }
+    .add-row .sf { display: flex; flex-direction: column; gap: 4px; }
+    .add-row .sf label { font-size: 0.62rem; letter-spacing: -0.005em; color: var(--text-muted); font-family: var(--font-mono); }
+    .add-row .input { min-width: 120px; }
+
+    .empty-row td { text-align: center; color: var(--text-muted); font-size: 0.82rem; padding: 24px !important; }
+    .company-row { cursor: pointer; }
+    .company-row:hover td { background: var(--bg-elevated); }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="brand">
+      <img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;">
+      <span class="brand-mark">S-NFI Systems (c)</span>
+    </div>
+    <div class="row" style="gap:18px;">
+      <div class="user-menu" id="userMenu">
+        <button class="user-menu__trigger mono" id="userTag" aria-haspopup="true" aria-expanded="false">…</button>
+        <div class="user-menu__dropdown" id="userDropdown" hidden>
+          <div class="user-menu__section">
+            <span class="user-menu__label">Cambiar contraseña</span>
+            <input class="user-menu__input" type="password" id="pwdCurrent" placeholder="Contraseña actual" autocomplete="current-password">
+            <input class="user-menu__input" type="password" id="pwdNew" placeholder="Nueva contraseña" autocomplete="new-password">
+            <input class="user-menu__input" type="password" id="pwdConfirm" placeholder="Confirmar nueva" autocomplete="new-password">
+            <p class="user-menu__error" id="pwdError" hidden></p>
+            <button class="btn sage" id="pwdSubmit" style="width:100%;margin-top:4px;">Actualizar</button>
+          </div>
+          <div class="user-menu__divider"></div>
+          <button class="user-menu__item user-menu__item--danger" id="logoutBtn">Cerrar sesión</button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container">
+    <div class="breadcrumb-row">
+      <a href="/pages/dashboard.html">Systems</a>
+      <span class="sep">/</span>
+      <a href="/pages/pactum-viridi.html">Pactvm Viridi</a>
+      <span class="sep">/</span>
+      <span class="active">VDR</span>
+    </div>
+
+    <div class="pactvm-hero reveal">
+      <span class="kicker">Mesa · CRM geoespacial</span>
+      <h1 class="pactvm-hero__title">VDR <em style="font-style:normal;color:var(--accent-blue);">Empresas</em></h1>
+      <p class="pactvm-hero__sub">
+        Registro de empresas con ubicación geográfica y actividad en España. Haz clic en una empresa para
+        abrir su interfaz geoespacial individual: globo 3D con estrella en el país de ubicación y punto rojo
+        de actividad sobre España.
+      </p>
+    </div>
+
+    <div id="errorBox" style="display:none;" class="mole-error"></div>
+
+    <div class="kpi-grid reveal" id="summaryKpis">
+      <div class="kpi-cell" id="kpiCompaniesTotal">
+        <div class="kpi-label">Empresas registradas</div>
+        <div class="kpi-val" id="kpiCompaniesTotalVal">—</div>
+      </div>
+      <div class="kpi-cell" id="kpiCountriesTracked">
+        <div class="kpi-label">Países trackeados</div>
+        <div class="kpi-val" id="kpiCountriesTrackedVal">—</div>
+      </div>
+      <div class="kpi-cell" id="kpiSpainActivity">
+        <div class="kpi-label">Actividad en España (suma)</div>
+        <div class="kpi-val" id="kpiSpainActivityVal">—</div>
+      </div>
+    </div>
+
+    <div class="card reveal" style="padding:20px;">
+      <div class="add-row">
+        <div class="sf"><label>Empresa</label><input class="input" id="vdrName" placeholder="Nombre de la empresa"></div>
+        <div class="sf">
+          <label>Ubicación geográfica</label>
+          <select class="input" id="vdrCountry" style="min-width:160px;"><option value="">Cargando…</option></select>
+        </div>
+        <div class="sf"><label>Ciudad</label><input class="input" id="vdrCity" style="width:150px;" placeholder="Madrid (opcional)"></div>
+        <div class="sf"><label>Ubicación geográfica (num)</label><input class="input" id="vdrGeoWeight" style="width:150px;" placeholder="peso / relevancia"></div>
+        <div class="sf"><label>Actividad en España (num)</label><input class="input" id="vdrSpainActivity" style="width:150px;" placeholder="0-100"></div>
+        <button class="btn sage" id="vdrAddBtn">Añadir</button>
+      </div>
+      <div style="overflow-x:auto; margin-top:12px;">
+        <table class="tbl" id="vdrTable">
+          <thead><tr><th>Empresa</th><th>Ubicación geográfica</th><th>Ciudad</th><th>Ubicación (num)</th><th>Actividad España (num)</th><th></th></tr></thead>
+          <tbody id="vdrBody"><tr class="empty-row"><td colspan="6">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script type="module">
+    import { api, getUser, requireAuth, clearSession, toast, escapeHtml } from '/js/api.js';
+    import { mountThemeToggle } from '/js/theme.js';
+    import { mountOfficeBg } from '/js/office-bg.js';
+    requireAuth();
+    mountThemeToggle(document.querySelector('nav.nav .row'));
+    mountOfficeBg();
+    document.getElementById('userTag').textContent = getUser() || '';
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      try { await api.logout(); } catch {}
+      clearSession();
+      location.href = '/pages/login.html';
+    });
+
+    // User menu dropdown
+    const userMenuTrigger = document.getElementById('userTag');
+    const userMenuDropdown = document.getElementById('userDropdown');
+    userMenuTrigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = !userMenuDropdown.hidden;
+      userMenuDropdown.hidden = open;
+      userMenuTrigger.setAttribute('aria-expanded', String(!open));
+    });
+    document.addEventListener('click', (e) => {
+      if (!document.getElementById('userMenu').contains(e.target)) {
+        userMenuDropdown.hidden = true;
+        userMenuTrigger.setAttribute('aria-expanded', 'false');
+      }
+    });
+    document.getElementById('pwdSubmit').addEventListener('click', async () => {
+      const cur = document.getElementById('pwdCurrent').value;
+      const neu = document.getElementById('pwdNew').value;
+      const con = document.getElementById('pwdConfirm').value;
+      const errEl = document.getElementById('pwdError');
+      errEl.hidden = true;
+      if (!cur || !neu || !con) { errEl.textContent = 'Rellena todos los campos'; errEl.hidden = false; return; }
+      if (neu !== con) { errEl.textContent = 'Las contraseñas no coinciden'; errEl.hidden = false; return; }
+      try {
+        await api.changePassword(cur, neu);
+        toast('Contraseña actualizada');
+        userMenuDropdown.hidden = true;
+        userMenuTrigger.setAttribute('aria-expanded', 'false');
+        ['pwdCurrent','pwdNew','pwdConfirm'].forEach(id => document.getElementById(id).value = '');
+      } catch (ex) {
+        errEl.textContent = ex.message || 'Error al cambiar contraseña';
+        errEl.hidden = false;
+      }
+    });
+
+    function showError(msg) {
+      const box = document.getElementById('errorBox');
+      box.textContent = msg;
+      box.style.display = msg ? 'block' : 'none';
+    }
+
+    let countriesCache = [];
+
+    async function loadCountries() {
+      try {
+        countriesCache = await api.pactvmVdrCountriesList();
+        const sel = document.getElementById('vdrCountry');
+        sel.innerHTML = countriesCache.map(c => `<option value="${c.code}">${escapeHtml(c.label)} (${c.code})</option>`).join('');
+      } catch (ex) { showError(ex.message || 'Error al cargar países'); }
+    }
+
+    function countryLabel(code) {
+      const c = countriesCache.find(c => c.code === code);
+      return c ? `${c.label} (${c.code})` : code;
+    }
+
+    async function loadSummary() {
+      try {
+        const s = await api.pactvmVdrSummary();
+        document.getElementById('kpiCompaniesTotalVal').textContent = s.companiesTotal ?? 0;
+        document.getElementById('kpiCountriesTrackedVal').textContent = s.countriesTracked ?? 0;
+        document.getElementById('kpiSpainActivityVal').textContent = s.spainActivityTotal ?? 0;
+      } catch (ex) { showError(ex.message || 'Error al cargar resumen'); }
+    }
+
+    async function loadCompanies() {
+      const body = document.getElementById('vdrBody');
+      try {
+        const rows = await api.pactvmVdrCompaniesList();
+        if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="6">Sin empresas registradas.</td></tr>'; return; }
+        body.innerHTML = rows.map(r => `<tr class="company-row" data-id="${r.id}">
+          <td>${escapeHtml(r.name)}</td>
+          <td>${escapeHtml(countryLabel(r.geoCountry))}</td>
+          <td>${escapeHtml(r.geoCity || '—')}</td>
+          <td class="mono">${r.geoWeight}</td>
+          <td class="mono">${r.spainActivity}</td>
+          <td><button class="btn ghost btn--sm vdr-del">Eliminar</button></td>
+        </tr>`).join('');
+        body.querySelectorAll('tr[data-id]').forEach(tr => {
+          const id = tr.dataset.id;
+          tr.addEventListener('click', (e) => {
+            if (e.target.closest('button')) return;
+            location.href = `/pages/pactvm-vdr-globe.html?id=${id}`;
+          });
+          tr.querySelector('.vdr-del').addEventListener('click', async (e) => {
+            e.stopPropagation();
+            try { await api.pactvmVdrCompanyDelete(id); loadCompanies(); loadSummary(); } catch (ex) { showError(ex.message); }
+          });
+        });
+      } catch (ex) { showError(ex.message || 'Error al cargar empresas'); }
+    }
+
+    document.getElementById('vdrAddBtn').addEventListener('click', async () => {
+      showError('');
+      const name = document.getElementById('vdrName').value.trim();
+      const geoCountry = document.getElementById('vdrCountry').value;
+      const geoCity = document.getElementById('vdrCity').value.trim();
+      const geoWeight = Number(document.getElementById('vdrGeoWeight').value.trim());
+      const spainActivity = Number(document.getElementById('vdrSpainActivity').value.trim());
+      if (!name) return showError('Indica el nombre de la empresa');
+      if (!geoCountry) return showError('Selecciona ubicación geográfica');
+      if (!Number.isFinite(geoWeight) || geoWeight < 0) return showError('Ubicación geográfica (num) inválido');
+      if (!Number.isFinite(spainActivity) || spainActivity < 0) return showError('Actividad en España (num) inválido');
+      try {
+        await api.pactvmVdrCompanyAdd({ name, geoCountry, geoCity, geoWeight, spainActivity });
+        document.getElementById('vdrName').value = '';
+        document.getElementById('vdrCity').value = '';
+        document.getElementById('vdrGeoWeight').value = '';
+        document.getElementById('vdrSpainActivity').value = '';
+        loadCompanies(); loadSummary();
+      } catch (ex) { showError(ex.message || 'Error al crear empresa'); }
+    });
+
+    // ---- Init ----
+    (async () => {
+      await loadCountries();
+      loadSummary();
+      loadCompanies();
+    })();
+  </script>
+</body>
+</html>

@@ -6,8 +6,16 @@
   <title>SYSTEMS · OPHS</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap">
   <link rel="stylesheet" href="/css/theme.css">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('systemsTheme');
+        if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      } catch (e) {}
+    })();
+  </script>
   <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
   <style>
     html, body { height: 100%; margin: 0; overflow: hidden; }
@@ -21,7 +29,7 @@
     .op-nav {
       display: flex; align-items: center; justify-content: space-between;
       padding: 0 32px; height: 52px; min-height: 52px;
-      background: rgba(246,247,249,0.78);
+      background: var(--glass-strong);
       backdrop-filter: saturate(140%) blur(18px);
       -webkit-backdrop-filter: saturate(140%) blur(18px);
       border-bottom: 1px solid var(--border);
@@ -29,8 +37,8 @@
     }
     .op-nav .brand {
       display: flex; align-items: center; gap: 10px;
-      font-family: var(--font-display); font-size: 1rem; font-weight: 700;
-      letter-spacing: -0.01em; color: var(--text-primary); cursor: pointer;
+      font-family: var(--font-display); font-size: 0.8rem; font-weight: 400;
+      letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-primary); cursor: pointer;
     }
     .op-nav .brand .dot {
       width: 8px; height: 8px; border-radius: 50%;
@@ -51,7 +59,7 @@
     .op-tabs {
       display: flex; gap: 4px; padding: 10px 32px 0;
       border-bottom: 1px solid var(--border);
-      background: rgba(246,247,249,0.5);
+      background: var(--glass-mid);
     }
     .op-tab {
       font-family: var(--font-mono); font-size: 0.74rem; letter-spacing: 0.02em;
@@ -69,36 +77,27 @@
     }
     .op-body { flex: 1; min-height: 0; position: relative; display: flex; }
 
-    /* ============ COCKPIT (OPS + PAIA + Herzog + Sentinel) ============ */
+    /* ============ COCKPIT (hub de mesas: OPS + PAIA + Herzog + Sentinel) ============ */
     .cockpit-wrap { flex: 1; overflow-y: auto; padding: 24px 32px; }
-    .cockpit-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
-    .cockpit-kpi { border: 1px solid var(--border); border-radius: var(--radius); background: #fff; padding: 14px 16px; }
-    .cockpit-kpi .kicker { display: block; margin-bottom: 8px; }
-    .cockpit-kpi .ck-main { font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; color: var(--text-primary); }
-    .cockpit-kpi .ck-sub { font-family: var(--font-mono); font-size: 0.66rem; color: var(--text-muted); margin-top: 4px; }
-    .cockpit-kpi.warn .ck-main { color: #d99a06; }
-    .cockpit-kpi.crit .ck-main { color: #d80300; }
-    .cockpit-cols { display: flex; gap: 20px; align-items: flex-start; }
-    .cockpit-col { flex: 1; min-width: 0; }
-    .cockpit-col h3 { font-family: var(--font-display); font-size: 0.92rem; margin: 0 0 10px; color: var(--text-primary); }
-    .ops-node-row {
-      border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff;
-      padding: 10px 12px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s;
+    .cockpit-empty { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); padding: 10px 0; }
+    .cockpit-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+    .cockpit-tile {
+      border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-card);
+      padding: 20px 22px; text-decoration: none; color: inherit; display: block;
+      transition: border-color 0.15s;
     }
-    .ops-node-row:hover { border-color: var(--accent-blue); }
-    .ops-node-row.selected { border-color: var(--accent-blue); background: rgba(0,113,227,0.05); }
-    .ops-node-row .onr-head { display: flex; align-items: center; justify-content: space-between; }
-    .ops-node-row .onr-name { font-size: 0.82rem; font-weight: 600; color: var(--text-primary); }
-    .ops-node-row .onr-state { font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.02em; padding: 2px 8px; border-radius: var(--radius-pill); }
-    .onr-state.nominal { background: rgba(0,168,120,0.12); color: var(--accent-green); }
-    .onr-state.degradado { background: rgba(217,154,6,0.15); color: #a87605; }
-    .onr-state.parada { background: rgba(216,3,0,0.12); color: #d80300; }
-    .onr-state.mantenimiento { background: rgba(0,152,199,0.12); color: #0098c7; }
-    .ops-readings { display: flex; gap: 10px; margin-top: 12px; }
-    .ops-readings input {
-      width: 90px; padding: 7px 9px; border: 1px solid var(--border-mid); border-radius: var(--radius-sm);
-      font-family: var(--font-mono); font-size: 0.72rem; box-sizing: border-box;
+    .cockpit-tile.is-live { cursor: pointer; }
+    .cockpit-tile.is-live:hover { border-color: var(--accent-blue); }
+    .cockpit-tile.is-soon { opacity: 0.6; cursor: default; }
+    .cockpit-tile h3 { font-family: var(--font-display); font-size: 1.02rem; margin: 0 0 8px; color: var(--text-primary); }
+    .cockpit-tile p { font-size: 0.8rem; line-height: 1.5; color: var(--text-secondary); margin: 0; }
+    .cockpit-tile .ct-badge {
+      display: inline-block; font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.03em;
+      padding: 2px 9px; border-radius: var(--radius-pill); margin-bottom: 10px;
     }
+    .cockpit-tile.is-live .ct-badge { background: rgba(0,168,120,0.12); color: var(--accent-green); }
+    .cockpit-tile.is-soon .ct-badge { background: rgba(120,120,130,0.14); color: #6a6a72; }
+    .cockpit-tile .ct-cta { margin-top: 12px; font-family: var(--font-mono); font-size: 0.68rem; color: var(--accent-blue); }
     .cockpit-btn {
       font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.02em;
       padding: 8px 14px; background: var(--accent-blue); color: #fff;
@@ -106,10 +105,6 @@
     }
     .cockpit-btn:disabled { opacity: 0.5; cursor: default; }
     .cockpit-btn--ghost { background: none; border: 1px solid var(--border-mid); color: var(--text-muted); }
-    .paia-findings { margin-top: 12px; }
-    .paia-finding { border-left: 2px solid #d99a06; padding: 6px 10px; margin-bottom: 6px; font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-primary); }
-    .paia-insight { margin-top: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: rgba(246,247,249,0.6); font-size: 0.82rem; line-height: 1.55; color: var(--text-primary); }
-    .cockpit-empty { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); padding: 10px 0; }
 
     /* ============ GRID INTERLINK (Volumen 3) ============ */
     .grid-wrap { flex: 1; overflow-y: auto; padding: 24px 32px; }
@@ -117,10 +112,10 @@
       font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-muted);
       border: 1px solid var(--border); border-left: 3px solid var(--accent-blue);
       border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 20px; line-height: 1.6;
-      background: rgba(246,247,249,0.6);
+      background: var(--glass-mid);
     }
     .grid-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 16px; }
-    .grid-card { border: 1px solid var(--border); border-radius: var(--radius); background: #fff; padding: 16px 18px; }
+    .grid-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-card); padding: 16px 18px; }
     .grid-card .gc-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
     .grid-card .gc-country { font-family: var(--font-display); font-size: 1.05rem; font-weight: 700; color: var(--text-primary); }
     .grid-card .gc-tso { font-family: var(--font-mono); font-size: 0.62rem; color: var(--text-muted); letter-spacing: 0.02em; }
@@ -141,92 +136,63 @@
 <body>
   <div class="op-layout">
     <div class="op-nav">
-      <div class="brand" id="brandLogo"><div class="dot"></div> SYSTEMS</div>
+      <div class="brand" id="brandLogo"><div class="dot"></div> <span class="brand-mark">S-NFI Systems (c)</span></div>
       <div class="breadcrumb">
         <a href="/pages/dashboard.html">Systems</a><span class="sep">/</span><span class="active">OPHS</span>
       </div>
       <div class="controls">
-        <span class="mono" id="userTag"></span>
         <button class="btn btn--ghost" id="backBtn" style="font-size:0.72rem;padding:0 14px;height:32px;">&lt; Dashboard</button>
-        <button class="btn btn--ghost" id="logoutBtn" style="font-size:0.72rem;padding:0 14px;height:32px;">logout</button>
+        <div class="user-menu" id="userMenu">
+          <button class="user-menu__trigger mono" id="userTag" aria-haspopup="true" aria-expanded="false">…</button>
+          <div class="user-menu__dropdown" id="userDropdown" hidden>
+            <div class="user-menu__section">
+              <span class="user-menu__label">Cambiar contraseña</span>
+              <input class="user-menu__input" type="password" id="pwdCurrent" placeholder="Contraseña actual" autocomplete="current-password">
+              <input class="user-menu__input" type="password" id="pwdNew" placeholder="Nueva contraseña" autocomplete="new-password">
+              <input class="user-menu__input" type="password" id="pwdConfirm" placeholder="Confirmar nueva" autocomplete="new-password">
+              <p class="user-menu__error" id="pwdError" hidden></p>
+              <button class="btn sage" id="pwdSubmit" style="width:100%;margin-top:4px;">Actualizar</button>
+            </div>
+            <div class="user-menu__divider"></div>
+            <button class="user-menu__item user-menu__item--danger" id="logoutBtn">Cerrar sesión</button>
+          </div>
+        </div>
       </div>
     </div>
 
     <div class="op-tabs">
       <button class="op-tab active" data-tab="cockpit">Cockpit</button>
       <button class="op-tab" data-tab="grid">Grid Interlink</button>
-      <span class="op-doctrine">Consola Soberana · OPS + PAIA + Herzog + Sentinel</span>
+      <span class="op-doctrine">Consola Soberana · 4 mesas: OPS · PAIA · Herzog · Sentinel</span>
     </div>
 
     <div class="op-body">
-      <!-- ============ COCKPIT (OPS + PAIA + Herzog + Sentinel) ============ -->
+      <!-- ============ COCKPIT (hub de 4 mesas: OPS + PAIA + Herzog + Sentinel) ============ -->
       <div class="cockpit-wrap" id="panelCockpit">
-          <div class="cockpit-kpis" id="cockpitKpis">
-            <div class="cockpit-kpi"><span class="kicker">OPS · nodos</span><div class="ck-main">—</div><div class="ck-sub">cargando…</div></div>
-            <div class="cockpit-kpi"><span class="kicker">OPS · breaches 1h</span><div class="ck-main">—</div><div class="ck-sub"></div></div>
-            <div class="cockpit-kpi"><span class="kicker">PAIA · análisis 24h</span><div class="ck-main">—</div><div class="ck-sub"></div></div>
-            <div class="cockpit-kpi"><span class="kicker">Sentinel · cola revisión</span><div class="ck-main">—</div><div class="ck-sub"></div></div>
+        <div class="cockpit-tiles">
+          <div class="cockpit-tile is-soon">
+            <span class="ct-badge">próximamente</span>
+            <h3>OPS</h3>
+            <p>Telemetría hardware físico: presión, caudal, temperatura, RPM, estado circuito cerrado.</p>
           </div>
-
-          <div class="cockpit-cols">
-            <div class="cockpit-col" style="max-width:340px;">
-              <h3>OPS · nodos monitorizados</h3>
-              <div id="opsNodeList" class="cockpit-empty">Cargando nodos…</div>
-              <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--border);">
-                <span class="kicker" style="display:block; margin-bottom:8px;">Registrar nodo nuevo</span>
-                <input id="newNodeId" placeholder="ID (ej. BCN-1234)" style="width:100%; padding:8px 10px; margin-bottom:6px; border:1px solid var(--border-mid); border-radius:var(--radius-sm); font-family:var(--font-mono); font-size:0.72rem; box-sizing:border-box;">
-                <input id="newNodeLabel" placeholder="Nombre (opcional)" style="width:100%; padding:8px 10px; margin-bottom:6px; border:1px solid var(--border-mid); border-radius:var(--radius-sm); font-family:var(--font-mono); font-size:0.72rem; box-sizing:border-box;">
-                <div style="display:flex; gap:6px; margin-bottom:8px;">
-                  <input id="newNodeLat" placeholder="lat (opcional)" type="number" step="0.0001" style="flex:1; min-width:0; padding:8px 10px; border:1px solid var(--border-mid); border-radius:var(--radius-sm); font-family:var(--font-mono); font-size:0.72rem; box-sizing:border-box;">
-                  <input id="newNodeLng" placeholder="lng (opcional)" type="number" step="0.0001" style="flex:1; min-width:0; padding:8px 10px; border:1px solid var(--border-mid); border-radius:var(--radius-sm); font-family:var(--font-mono); font-size:0.72rem; box-sizing:border-box;">
-                </div>
-                <button class="cockpit-btn cockpit-btn--ghost" id="addNodeBtn" style="width:100%;">Registrar</button>
-                <p class="cockpit-empty" style="padding:6px 0 0; font-size:0.62rem;">Lat/lng opcional, para georreferenciar el nodo.</p>
-              </div>
-            </div>
-
-            <div class="cockpit-col">
-              <h3 id="opsDetailTitle">OPS · telemetría</h3>
-              <div id="opsDetailEmpty" class="cockpit-empty">Selecciona un nodo para ver lecturas y análisis PAIA.</div>
-              <div id="opsDetail" hidden>
-                <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
-                  <div style="flex:1; min-width:140px;">
-                    <label style="display:block; font-family:var(--font-mono); font-size:0.62rem; color:var(--text-muted); margin-bottom:4px;">Nombre</label>
-                    <input id="editNodeLabel" style="width:100%; padding:7px 9px; border:1px solid var(--border-mid); border-radius:var(--radius-sm); font-family:var(--font-mono); font-size:0.72rem; box-sizing:border-box;">
-                  </div>
-                  <div style="width:100px;">
-                    <label style="display:block; font-family:var(--font-mono); font-size:0.62rem; color:var(--text-muted); margin-bottom:4px;">Lat</label>
-                    <input id="editNodeLat" type="number" step="0.0001" style="width:100%; padding:7px 9px; border:1px solid var(--border-mid); border-radius:var(--radius-sm); font-family:var(--font-mono); font-size:0.72rem; box-sizing:border-box;">
-                  </div>
-                  <div style="width:100px;">
-                    <label style="display:block; font-family:var(--font-mono); font-size:0.62rem; color:var(--text-muted); margin-bottom:4px;">Lng</label>
-                    <input id="editNodeLng" type="number" step="0.0001" style="width:100%; padding:7px 9px; border:1px solid var(--border-mid); border-radius:var(--radius-sm); font-family:var(--font-mono); font-size:0.72rem; box-sizing:border-box;">
-                  </div>
-                  <button class="cockpit-btn cockpit-btn--ghost" id="saveNodeBtn">Guardar</button>
-                  <button class="cockpit-btn" id="deleteNodeBtn" style="background:#d80300;">Eliminar nodo</button>
-                </div>
-                <div id="editNodeMsg" class="cockpit-empty" style="margin-top:6px;"></div>
-
-                <div class="ops-readings" style="margin-top:16px;">
-                  <input id="rdPressure" placeholder="bar" type="number" step="0.1">
-                  <input id="rdFlow" placeholder="l/min" type="number" step="0.1">
-                  <input id="rdTemp" placeholder="°C" type="number" step="0.1">
-                  <input id="rdRpm" placeholder="rpm" type="number" step="1">
-                  <button class="cockpit-btn" id="submitReadingBtn">Registrar lectura</button>
-                </div>
-                <div id="lastReadings" class="cockpit-empty" style="margin-top:10px;"></div>
-
-                <h3 style="margin-top:22px;">PAIA · análisis predictivo</h3>
-                <div style="display:flex; gap:8px;">
-                  <button class="cockpit-btn cockpit-btn--ghost" id="analyzeBtn">Analizar telemetría</button>
-                  <button class="cockpit-btn cockpit-btn--ghost" id="insightBtn">Generar insight</button>
-                </div>
-                <div id="paiaFindings" class="paia-findings"></div>
-                <div id="paiaInsight" class="paia-insight" hidden></div>
-              </div>
-            </div>
+          <div class="cockpit-tile is-soon">
+            <span class="ct-badge">próximamente</span>
+            <h3>PAIA</h3>
+            <p>Analítica predictiva: detección de anomalías/tendencias sobre lecturas OPS, insight en lenguaje natural.</p>
           </div>
+          <div class="cockpit-tile is-soon">
+            <span class="ct-badge">próximamente</span>
+            <h3>Herzog</h3>
+            <p>Auditor algorítmico de cumplimiento: valida Pactum Viridi, emite conformidad frente a CNMC.</p>
+          </div>
+          <a class="cockpit-tile is-live" href="/pages/sentinel.html">
+            <span class="ct-badge">activa</span>
+            <h3>Sentinel</h3>
+            <p>Vigilancia ciber-industrial: forense IP, hash chain, rate limit, cola de revisión, integridad de infraestructura.</p>
+            <div class="ct-cta">acceso directo →</div>
+          </a>
         </div>
+      </div>
       <!-- ============ GRID INTERLINK (Volumen 3) ============ -->
       <div class="grid-wrap" id="panelGrid" hidden>
         <div class="grid-doctrine">
@@ -254,9 +220,11 @@
     </div>
 
   <script type="module">
-    import { getUser, clearSession, requireAuth, api, getToken } from '/js/api.js';
+    import { getUser, clearSession, requireAuth, api, getToken, toast } from '/js/api.js';
+    import { mountThemeToggle } from '/js/theme.js';
     import { mountAdminNotifications } from '/js/notifications.js';
     requireAuth();
+    mountThemeToggle(document.querySelector('.op-nav .controls') || document.querySelector('.op-nav'));
     mountAdminNotifications(document.querySelector('.op-nav .controls'));
 
     // Mesa guard: OPHS es dominio propio (mesa 'ophs')
@@ -274,6 +242,41 @@
       location.href = '/pages/login.html';
     });
 
+    // User menu dropdown
+    const userMenuTrigger = document.getElementById('userTag');
+    const userMenuDropdown = document.getElementById('userDropdown');
+    userMenuTrigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = !userMenuDropdown.hidden;
+      userMenuDropdown.hidden = open;
+      userMenuTrigger.setAttribute('aria-expanded', String(!open));
+    });
+    document.addEventListener('click', (e) => {
+      if (!document.getElementById('userMenu').contains(e.target)) {
+        userMenuDropdown.hidden = true;
+        userMenuTrigger.setAttribute('aria-expanded', 'false');
+      }
+    });
+    document.getElementById('pwdSubmit').addEventListener('click', async () => {
+      const cur = document.getElementById('pwdCurrent').value;
+      const neu = document.getElementById('pwdNew').value;
+      const con = document.getElementById('pwdConfirm').value;
+      const errEl = document.getElementById('pwdError');
+      errEl.hidden = true;
+      if (!cur || !neu || !con) { errEl.textContent = 'Rellena todos los campos'; errEl.hidden = false; return; }
+      if (neu !== con) { errEl.textContent = 'Las contraseñas no coinciden'; errEl.hidden = false; return; }
+      try {
+        await api.changePassword(cur, neu);
+        toast('Contraseña actualizada');
+        userMenuDropdown.hidden = true;
+        userMenuTrigger.setAttribute('aria-expanded', 'false');
+        ['pwdCurrent','pwdNew','pwdConfirm'].forEach(id => document.getElementById(id).value = '');
+      } catch (ex) {
+        errEl.textContent = ex.message || 'Error al cambiar contraseña';
+        errEl.hidden = false;
+      }
+    });
+
     const authHeaders = () => ({ Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' });
     async function jfetch(url, init = {}) {
       const r = await fetch(url, { ...init, headers: { ...authHeaders(), ...(init.headers || {}) } });
@@ -283,226 +286,9 @@
     }
 
     /* ============================================================
-       COCKPIT · OPHS Framework (OPS + PAIA + Herzog + Sentinel)
-       Solo lectura/propuesta — ninguna accion se ejecuta desde aqui,
-       doctrina: el humano autoriza, el sistema ejecuta.
+       COCKPIT · hub de mesas OPHS (OPS/PAIA/Herzog "próximamente",
+       Sentinel enlaza a su mesa propia). Sin lógica: tiles estáticos.
        ============================================================ */
-    let selectedNodeId = null;
-    let cockpitLoaded = false;
-
-    async function refreshCockpitKpis() {
-      const kpis = document.getElementById('cockpitKpis').children;
-      try {
-        const s = await jfetch('/api/ophs-cockpit/summary');
-        kpis[0].querySelector('.ck-main').textContent = s.ops.nodesTotal;
-        kpis[0].querySelector('.ck-sub').textContent = `${s.ops.nodesNominal} nominal · ${s.ops.nodesDegradado} degradado · ${s.ops.nodesParada} parada`;
-        kpis[0].classList.toggle('warn', s.ops.nodesDegradado > 0);
-        kpis[0].classList.toggle('crit', s.ops.nodesParada > 0);
-
-        kpis[1].querySelector('.ck-main').textContent = s.ops.breachesUltimaHora;
-        kpis[1].querySelector('.ck-sub').textContent = 'lecturas fuera de umbral';
-        kpis[1].classList.toggle('warn', s.ops.breachesUltimaHora > 0);
-
-        kpis[2].querySelector('.ck-main').textContent = s.paia.analysesConHallazgos24h;
-        kpis[2].querySelector('.ck-sub').textContent = `de ${s.paia.analysesTotal} análisis totales`;
-
-        kpis[3].querySelector('.ck-main').textContent = s.sentinel.colaRevisionPendiente;
-        kpis[3].querySelector('.ck-sub').textContent = 'IPs pendientes de decisión Admin';
-        kpis[3].classList.toggle('warn', s.sentinel.colaRevisionPendiente > 0);
-      } catch (ex) {
-        for (const k of kpis) { k.querySelector('.ck-main').textContent = '—'; k.querySelector('.ck-sub').textContent = 'sin datos'; }
-      }
-    }
-
-    let opsNodesCache = [];
-
-    async function refreshOpsNodeList() {
-      const box = document.getElementById('opsNodeList');
-      try {
-        const nodes = await jfetch('/api/ops/nodes');
-        opsNodesCache = nodes;
-        if (!nodes.length) {
-          box.innerHTML = '<p class="cockpit-empty">Sin nodos registrados. Registra el primero abajo.</p>';
-          return;
-        }
-        box.innerHTML = '';
-        for (const n of nodes) {
-          const row = document.createElement('div');
-          row.className = 'ops-node-row' + (n.nodeId === selectedNodeId ? ' selected' : '');
-          row.innerHTML = `
-            <div class="onr-head"><span class="onr-name"></span><span class="onr-state"></span></div>`;
-          row.querySelector('.onr-name').textContent = n.label || n.nodeId;
-          const stateEl = row.querySelector('.onr-state');
-          stateEl.textContent = n.circuitState;
-          stateEl.classList.add(n.circuitState);
-          row.addEventListener('click', () => selectOpsNode(n.nodeId));
-          box.appendChild(row);
-        }
-      } catch {
-        box.innerHTML = '<p class="cockpit-empty">OPS sin conexión.</p>';
-      }
-    }
-
-    function selectOpsNode(nodeId) {
-      selectedNodeId = nodeId;
-      const node = opsNodesCache.find(n => n.nodeId === nodeId);
-      const label = node?.label || nodeId;
-      document.getElementById('opsDetailTitle').textContent = `OPS · telemetría · ${label}`;
-      document.getElementById('opsDetailEmpty').hidden = true;
-      document.getElementById('opsDetail').hidden = false;
-      document.getElementById('paiaFindings').innerHTML = '';
-      document.getElementById('paiaInsight').hidden = true;
-      document.getElementById('editNodeMsg').textContent = '';
-      document.getElementById('editNodeLabel').value = label;
-      document.getElementById('editNodeLat').value = node?.lat ?? '';
-      document.getElementById('editNodeLng').value = node?.lng ?? '';
-      refreshOpsNodeList();
-      refreshLastReadings();
-    }
-
-    async function refreshLastReadings() {
-      if (!selectedNodeId) return;
-      const box = document.getElementById('lastReadings');
-      try {
-        const readings = await jfetch(`/api/ops/nodes/${encodeURIComponent(selectedNodeId)}/readings?limit=5`);
-        if (!readings.length) { box.textContent = 'Sin lecturas registradas todavía.'; return; }
-        box.innerHTML = readings.map(r =>
-          `${new Date(r.ts).toLocaleTimeString('es-ES')} · ${r.pressureBar} bar · ${r.flowLpm} l/min · ${r.tempC} °C · ${r.rpm} rpm` +
-          (r.breaches.length ? ' · ⚠ fuera de umbral' : '')
-        ).join('<br>');
-      } catch {
-        box.textContent = 'Error al leer lecturas.';
-      }
-    }
-
-    document.getElementById('addNodeBtn').addEventListener('click', async () => {
-      const idInput = document.getElementById('newNodeId');
-      const labelInput = document.getElementById('newNodeLabel');
-      const latInput = document.getElementById('newNodeLat');
-      const lngInput = document.getElementById('newNodeLng');
-      const nodeId = idInput.value.trim();
-      if (!nodeId) return;
-      const body = { nodeId, label: labelInput.value.trim() || nodeId };
-      if (latInput.value !== '' || lngInput.value !== '') {
-        body.lat = Number(latInput.value);
-        body.lng = Number(lngInput.value);
-      }
-      try {
-        await jfetch('/api/ops/nodes', { method: 'POST', body: JSON.stringify(body) });
-        idInput.value = ''; labelInput.value = ''; latInput.value = ''; lngInput.value = '';
-        refreshOpsNodeList();
-        refreshCockpitKpis();
-      } catch (ex) {
-        alert(`No se pudo registrar el nodo: ${ex.message}`);
-      }
-    });
-
-    document.getElementById('saveNodeBtn').addEventListener('click', async () => {
-      if (!selectedNodeId) return;
-      const msg = document.getElementById('editNodeMsg');
-      const label = document.getElementById('editNodeLabel').value.trim();
-      const latRaw = document.getElementById('editNodeLat').value;
-      const lngRaw = document.getElementById('editNodeLng').value;
-      const body = { label };
-      if (latRaw !== '' || lngRaw !== '') {
-        body.lat = Number(latRaw);
-        body.lng = Number(lngRaw);
-      }
-      try {
-        await jfetch(`/api/ops/nodes/${encodeURIComponent(selectedNodeId)}`, { method: 'PATCH', body: JSON.stringify(body) });
-        msg.textContent = 'Guardado.';
-        refreshOpsNodeList();
-      } catch (ex) {
-        msg.textContent = `Error: ${ex.message}`;
-      }
-    });
-
-    document.getElementById('deleteNodeBtn').addEventListener('click', async () => {
-      if (!selectedNodeId) return;
-      const node = opsNodesCache.find(n => n.nodeId === selectedNodeId);
-      if (!confirm(`Eliminar nodo "${node?.label || selectedNodeId}" y todas sus lecturas? Esta acción no se puede deshacer.`)) return;
-      try {
-        await jfetch(`/api/ops/nodes/${encodeURIComponent(selectedNodeId)}`, { method: 'DELETE' });
-        selectedNodeId = null;
-        document.getElementById('opsDetail').hidden = true;
-        document.getElementById('opsDetailEmpty').hidden = false;
-        document.getElementById('opsDetailTitle').textContent = 'OPS · telemetría';
-        refreshOpsNodeList();
-        refreshCockpitKpis();
-      } catch (ex) {
-        alert(`No se pudo eliminar el nodo: ${ex.message}`);
-      }
-    });
-
-    document.getElementById('submitReadingBtn').addEventListener('click', async () => {
-      if (!selectedNodeId) return;
-      const b = {
-        pressureBar: Number(document.getElementById('rdPressure').value),
-        flowLpm: Number(document.getElementById('rdFlow').value),
-        tempC: Number(document.getElementById('rdTemp').value),
-        rpm: Number(document.getElementById('rdRpm').value),
-      };
-      if (Object.values(b).some(v => !Number.isFinite(v))) { alert('Completa los 4 valores.'); return; }
-      try {
-        await jfetch(`/api/ops/nodes/${encodeURIComponent(selectedNodeId)}/readings`, { method: 'POST', body: JSON.stringify(b) });
-        ['rdPressure', 'rdFlow', 'rdTemp', 'rdRpm'].forEach(id => document.getElementById(id).value = '');
-        refreshLastReadings();
-        refreshOpsNodeList();
-        refreshCockpitKpis();
-      } catch (ex) {
-        alert(`No se pudo registrar la lectura: ${ex.message}`);
-      }
-    });
-
-    document.getElementById('analyzeBtn').addEventListener('click', async () => {
-      if (!selectedNodeId) return;
-      const btn = document.getElementById('analyzeBtn');
-      btn.disabled = true;
-      try {
-        const r = await jfetch(`/api/paia/nodes/${encodeURIComponent(selectedNodeId)}/analyze`, { method: 'POST' });
-        const box = document.getElementById('paiaFindings');
-        if (r.note) { box.innerHTML = `<p class="cockpit-empty">${r.note}</p>`; return; }
-        if (!r.findings.length) { box.innerHTML = '<p class="cockpit-empty">Sin anomalías detectadas.</p>'; return; }
-        box.innerHTML = r.findings.map(f => {
-          const detail = f.type === 'anomalia_estadistica'
-            ? `z-score ${f.zScore} · último ${f.lastValue} · media ventana ${f.windowMean}`
-            : `pendiente ${f.direction} (${f.slope})`;
-          return `<div class="paia-finding">${f.metric.toUpperCase()} · ${f.type.replace('_', ' ')} · ${detail}</div>`;
-        }).join('');
-        refreshCockpitKpis();
-      } catch (ex) {
-        alert(`Análisis PAIA falló: ${ex.message}`);
-      } finally {
-        btn.disabled = false;
-      }
-    });
-
-    document.getElementById('insightBtn').addEventListener('click', async () => {
-      if (!selectedNodeId) return;
-      const btn = document.getElementById('insightBtn');
-      btn.disabled = true;
-      try {
-        const r = await jfetch(`/api/paia/nodes/${encodeURIComponent(selectedNodeId)}/insight`, { method: 'POST' });
-        const box = document.getElementById('paiaInsight');
-        box.textContent = r.insight;
-        box.hidden = false;
-      } catch (ex) {
-        alert(`Insight PAIA no disponible: ${ex.message}`);
-      } finally {
-        btn.disabled = false;
-      }
-    });
-
-    function refreshCockpit() {
-      refreshCockpitKpis();
-      refreshOpsNodeList();
-      if (!cockpitLoaded) {
-        cockpitLoaded = true;
-        setInterval(refreshCockpitKpis, 20000);
-        setInterval(refreshOpsNodeList, 20000);
-      }
-    }
-    refreshCockpit();
 
     /* ============================================================
        GRID INTERLINK · redes electricas transnacionales (Volumen 3)

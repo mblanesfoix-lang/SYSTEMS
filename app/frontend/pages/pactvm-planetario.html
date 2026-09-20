@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Motor Planetario · Pactvm Viridi · S-NFI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/css/theme.css">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('systemsTheme');
+        if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
+  <style>
+    .pactvm-hero {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px 40px;
+      margin-bottom: 24px;
+    }
+    .pactvm-hero__title {
+      font-family: var(--font-display);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin: 0 0 10px;
+    }
+    .pactvm-hero__sub {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      max-width: 720px;
+      line-height: 1.65;
+      margin: 0;
+    }
+    .kpi-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 0;
+      border: 1px solid var(--border-mid); border-radius: var(--radius); overflow: hidden; margin-bottom: 24px; background: var(--bg-card);
+    }
+    @media (max-width: 900px) { .kpi-grid { grid-template-columns: repeat(1, 1fr); } }
+    .kpi-cell { padding: 20px 22px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); position: relative; }
+    .kpi-cell:last-child { border-right: none; }
+    .kpi-label { font-family: var(--font-mono); font-size: 0.55rem; letter-spacing: 0.04em; color: var(--text-muted); margin-bottom: 10px; }
+    .kpi-val { font-family: var(--font-display); font-size: 1.8rem; font-weight: 800; letter-spacing: -0.03em; }
+    .kpi-sub { font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-muted); margin-top: 6px; }
+
+    .section-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 10px; }
+
+    .config-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; align-items: flex-end; }
+    .config-row .sf { display: flex; flex-direction: column; gap: 4px; }
+    .config-row .sf label { font-size: 0.62rem; letter-spacing: -0.005em; color: var(--text-muted); font-family: var(--font-mono); }
+    .config-row .input { min-width: 120px; }
+
+    .add-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; align-items: flex-end; }
+    .add-row .sf { display: flex; flex-direction: column; gap: 4px; }
+    .add-row .sf label { font-size: 0.62rem; letter-spacing: -0.005em; color: var(--text-muted); font-family: var(--font-mono); }
+    .add-row .input { min-width: 120px; }
+
+    .empty-row td { text-align: center; color: var(--text-muted); font-size: 0.82rem; padding: 24px !important; }
+
+    .country-bar-row { display: grid; grid-template-columns: 140px 1fr 200px; gap: 14px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .country-bar-row:last-child { border-bottom: none; }
+    .country-bar-name { font-family: var(--font-mono); font-size: 0.78rem; display: flex; align-items: center; gap: 8px; }
+    .country-bar-track { height: 14px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
+    .country-bar-fill { height: 100%; background: linear-gradient(90deg, #2ecc8f, #3a7bd5); transition: width 0.4s ease; }
+    .country-bar-meta { font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-muted); text-align: right; }
+
+    .cuda-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    @media (max-width: 1000px) { .cuda-grid { grid-template-columns: repeat(1, 1fr); } }
+    .cuda-cell {
+      background: #090c10; border: 1px solid #1c2733; border-radius: var(--radius-sm);
+      padding: 16px 18px; position: relative; overflow: hidden;
+    }
+    .cuda-cell::before {
+      content: ''; position: absolute; inset: 0; opacity: 0.06; pointer-events: none;
+      background: radial-gradient(circle at 20% 20%, #2ecc8f, transparent 60%);
+    }
+    .cuda-label { font-family: var(--font-mono); font-size: 0.58rem; letter-spacing: 0.06em; color: #6f8299; text-transform: uppercase; margin-bottom: 8px; }
+    .cuda-val { font-family: var(--font-mono); font-size: 1.6rem; font-weight: 700; color: #2ecc8f; letter-spacing: -0.02em; }
+    .cuda-unit { font-family: var(--font-mono); font-size: 0.68rem; color: #6f8299; margin-left: 6px; }
+    .cuda-live-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #2ecc8f; margin-right: 6px; animation: cudaPulse 1.6s infinite; }
+    @keyframes cudaPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+    .cuda-simulated-note { font-family: var(--font-mono); font-size: 0.62rem; color: var(--text-muted); margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="brand">
+      <img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;">
+      <span class="brand-mark">S-NFI Systems (c)</span>
+    </div>
+    <div class="row" style="gap:18px;">
+      <div class="user-menu" id="userMenu">
+        <button class="user-menu__trigger mono" id="userTag" aria-haspopup="true" aria-expanded="false">…</button>
+        <div class="user-menu__dropdown" id="userDropdown" hidden>
+          <div class="user-menu__section">
+            <span class="user-menu__label">Cambiar contraseña</span>
+            <input class="user-menu__input" type="password" id="pwdCurrent" placeholder="Contraseña actual" autocomplete="current-password">
+            <input class="user-menu__input" type="password" id="pwdNew" placeholder="Nueva contraseña" autocomplete="new-password">
+            <input class="user-menu__input" type="password" id="pwdConfirm" placeholder="Confirmar nueva" autocomplete="new-password">
+            <p class="user-menu__error" id="pwdError" hidden></p>
+            <button class="btn sage" id="pwdSubmit" style="width:100%;margin-top:4px;">Actualizar</button>
+          </div>
+          <div class="user-menu__divider"></div>
+          <button class="user-menu__item user-menu__item--danger" id="logoutBtn">Cerrar sesión</button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container">
+    <div class="breadcrumb-row">
+      <a href="/pages/dashboard.html">Systems</a>
+      <span class="sep">/</span>
+      <a href="/pages/pactum-viridi.html">Pactvm Viridi</a>
+      <span class="sep">/</span>
+      <span class="active">Motor Planetario</span>
+    </div>
+
+    <div class="pactvm-hero reveal">
+      <span class="kicker">Mesa · Planetary Monitoring Engine</span>
+      <h1 class="pactvm-hero__title">Motor <em style="font-style:normal;color:var(--accent-blue);">Planetario</em></h1>
+      <p class="pactvm-hero__sub">
+        Modelo de capacidad global de despliegue BioHybrid: unidades desplegables, valor de infraestructura,
+        objetivo de procesamiento por país y telemetría de rendimiento en tiempo real. Todos los parámetros
+        de capacidad son <b>objetivos de modelo de negocio editables</b>, no mediciones de campo — cada valor
+        declara su fuente. La telemetría de rendimiento es <b>simulada</b> hasta que existan sensores físicos
+        conectados (ver Lab / Ingress Gateway).
+      </p>
+    </div>
+
+    <div id="errorBox" style="display:none;" class="mole-error"></div>
+
+    <div class="kpi-grid reveal" id="summaryKpis">
+      <div class="kpi-cell">
+        <div class="kpi-label">Unidades desplegables (global)</div>
+        <div class="kpi-val" id="kpiNodesMax">—</div>
+        <div class="kpi-sub" id="kpiNodesActiveSub"></div>
+      </div>
+      <div class="kpi-cell">
+        <div class="kpi-label">Valor total de infraestructura</div>
+        <div class="kpi-val" id="kpiInfraValue">—</div>
+        <div class="kpi-sub" id="kpiTicketSub"></div>
+      </div>
+      <div class="kpi-cell">
+        <div class="kpi-label">Objetivo de procesamiento global</div>
+        <div class="kpi-val" id="kpiProcessing">—</div>
+        <div class="kpi-sub" id="kpiCapacitySub"></div>
+      </div>
+    </div>
+
+    <div class="card reveal" style="padding:20px; margin-bottom:20px;">
+      <div class="section-title">
+        <span class="kicker">Parámetros globales (editables por admin)</span>
+      </div>
+      <div class="config-row">
+        <div class="sf"><label>Unidades desplegables (máx.)</label><input class="input" id="cfgNodesMax" style="width:130px;"></div>
+        <div class="sf"><label>Nodos activos hoy</label><input class="input" id="cfgNodesActive" style="width:130px;"></div>
+        <div class="sf"><label>Ticket unitario (€/unidad)</label><input class="input" id="cfgTicket" style="width:140px;"></div>
+        <div class="sf"><label>Capacidad nodo (T/año)</label><input class="input" id="cfgCapacity" style="width:140px;"></div>
+        <div class="sf"><label>Precio crédito carbono ($/T CO2e)</label><input class="input" id="cfgCarbonPrice" style="width:140px;"></div>
+        <button class="btn sage" id="cfgSaveBtn">Guardar</button>
+      </div>
+      <div class="sf" style="max-width:100%;">
+        <label>Fuente / metodología</label>
+        <input class="input" id="cfgSource" style="width:100%;" placeholder="Modelo de negocio interno / referencia">
+      </div>
+    </div>
+
+    <div class="card reveal" style="padding:20px; margin-bottom:20px;">
+      <div style="display:flex; gap:24px; align-items:flex-start; flex-wrap:wrap;">
+        <div id="worldMapWrap" style="flex:2 1 640px; min-width:360px; border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden; background:#0d1520;">
+          <svg id="worldMap" viewBox="0 0 960 500" style="width:100%; height:auto; min-height:420px; display:block;"></svg>
+        </div>
+        <div style="flex:1 1 300px; min-width:260px;">
+          <div class="mono" style="font-size:0.62rem; color:var(--text-muted); margin-bottom:10px;">SATURACIÓN POR PAÍS (T/AÑO OBJETIVO)</div>
+          <div id="countryBars"></div>
+          <div id="mapSelected" class="mono" style="margin-top:16px; font-size:0.76rem; color:var(--text-muted); line-height:1.7;">Pasa el ratón o haz clic sobre un país del mapa.</div>
+        </div>
+      </div>
+      <div class="add-row" style="margin-top:20px;">
+        <div class="sf"><label>Código ISO-2</label><input class="input" id="pcCode" style="width:70px;" placeholder="DE" maxlength="2"></div>
+        <div class="sf"><label>País</label><input class="input" id="pcLabel" placeholder="Alemania"></div>
+        <div class="sf"><label>Objetivo T/año</label><input class="input" id="pcWaste" style="width:160px;" placeholder="72000000"></div>
+        <div class="sf"><label>Fuente</label><input class="input" id="pcSource" style="min-width:220px;" placeholder="Maqueta comercial / estimación"></div>
+        <button class="btn sage" id="pcAddBtn">Añadir</button>
+      </div>
+      <div style="overflow-x:auto; margin-top:12px;">
+        <table class="tbl" id="pcTable">
+          <thead><tr><th>País</th><th>Objetivo T/año</th><th>Nodos objetivo</th><th>Fuente</th><th></th></tr></thead>
+          <tbody id="pcBody"><tr class="empty-row"><td colspan="5">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card reveal" style="padding:20px;">
+      <div class="section-title">
+        <span class="kicker">Telemetría de rendimiento (estilo CUDA-Bio)</span>
+        <span class="mono" style="font-size:0.6rem; color:var(--text-muted);"><span class="cuda-live-dot"></span>actualiza cada 5 s</span>
+      </div>
+      <div class="cuda-grid" id="cudaGrid">
+        <div class="cuda-cell">
+          <div class="cuda-label">Bio-Core Occupancy</div>
+          <div><span class="cuda-val" id="cudaOccupancy">—</span><span class="cuda-unit">%</span></div>
+        </div>
+        <div class="cuda-cell">
+          <div class="cuda-label">Mass Transfer Bandwidth</div>
+          <div><span class="cuda-val" id="cudaBandwidth">—</span><span class="cuda-unit">T/min</span></div>
+        </div>
+        <div class="cuda-cell">
+          <div class="cuda-label">Thermal &amp; Methane Yield</div>
+          <div><span class="cuda-val" id="cudaMethane">—</span><span class="cuda-unit">%</span></div>
+        </div>
+        <div class="cuda-cell">
+          <div class="cuda-label">Carbon Credit Minting Rate</div>
+          <div><span class="cuda-val" id="cudaMinting">—</span><span class="cuda-unit">tokens/s</span></div>
+        </div>
+        <div class="cuda-cell">
+          <div class="cuda-label">Token Market Price</div>
+          <div><span class="cuda-val" id="cudaPrice">—</span><span class="cuda-unit">$/T CO2e</span></div>
+        </div>
+        <div class="cuda-cell">
+          <div class="cuda-label">Bio-Compute Bandwidth</div>
+          <div><span class="cuda-val" id="cudaCompute">—</span><span class="cuda-unit">TB/s eq.</span></div>
+        </div>
+      </div>
+      <p class="cuda-simulated-note" id="cudaNote">Cargando telemetría…</p>
+    </div>
+  </main>
+
+  <script src="/vendor/topojson-client.min.js"></script>
+  <script type="module">
+    import { api, getUser, requireAuth, clearSession, toast, escapeHtml } from '/js/api.js';
+    import { mountThemeToggle } from '/js/theme.js';
+    import { mountOfficeBg } from '/js/office-bg.js';
+    requireAuth();
+    mountThemeToggle(document.querySelector('nav.nav .row'));
+    mountOfficeBg();
+    document.getElementById('userTag').textContent = getUser() || '';
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      try { await api.logout(); } catch {}
+      clearSession();
+      location.href = '/pages/login.html';
+    });
+
+    // User menu dropdown
+    const userMenuTrigger = document.getElementById('userTag');
+    const userMenuDropdown = document.getElementById('userDropdown');
+    userMenuTrigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = !userMenuDropdown.hidden;
+      userMenuDropdown.hidden = open;
+      userMenuTrigger.setAttribute('aria-expanded', String(!open));
+    });
+    document.addEventListener('click', (e) => {
+      if (!document.getElementById('userMenu').contains(e.target)) {
+        userMenuDropdown.hidden = true;
+        userMenuTrigger.setAttribute('aria-expanded', 'false');
+      }
+    });
+    document.getElementById('pwdSubmit').addEventListener('click', async () => {
+      const cur = document.getElementById('pwdCurrent').value;
+      const neu = document.getElementById('pwdNew').value;
+      const con = document.getElementById('pwdConfirm').value;
+      const errEl = document.getElementById('pwdError');
+      errEl.hidden = true;
+      if (!cur || !neu || !con) { errEl.textContent = 'Rellena todos los campos'; errEl.hidden = false; return; }
+      if (neu !== con) { errEl.textContent = 'Las contraseñas no coinciden'; errEl.hidden = false; return; }
+      try {
+        await api.changePassword(cur, neu);
+        toast('Contraseña actualizada');
+        userMenuDropdown.hidden = true;
+        userMenuTrigger.setAttribute('aria-expanded', 'false');
+        ['pwdCurrent','pwdNew','pwdConfirm'].forEach(id => document.getElementById(id).value = '');
+      } catch (ex) {
+        errEl.textContent = ex.message || 'Error al cambiar contraseña';
+        errEl.hidden = false;
+      }
+    });
+
+    function showError(msg) {
+      const box = document.getElementById('errorBox');
+      box.textContent = msg;
+      box.style.display = msg ? 'block' : 'none';
+    }
+
+    function fmt(n, decimals = 0) {
+      return Number(n || 0).toLocaleString('es-ES', { maximumFractionDigits: decimals });
+    }
+    function fmtEur(n) {
+      return `${fmt(n)} €`;
+    }
+
+    // ---- Config global ----
+    let latestConfig = null;
+    async function loadConfig() {
+      try {
+        const c = await api.pactvmPlanetaryConfig();
+        latestConfig = c;
+        document.getElementById('cfgNodesMax').value = c.nodesMax ?? '';
+        document.getElementById('cfgNodesActive').value = c.nodesActive ?? '';
+        document.getElementById('cfgTicket').value = c.unitTicketEur ?? '';
+        document.getElementById('cfgCapacity').value = c.nodeAnnualCapacityTYear ?? '';
+        document.getElementById('cfgCarbonPrice').value = c.carbonCreditPriceUsd ?? '';
+        document.getElementById('cfgSource').value = c.source ?? '';
+      } catch (ex) { showError(ex.message || 'Error al cargar configuración'); }
+    }
+    document.getElementById('cfgSaveBtn').addEventListener('click', async () => {
+      showError('');
+      try {
+        await api.pactvmPlanetaryConfigPatch({
+          nodesMax: Number(document.getElementById('cfgNodesMax').value),
+          nodesActive: Number(document.getElementById('cfgNodesActive').value),
+          unitTicketEur: Number(document.getElementById('cfgTicket').value),
+          nodeAnnualCapacityTYear: Number(document.getElementById('cfgCapacity').value),
+          carbonCreditPriceUsd: Number(document.getElementById('cfgCarbonPrice').value),
+          source: document.getElementById('cfgSource').value.trim(),
+        });
+        toast('Parámetros actualizados');
+        loadSummary(); loadConfig();
+      } catch (ex) { showError(ex.message || 'Error al guardar configuración'); }
+    });
+
+    // ---- Summary KPIs ----
+    async function loadSummary() {
+      try {
+        const s = await api.pactvmPlanetarySummary();
+        document.getElementById('kpiNodesMax').textContent = fmt(s.nodesMax);
+        document.getElementById('kpiNodesActiveSub').textContent = `Activos: ${fmt(s.nodesActive)} / ${fmt(s.nodesMax)} (${fmt(s.deployPct, 1)}%)`;
+        document.getElementById('kpiInfraValue').textContent = fmtEur(s.totalInfraValueEur);
+        document.getElementById('kpiTicketSub').textContent = `Ticket: ${fmtEur(s.unitTicketEur)}/unidad`;
+        document.getElementById('kpiProcessing').textContent = `${fmt(s.globalProcessingTYear)} T/año`;
+        document.getElementById('kpiCapacitySub').textContent = `${fmt(s.countriesTracked)} países trackeados · ${fmt(s.nodesTargetSum)} nodos objetivo`;
+      } catch (ex) { showError(ex.message || 'Error al cargar resumen'); }
+    }
+
+    // ---- Mapa mundial (mismo patron que pactvm-nodos.html) ----
+    const ISO_NUMERIC_TO_A2 = { '724': 'ES', '620': 'PT', '250': 'FR', '504': 'MA', '484': 'MX', '276': 'DE' };
+    const UNTRACKED_FILL = '#1a2432';
+    const UNTRACKED_STROKE = '#2c3a4d';
+    const TRACKED_STROKE = '#0d1520';
+
+    function intensityColor(pct) {
+      if (pct <= 0) return UNTRACKED_FILL;
+      if (pct < 25) return '#2ecc8f';
+      if (pct < 50) return '#f2c94c';
+      if (pct < 75) return '#f2994a';
+      return '#eb5757';
+    }
+
+    let pcRowsCache = [];
+    let mapPaths = null;
+
+    async function renderWorldMap() {
+      const svg = document.getElementById('worldMap');
+      if (mapPaths) return;
+      try {
+        const topology = await fetch('/vendor/countries-110m.json').then(r => r.json());
+        const geo = topojson.feature(topology, topology.objects.countries);
+        const proj = equirectangular(960, 500);
+        mapPaths = {};
+        const frag = document.createDocumentFragment();
+        geo.features.forEach(f => {
+          const d = pathFromGeometry(f.geometry, proj);
+          if (!d) return;
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.setAttribute('d', d);
+          path.setAttribute('fill', UNTRACKED_FILL);
+          path.setAttribute('stroke', UNTRACKED_STROKE);
+          path.setAttribute('stroke-width', '0.6');
+          path.style.transition = 'fill 0.12s, stroke 0.12s';
+          const a2 = ISO_NUMERIC_TO_A2[String(f.id)];
+          const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+          title.textContent = a2 ? (f.properties?.name || a2) : (f.properties?.name || '');
+          path.appendChild(title);
+          if (a2) {
+            path.dataset.code = a2;
+            mapPaths[a2] = path;
+            path.style.cursor = 'pointer';
+            path.addEventListener('mouseenter', () => { path.setAttribute('stroke', '#e8edf5'); path.setAttribute('stroke-width', '1.6'); selectCountry(a2); });
+            path.addEventListener('mouseleave', () => { path.setAttribute('stroke', TRACKED_STROKE); path.setAttribute('stroke-width', '1'); });
+            path.addEventListener('click', () => selectCountry(a2));
+          }
+          frag.appendChild(path);
+        });
+        svg.appendChild(frag);
+        paintMap();
+      } catch (ex) { showError('No se pudo cargar el mapa (vendor/countries-110m.json)'); }
+    }
+
+    function equirectangular(w, h) {
+      return ([lon, lat]) => [ (lon + 180) * (w / 360), (90 - lat) * (h / 180) ];
+    }
+    function pathFromGeometry(geom, proj) {
+      if (!geom) return null;
+      const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.type === 'MultiPolygon' ? geom.coordinates : null;
+      if (!polys) return null;
+      let d = '';
+      polys.forEach(poly => {
+        poly.forEach(ring => {
+          ring.forEach(([lon, lat], i) => {
+            const [x, y] = proj([lon, lat]);
+            d += (i === 0 ? 'M' : 'L') + x.toFixed(1) + ',' + y.toFixed(1) + ' ';
+          });
+          d += 'Z ';
+        });
+      });
+      return d.trim();
+    }
+
+    function maxTargetTYear() {
+      return pcRowsCache.reduce((max, r) => Math.max(max, r.wasteEstTYear || 0), 1);
+    }
+
+    function paintMap() {
+      if (!mapPaths) return;
+      const max = maxTargetTYear();
+      Object.entries(mapPaths).forEach(([a2, path]) => {
+        const row = pcRowsCache.find(r => r.code === a2);
+        const pct = row ? (row.wasteEstTYear / max) * 100 : 0;
+        path.setAttribute('fill', row ? intensityColor(pct) : UNTRACKED_FILL);
+        path.setAttribute('stroke', row ? TRACKED_STROKE : UNTRACKED_STROKE);
+        path.setAttribute('stroke-width', row ? '1' : '0.6');
+        const title = path.querySelector('title');
+        if (title && row) title.textContent = `${row.label} — ${fmt(row.wasteEstTYear)} T/año objetivo`;
+      });
+    }
+
+    function selectCountry(a2) {
+      const row = pcRowsCache.find(r => r.code === a2);
+      const box = document.getElementById('mapSelected');
+      if (!row) { box.textContent = `${a2}: sin datos registrados.`; return; }
+      box.innerHTML = `<b>${escapeHtml(row.label)}</b> (${row.code})<br>` +
+        `objetivo: ${fmt(row.wasteEstTYear)} T/año<br>` +
+        `nodos objetivo: <b>${fmt(row.nodesTarget)}</b><br>` +
+        `fuente: ${escapeHtml(row.source || '—')}`;
+    }
+
+    function renderCountryBars() {
+      const el = document.getElementById('countryBars');
+      if (pcRowsCache.length === 0) { el.innerHTML = '<p class="mono" style="font-size:0.76rem; color:var(--text-muted);">Sin países registrados.</p>'; return; }
+      const max = maxTargetTYear();
+      el.innerHTML = pcRowsCache.map(r => {
+        const pct = Math.max(4, Math.min(100, (r.wasteEstTYear / max) * 100));
+        return `<div class="country-bar-row">
+          <div class="country-bar-name">${escapeHtml(r.label)}</div>
+          <div class="country-bar-track"><div class="country-bar-fill" style="width:${pct}%;"></div></div>
+          <div class="country-bar-meta">${fmt(r.wasteEstTYear)} T/año<br>${fmt(r.nodesTarget)} nodos</div>
+        </div>`;
+      }).join('');
+    }
+
+    async function loadCountries() {
+      const body = document.getElementById('pcBody');
+      try {
+        const rows = await api.pactvmPlanetaryCountriesList();
+        pcRowsCache = rows;
+        paintMap();
+        renderCountryBars();
+        if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="5">Sin países registrados.</td></tr>'; return; }
+        body.innerHTML = rows.map(r => `<tr data-id="${r.id}" data-code="${r.code}">
+          <td>${escapeHtml(r.label)} <span class="mono" style="color:var(--text-muted);">(${r.code})</span></td>
+          <td class="mono"><input class="input pc-waste" style="width:150px;" value="${r.wasteEstTYear}"></td>
+          <td class="mono" style="font-weight:700;">${fmt(r.nodesTarget)}</td>
+          <td style="font-size:0.78rem; max-width:260px;">${escapeHtml(r.source || '')}</td>
+          <td><button class="btn ghost btn--sm pc-del">Eliminar</button></td>
+        </tr>`).join('');
+        body.querySelectorAll('tr[data-id]').forEach(tr => {
+          const id = tr.dataset.id;
+          tr.addEventListener('click', (e) => { if (!e.target.closest('button,input')) selectCountry(tr.dataset.code); });
+          tr.querySelector('.pc-waste').addEventListener('change', async (e) => {
+            try { await api.pactvmPlanetaryCountryPatch(id, { wasteEstTYear: Number(e.target.value) }); loadCountries(); loadSummary(); } catch (ex) { showError(ex.message); }
+          });
+          tr.querySelector('.pc-del').addEventListener('click', async () => {
+            try { await api.pactvmPlanetaryCountryDelete(id); loadCountries(); loadSummary(); } catch (ex) { showError(ex.message); }
+          });
+        });
+      } catch (ex) { showError(ex.message || 'Error al cargar países'); }
+    }
+    document.getElementById('pcAddBtn').addEventListener('click', async () => {
+      showError('');
+      const code = document.getElementById('pcCode').value.trim().toUpperCase();
+      const label = document.getElementById('pcLabel').value.trim();
+      const wasteEstTYear = Number(document.getElementById('pcWaste').value.trim());
+      if (!/^[A-Z]{2}$/.test(code)) return showError('Código ISO-2 inválido');
+      if (!label) return showError('Indica el país');
+      if (!Number.isFinite(wasteEstTYear) || wasteEstTYear < 0) return showError('Objetivo T/año inválido');
+      try {
+        await api.pactvmPlanetaryCountryAdd({ code, label, wasteEstTYear, source: document.getElementById('pcSource').value.trim() || null });
+        document.getElementById('pcCode').value = '';
+        document.getElementById('pcLabel').value = '';
+        document.getElementById('pcWaste').value = '';
+        document.getElementById('pcSource').value = '';
+        loadCountries(); loadSummary();
+      } catch (ex) { showError(ex.message || 'Error al crear país'); }
+    });
+
+    // ---- Telemetria CUDA-Bio (simulada, refresco periodico) ----
+    async function loadTelemetry() {
+      try {
+        const t = await api.pactvmPlanetaryTelemetry();
+        document.getElementById('cudaOccupancy').textContent = fmt(t.bioCoreOccupancyPct, 1);
+        document.getElementById('cudaBandwidth').textContent = fmt(t.massTransferBandwidthTMin, 1);
+        document.getElementById('cudaMethane').textContent = fmt(t.thermalMethaneYieldPct, 1);
+        document.getElementById('cudaMinting').textContent = fmt(t.carbonCreditMintingRateTokensSec, 1);
+        document.getElementById('cudaPrice').textContent = fmt(t.carbonCreditPriceUsd, 2);
+        document.getElementById('cudaCompute').textContent = fmt(t.bioComputeBandwidthTbEquivalent, 2);
+        document.getElementById('cudaNote').textContent = t.note || '';
+      } catch (ex) { showError(ex.message || 'Error al cargar telemetría'); }
+    }
+
+    // ---- Init ----
+    loadConfig();
+    loadSummary();
+    renderWorldMap();
+    loadCountries();
+    loadTelemetry();
+    setInterval(loadTelemetry, 5000);
+  </script>
+</body>
+</html>

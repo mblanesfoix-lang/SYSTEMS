@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Consola de Notificaciones · S-NFI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/css/theme.css">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('systemsTheme');
+        if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
+  <style>
+    .nc-hero {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-top: 2px solid var(--accent-blue);
+      border-radius: var(--radius);
+      padding: 32px 40px;
+      margin-bottom: 24px;
+    }
+    .nc-hero__title {
+      font-family: var(--font-display);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin: 0 0 10px;
+    }
+    .nc-hero__sub {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      max-width: 680px;
+      line-height: 1.65;
+      margin: 0;
+    }
+    .kpi-grid {
+      display: grid; grid-template-columns: repeat(6, 1fr); gap: 0;
+      border: 1px solid var(--border-mid); border-radius: var(--radius); overflow: hidden; margin-bottom: 24px; background: var(--bg-card);
+    }
+    @media (max-width: 1200px) { .kpi-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 640px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+    .kpi-cell { padding: 18px 20px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .kpi-cell:last-child { border-right: none; }
+    .kpi-label { font-family: var(--font-mono); font-size: 0.55rem; letter-spacing: 0.04em; color: var(--text-muted); margin-bottom: 8px; }
+    .kpi-val { font-family: var(--font-display); font-size: 1.5rem; font-weight: 800; letter-spacing: -0.03em; }
+    .kpi-val.warn { color: #d80300; }
+    .kpi-val.ok { color: var(--accent-green2); }
+
+    .filter-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 16px; }
+
+    .empty-row td { text-align: center; color: var(--text-muted); font-size: 0.82rem; padding: 24px !important; }
+
+    .status-pill {
+      display: inline-block; font-family: var(--font-mono); font-size: 0.58rem; letter-spacing: 0.03em;
+      padding: 3px 8px; border-radius: var(--radius-pill); text-transform: uppercase; white-space: nowrap;
+    }
+    .status-pill.pendiente { background: rgba(200,122,0,0.12); color: rgba(180,100,0,1); border: 1px solid rgba(200,122,0,0.35); }
+    .status-pill.justificacion_requerida { background: rgba(140,100,220,0.12); color: #7a4fd6; border: 1px solid rgba(140,100,220,0.35); }
+    .status-pill.aprobada { background: rgba(0,160,80,0.12); color: var(--accent-green2); border: 1px solid rgba(0,160,80,0.35); }
+    .status-pill.denegada { background: rgba(216,3,0,0.10); color: #d80300; border: 1px solid rgba(216,3,0,0.30); }
+    .status-pill.leida { background: rgba(120,120,120,0.10); color: var(--text-muted); border: 1px solid var(--border); }
+    .status-pill.pendiente.sys { background: rgba(216,3,0,0.10); color: #d80300; border: 1px solid rgba(216,3,0,0.30); }
+
+    .source-tag { font-family: var(--font-mono); font-size: 0.56rem; letter-spacing: 0.03em; color: var(--text-muted); text-transform: uppercase; }
+
+    .decide-row { display: flex; gap: 8px; margin-top: 8px; align-items: center; flex-wrap: wrap; }
+    .decide-row input.input { min-width: 160px; }
+    #feedTable td { padding-top: 16px; padding-bottom: 16px; vertical-align: top; }
+    .detail-box { font-size: 0.72rem; color: var(--text-muted); max-width: 360px; white-space: pre-wrap; word-break: break-word; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="brand">
+      <img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;">
+      <span class="brand-mark">S-NFI Systems (c)</span>
+    </div>
+    <div class="row" style="gap:18px;">
+      <div class="user-menu" id="userMenu">
+        <button class="user-menu__trigger mono" id="userTag" aria-haspopup="true" aria-expanded="false">…</button>
+        <div class="user-menu__dropdown" id="userDropdown" hidden>
+          <div class="user-menu__section">
+            <span class="user-menu__label">Cambiar contraseña</span>
+            <input class="user-menu__input" type="password" id="pwdCurrent" placeholder="Contraseña actual" autocomplete="current-password">
+            <input class="user-menu__input" type="password" id="pwdNew" placeholder="Nueva contraseña" autocomplete="new-password">
+            <input class="user-menu__input" type="password" id="pwdConfirm" placeholder="Confirmar nueva" autocomplete="new-password">
+            <p class="user-menu__error" id="pwdError" hidden></p>
+            <button class="btn sage" id="pwdSubmit" style="width:100%;margin-top:4px;">Actualizar</button>
+          </div>
+          <div class="user-menu__divider"></div>
+          <button class="user-menu__item user-menu__item--danger" id="logoutBtn">Cerrar sesión</button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container">
+    <div class="breadcrumb-row">
+      <a href="/pages/dashboard.html">S-NFI Systems (c)</a>
+      <span class="sep">/</span>
+      <span class="active">Consola de Notificaciones</span>
+    </div>
+
+    <div class="nc-hero reveal">
+      <span class="kicker">Monitorización admin-only · sistema + tráfico de usuarios</span>
+      <h1 class="nc-hero__title">Consola de <em style="font-style:normal;color:var(--accent-blue);">Notificaciones</em></h1>
+      <p class="nc-hero__sub">
+        Vista única de todo lo relacionado con notificaciones en SYSTEMS: alertas de sistema (Foundry, Resilience,
+        Rack, Sentinel, K8S...) y solicitudes de interconexión de todos los usuarios (Consola Maestra Rëff), con
+        acciones <code>APROBAR_Y_EMITIR</code> / <code>DENEGAR_PETICIÓN</code> / <code>REQUERIR_JUSTIFICACIÓN</code>
+        en 1 clic. Solo accesible para Admin. Notificaciones resueltas/leídas se purgan automáticamente a los 6 meses
+        si nadie las elimina antes.
+      </p>
+    </div>
+
+    <div id="errorBox" style="display:none;" class="mole-error"></div>
+
+    <div class="kpi-grid reveal" id="summaryKpis">
+      <div class="kpi-cell">
+        <div class="kpi-label">Alertas sistema</div>
+        <div class="kpi-val" id="kpiSysTotal">—</div>
+      </div>
+      <div class="kpi-cell">
+        <div class="kpi-label">Sistema sin leer</div>
+        <div class="kpi-val warn" id="kpiSysUnread">—</div>
+      </div>
+      <div class="kpi-cell">
+        <div class="kpi-label">Tráfico pendiente</div>
+        <div class="kpi-val warn" id="kpiTrafPending">—</div>
+      </div>
+      <div class="kpi-cell">
+        <div class="kpi-label">Esperando justificación</div>
+        <div class="kpi-val" id="kpiTrafJustif">—</div>
+      </div>
+      <div class="kpi-cell">
+        <div class="kpi-label">Tráfico aprobado</div>
+        <div class="kpi-val ok" id="kpiTrafApproved">—</div>
+      </div>
+      <div class="kpi-cell">
+        <div class="kpi-label">Tráfico denegado</div>
+        <div class="kpi-val" id="kpiTrafDenied">—</div>
+      </div>
+    </div>
+
+    <div class="card reveal" style="padding:20px;">
+      <span class="kicker">Feed unificado</span>
+      <div class="filter-row">
+        <button class="btn ghost btn--sm" id="filterAll">Todas</button>
+        <button class="btn ghost btn--sm" id="filterSystem">Solo sistema</button>
+        <button class="btn ghost btn--sm" id="filterTraffic">Solo tráfico</button>
+        <button class="btn ghost btn--sm" id="filterPending">Pendientes/sin leer</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="tbl" id="feedTable">
+          <thead><tr><th>Origen</th><th>Detalle</th><th>Estado</th><th>Fecha</th><th>Decisión</th></tr></thead>
+          <tbody id="feedBody"><tr class="empty-row"><td colspan="5">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script type="module">
+    import { api, getUser, getToken, requireAuth, clearSession, toast, escapeHtml } from '/js/api.js';
+    import { mountThemeToggle } from '/js/theme.js';
+    import { mountOfficeBg } from '/js/office-bg.js';
+    requireAuth();
+    mountThemeToggle(document.querySelector('nav.nav .row'));
+    mountOfficeBg();
+    document.getElementById('userTag').textContent = getUser() || '';
+
+    try {
+      const perms = await fetch('/api/me/permissions', {
+        headers: { Authorization: `Bearer ${getToken()}` }
+      }).then(r => r.json());
+      const allowed = new Set(perms.mesas || []);
+      if (!allowed.has('notificaciones')) location.href = '/pages/dashboard.html';
+    } catch {}
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      try { await api.logout(); } catch {}
+      clearSession();
+      location.href = '/pages/login.html';
+    });
+
+    const userMenuTrigger = document.getElementById('userTag');
+    const userMenuDropdown = document.getElementById('userDropdown');
+    userMenuTrigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = !userMenuDropdown.hidden;
+      userMenuDropdown.hidden = open;
+      userMenuTrigger.setAttribute('aria-expanded', String(!open));
+    });
+    document.addEventListener('click', (e) => {
+      if (!document.getElementById('userMenu').contains(e.target)) {
+        userMenuDropdown.hidden = true;
+        userMenuTrigger.setAttribute('aria-expanded', 'false');
+      }
+    });
+    document.getElementById('pwdSubmit').addEventListener('click', async () => {
+      const cur = document.getElementById('pwdCurrent').value;
+      const neu = document.getElementById('pwdNew').value;
+      const con = document.getElementById('pwdConfirm').value;
+      const errEl = document.getElementById('pwdError');
+      errEl.hidden = true;
+      if (!cur || !neu || !con) { errEl.textContent = 'Rellena todos los campos'; errEl.hidden = false; return; }
+      if (neu !== con) { errEl.textContent = 'Las contraseñas no coinciden'; errEl.hidden = false; return; }
+      try {
+        await api.changePassword(cur, neu);
+        toast('Contraseña actualizada');
+        userMenuDropdown.hidden = true;
+        userMenuTrigger.setAttribute('aria-expanded', 'false');
+        ['pwdCurrent','pwdNew','pwdConfirm'].forEach(id => document.getElementById(id).value = '');
+      } catch (ex) {
+        errEl.textContent = ex.message || 'Error al cambiar contraseña';
+        errEl.hidden = false;
+      }
+    });
+
+    function showError(msg) {
+      const box = document.getElementById('errorBox');
+      box.textContent = msg;
+      box.style.display = msg ? 'block' : 'none';
+    }
+
+    let currentFilter = 'all';
+
+    async function loadSummary() {
+      try {
+        const s = await api.notifCenterSummary();
+        document.getElementById('kpiSysTotal').textContent = s.system?.total ?? 0;
+        document.getElementById('kpiSysUnread').textContent = s.system?.unread ?? 0;
+        document.getElementById('kpiTrafPending').textContent = s.traffic?.pendiente ?? 0;
+        document.getElementById('kpiTrafJustif').textContent = s.traffic?.justificacion_requerida ?? 0;
+        document.getElementById('kpiTrafApproved').textContent = s.traffic?.aprobada ?? 0;
+        document.getElementById('kpiTrafDenied').textContent = s.traffic?.denegada ?? 0;
+      } catch (ex) { showError(ex.message || 'Error al cargar resumen'); }
+    }
+
+    function statusPill(item) {
+      const map = {
+        pendiente: 'Pendiente', justificacion_requerida: 'Justificación req.',
+        aprobada: 'Aprobada', denegada: 'Denegada', leida: 'Leída',
+      };
+      const cls = item.status + (item.source === 'system' ? ' sys' : '');
+      return `<span class="status-pill ${item.status}">${escapeHtml(map[item.status] || item.status)}</span>`;
+    }
+
+    function decisionHtml(item) {
+      if (item.source === 'system') {
+        return item.status === 'pendiente'
+          ? `<button class="btn ghost btn--sm sys-read" data-id="${item.id}">Marcar leída</button>`
+          : `<button class="btn ghost btn--sm sys-delete" data-id="${item.id}">Eliminar</button>`;
+      }
+      if (item.status === 'pendiente' || item.status === 'justificacion_requerida') {
+        return `<div class="decide-row">
+          <input class="input" placeholder="motivo denegación (opcional)" data-note-for="${item.id}">
+          <button class="btn sage btn--sm traf-approve" data-id="${item.id}">Aprobar y emitir</button>
+          <button class="btn ghost btn--sm traf-deny" data-id="${item.id}">Denegar</button>
+          <button class="btn ghost btn--sm traf-justify" data-id="${item.id}">Requerir justificación</button>
+        </div>`;
+      }
+      return `<span class="mono" style="font-size:0.7rem;">${escapeHtml(item.resolvedBy || '')}</span>`;
+    }
+
+    function detailHtml(item) {
+      if (item.source === 'system') {
+        return `<div class="detail-box"><strong>${escapeHtml(item.label || '')}</strong>${item.detail ? '<br>' + escapeHtml(item.detail) : ''}</div>`;
+      }
+      return `<div class="detail-box"><strong>${escapeHtml(item.requesterName || '')}</strong> · ${escapeHtml(item.module || '')} / ${escapeHtml(item.resource || '')} / ${escapeHtml(item.action || '')}${item.justification ? '<br>Justificación: ' + escapeHtml(item.justification) : ''}${item.resolutionNote ? '<br>' + escapeHtml(item.resolutionNote) : ''}</div>`;
+    }
+
+    async function loadFeed() {
+      const body = document.getElementById('feedBody');
+      try {
+        let source = null;
+        let status = null;
+        if (currentFilter === 'system') source = 'system';
+        if (currentFilter === 'traffic') source = 'traffic';
+        const r = await api.notifCenterFeed(source, status);
+        let items = r.items || [];
+        if (currentFilter === 'pending') {
+          items = items.filter(i => i.status === 'pendiente' || i.status === 'justificacion_requerida');
+        }
+        if (items.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="5">Sin notificaciones.</td></tr>'; return; }
+        body.innerHTML = items.map(item => `
+          <tr data-id="${item.id}" data-source="${item.source}">
+            <td><span class="source-tag">${item.source === 'system' ? (item.origin || 'SISTEMA') : 'TRÁFICO · ' + escapeHtml(item.module || '')}</span></td>
+            <td>${detailHtml(item)}</td>
+            <td>${statusPill(item)}</td>
+            <td class="mono" style="font-size:0.68rem;">${new Date(item.createdAt).toLocaleString('es-ES')}</td>
+            <td>${decisionHtml(item)}</td>
+          </tr>
+        `).join('');
+
+        body.querySelectorAll('.traf-approve, .traf-deny, .traf-justify').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const id = btn.dataset.id;
+            try {
+              if (btn.classList.contains('traf-approve')) {
+                await api.notifCenterTrafficApprove(id);
+                toast('Solicitud aprobada · puerto abierto 60s');
+              } else if (btn.classList.contains('traf-deny')) {
+                const noteInput = body.querySelector(`input[data-note-for="${id}"]`);
+                await api.notifCenterTrafficDeny(id, noteInput ? noteInput.value.trim() : '');
+                toast('Solicitud denegada');
+              } else {
+                await api.notifCenterTrafficRequireJustification(id);
+                toast('Justificación solicitada al usuario');
+              }
+              loadFeed(); loadSummary();
+            } catch (ex) { showError(ex.message || 'Error al procesar la solicitud'); }
+          });
+        });
+        body.querySelectorAll('.sys-read').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            try { await api.notificationRead(btn.dataset.id); loadFeed(); loadSummary(); }
+            catch (ex) { showError(ex.message || 'Error al marcar como leída'); }
+          });
+        });
+        body.querySelectorAll('.sys-delete').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            try { await api.notificationDelete(btn.dataset.id); loadFeed(); loadSummary(); }
+            catch (ex) { showError(ex.message || 'Error al eliminar'); }
+          });
+        });
+      } catch (ex) { showError(ex.message || 'Error al cargar el feed'); }
+    }
+
+    function setFilter(f) {
+      currentFilter = f;
+      loadFeed();
+    }
+    document.getElementById('filterAll').addEventListener('click', () => setFilter('all'));
+    document.getElementById('filterSystem').addEventListener('click', () => setFilter('system'));
+    document.getElementById('filterTraffic').addEventListener('click', () => setFilter('traffic'));
+    document.getElementById('filterPending').addEventListener('click', () => setFilter('pending'));
+
+    loadSummary();
+    loadFeed();
+  </script>
+</body>
+</html>

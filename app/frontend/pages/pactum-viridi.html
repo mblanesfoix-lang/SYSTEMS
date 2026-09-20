@@ -6,22 +6,41 @@
   <title>Pactvm Viridi · S-NFI</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap">
   <link rel="stylesheet" href="/css/theme.css">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('systemsTheme');
+        if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      } catch (e) {}
+    })();
+  </script>
   <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
 </head>
 <body>
   <nav class="nav">
     <div class="brand">
       <a href="/pages/dashboard.html" style="color:inherit; text-decoration:none;">
-        <img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;"> SYSTEMS
+        <img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;"> <span class="brand-mark">S-NFI Systems (c)</span>
       </a>
       <span class="mono" style="opacity:0.5; margin:0 8px;">/</span>
       <span>Pactvm Viridi</span>
     </div>
-    <div class="row" style="gap:18px;">
-      <span class="mono" id="userTag">...</span>
-      <button class="btn ghost" id="logoutBtn">Cerrar sesión</button>
+    <div class="user-menu" id="userMenu">
+      <button class="user-menu__trigger mono" id="userTag" aria-haspopup="true" aria-expanded="false">…</button>
+      <div class="user-menu__dropdown" id="userDropdown" hidden>
+        <div class="user-menu__section">
+          <span class="user-menu__label">Cambiar contraseña</span>
+          <input class="user-menu__input" type="password" id="pwdCurrent" placeholder="Contraseña actual" autocomplete="current-password">
+          <input class="user-menu__input" type="password" id="pwdNew" placeholder="Nueva contraseña" autocomplete="new-password">
+          <input class="user-menu__input" type="password" id="pwdConfirm" placeholder="Confirmar nueva" autocomplete="new-password">
+          <p class="user-menu__error" id="pwdError" hidden></p>
+          <button class="btn sage" id="pwdSubmit" style="width:100%;margin-top:4px;">Actualizar</button>
+        </div>
+        <div class="user-menu__divider"></div>
+        <button class="user-menu__item user-menu__item--danger" id="logoutBtn">Cerrar sesión</button>
+      </div>
     </div>
   </nav>
 
@@ -53,6 +72,24 @@
         <a class="tile reveal delay-4" href="/pages/pactvm-entrada.html" data-mesa="pactvm" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
           <h3>Condiciones de Entrada</h3>
           <p>Qué puede entrar a un nodo BioHybrid: tipo de residuo, procedencia del vertido, humedad máxima y exigencia de BSS propio. Nunca red eléctrica como insumo.</p>
+          <p class="mono" style="margin-top:10px;">acceso directo →</p>
+        </a>
+
+        <a class="tile reveal delay-4" href="/pages/pactvm-carbono.html" data-mesa="pactvm" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
+          <h3>Créditos de Carbono</h3>
+          <p>Medidor de mitigación y monetización: CO₂e acumulado, ratio DBO₅→créditos, rendimiento por hectárea. Emisión de certificado soberano (GHG Protocol, ISO 14064, CSRD) y tokenización.</p>
+          <p class="mono" style="margin-top:10px;">acceso directo →</p>
+        </a>
+
+        <a class="tile reveal delay-4" href="/pages/pactvm-planetario.html" data-mesa="pactvm" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
+          <h3>Motor Planetario</h3>
+          <p>Planetary Monitoring Engine: capacidad global de despliegue, valor de infraestructura, objetivo por país y telemetría de rendimiento tipo CUDA-Bio (simulada).</p>
+          <p class="mono" style="margin-top:10px;">acceso directo →</p>
+        </a>
+
+        <a class="tile reveal delay-4" href="/pages/pactvm-vdr.html" data-mesa="pactvm" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
+          <h3>VDR</h3>
+          <p>CRM geoespacial de empresas: ubicación geográfica y actividad en España. Vista individual con globo 3D — estrella de ubicación, punto rojo de actividad.</p>
           <p class="mono" style="margin-top:10px;">acceso directo →</p>
         </a>
       </div>
@@ -91,14 +128,43 @@
           <span class="mesa-status-detail"></span>
           <span class="mesa-status-error"></span>
         </div>
+        <div class="mesa-status-card" data-mesa="pactvm-carbono">
+          <div class="mesa-status-head">
+            <span class="mesa-status-name">Créditos de Carbono</span>
+            <span class="mesa-status-dot checking"></span>
+          </div>
+          <span class="mesa-status-label">comprobando...</span>
+          <span class="mesa-status-detail"></span>
+          <span class="mesa-status-error"></span>
+        </div>
+        <div class="mesa-status-card" data-mesa="pactvm-planetario">
+          <div class="mesa-status-head">
+            <span class="mesa-status-name">Motor Planetario</span>
+            <span class="mesa-status-dot checking"></span>
+          </div>
+          <span class="mesa-status-label">comprobando...</span>
+          <span class="mesa-status-detail"></span>
+          <span class="mesa-status-error"></span>
+        </div>
+        <div class="mesa-status-card" data-mesa="pactvm-vdr">
+          <div class="mesa-status-head">
+            <span class="mesa-status-name">VDR</span>
+            <span class="mesa-status-dot checking"></span>
+          </div>
+          <span class="mesa-status-label">comprobando...</span>
+          <span class="mesa-status-detail"></span>
+          <span class="mesa-status-error"></span>
+        </div>
       </div>
     </section>
   </main>
 
   <script type="module">
     import { api, getUser, getToken, clearSession, requireAuth, toast } from '/js/api.js';
+    import { mountThemeToggle } from '/js/theme.js';
     import { mountOfficeBg } from '/js/office-bg.js';
     requireAuth();
+    mountThemeToggle(document.querySelector('nav.nav .row'));
     mountOfficeBg();
     document.getElementById('userTag').textContent = getUser() || '';
 
@@ -117,6 +183,41 @@
       try { await api.logout(); } catch {}
       clearSession();
       location.href = '/pages/login.html';
+    });
+
+    // User menu dropdown
+    const userMenuTrigger = document.getElementById('userTag');
+    const userMenuDropdown = document.getElementById('userDropdown');
+    userMenuTrigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = !userMenuDropdown.hidden;
+      userMenuDropdown.hidden = open;
+      userMenuTrigger.setAttribute('aria-expanded', String(!open));
+    });
+    document.addEventListener('click', (e) => {
+      if (!document.getElementById('userMenu').contains(e.target)) {
+        userMenuDropdown.hidden = true;
+        userMenuTrigger.setAttribute('aria-expanded', 'false');
+      }
+    });
+    document.getElementById('pwdSubmit').addEventListener('click', async () => {
+      const cur = document.getElementById('pwdCurrent').value;
+      const neu = document.getElementById('pwdNew').value;
+      const con = document.getElementById('pwdConfirm').value;
+      const errEl = document.getElementById('pwdError');
+      errEl.hidden = true;
+      if (!cur || !neu || !con) { errEl.textContent = 'Rellena todos los campos'; errEl.hidden = false; return; }
+      if (neu !== con) { errEl.textContent = 'Las contraseñas no coinciden'; errEl.hidden = false; return; }
+      try {
+        await api.changePassword(cur, neu);
+        toast('Contraseña actualizada');
+        userMenuDropdown.hidden = true;
+        userMenuTrigger.setAttribute('aria-expanded', 'false');
+        ['pwdCurrent','pwdNew','pwdConfirm'].forEach(id => document.getElementById(id).value = '');
+      } catch (ex) {
+        errEl.textContent = ex.message || 'Error al cambiar contraseña';
+        errEl.hidden = false;
+      }
     });
 
     // ---- Health check ----
@@ -166,6 +267,15 @@
       });
       checkMesa('pactvm-entrada', '/api/pactvm/entry-conditions', {
         parse: d => `${Array.isArray(d) ? d.length : 0} condiciones`
+      });
+      checkMesa('pactvm-carbono', '/api/pactvm/carbon/summary', {
+        parse: d => `${d.clientsTracked ?? 0} clientes`
+      });
+      checkMesa('pactvm-planetario', '/api/pactvm/planetary/summary', {
+        parse: d => `${d.nodesActive ?? 0}/${d.nodesMax ?? 0} nodos`
+      });
+      checkMesa('pactvm-vdr', '/api/pactvm/vdr/summary', {
+        parse: d => `${d.companiesTotal ?? 0} empresas`
       });
     }
 

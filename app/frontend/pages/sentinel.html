@@ -6,8 +6,16 @@
   <title>Sentinel · Seguridad &amp; Telemetria · S-NFI</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap">
   <link rel="stylesheet" href="/css/theme.css">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('systemsTheme');
+        if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      } catch (e) {}
+    })();
+  </script>
   <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
   <style>
     .sen-hero {
@@ -102,7 +110,7 @@
       padding: 5px 10px; border: 1px solid var(--border-mid); background: var(--bg-card);
       color: var(--text-secondary); cursor: pointer; transition: background 0.15s, color 0.15s; border-radius: var(--radius-sm);
     }
-    .btn-mini:hover { background: var(--text-primary); color: #fff; }
+    .btn-mini:hover { background: var(--accent-blue); color: #fff; }
     .btn-mini.danger { border-color: rgba(216,3,0,0.4); color: var(--accent-red); }
     .btn-mini.danger:hover { background: var(--accent-red); color: #fff; }
     .btn-mini.ok { border-color: rgba(0,168,120,0.4); color: var(--accent-green2); }
@@ -116,21 +124,6 @@
     }
 
     .manual-block-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-
-    .back-link {
-      display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 0.62rem;
-      letter-spacing: 0.02em; color: var(--text-muted); text-decoration: none; margin-bottom: 22px;
-    }
-    .back-link:hover { color: var(--text-primary); }
-    .back-link::before { content: '←'; font-size: 0.9rem; }
-    .breadcrumb-row {
-      display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 0.62rem;
-      letter-spacing: 0.02em; color: var(--text-muted); margin-bottom: 22px;
-    }
-    .breadcrumb-row a { color: inherit; text-decoration: none; }
-    .breadcrumb-row a:hover { color: var(--text-primary); }
-    .breadcrumb-row .sep { opacity: 0.35; }
-    .breadcrumb-row .active { color: var(--text-primary); font-weight: 600; }
 
     .empty-row { text-align: center; color: var(--text-dim); padding: 20px; font-family: var(--font-mono); font-size: 0.72rem; }
 
@@ -162,6 +155,18 @@
     .risk-badge.ALTO { background: rgba(216,3,0,0.14); color: var(--accent-red); }
     .risk-bar-wrap { width: 60px; height: 5px; background: var(--border); border-radius: var(--radius-pill); overflow: hidden; display: inline-block; margin-left: 6px; vertical-align: middle; }
     .risk-bar { height: 100%; border-radius: var(--radius-pill); }
+
+    /* ── Behavioral Analytics ── */
+    .level-badge {
+      display: inline-flex; align-items: center; font-family: var(--font-mono);
+      font-size: 0.6rem; letter-spacing: 0.04em; text-transform: uppercase; padding: 3px 8px;
+      border-radius: var(--radius-pill); font-weight: 700;
+    }
+    .level-badge.NARANJA { background: rgba(200,122,0,0.16); color: var(--accent-amber); }
+    .level-badge.ROJO { background: rgba(216,3,0,0.16); color: var(--accent-red); }
+    table.sen-table.heatmap td, table.sen-table.heatmap th { text-align: center; padding: 6px 8px; }
+    table.sen-table.heatmap th:first-child, table.sen-table.heatmap td:first-child { text-align: left; }
+    .heatmap-cell { display: inline-block; min-width: 30px; padding: 3px 6px; border-radius: var(--radius-sm); font-weight: 600; }
 
     /* ── Detalle (caja "investigar") ── */
     .ip-detail { display: none; background: var(--bg-elevated); border: 1px solid var(--border-mid); border-radius: var(--radius-sm); padding: 18px 20px; margin: 8px 0; font-family: var(--font-mono); font-size: 0.72rem; }
@@ -232,12 +237,26 @@
 <body>
   <nav class="nav">
     <div class="brand">
-      <img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;">
-      SYSTEMS
+      <a href="/pages/dashboard.html" style="color:inherit; text-decoration:none;">
+        <img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;"> <span class="brand-mark">S-NFI Systems (c)</span>
+      </a>
     </div>
     <div class="row" style="gap:18px;">
-      <span class="mono" id="userTag">...</span>
-      <button class="btn ghost" id="logoutBtn">Cerrar sesion</button>
+      <div class="user-menu" id="userMenu">
+        <button class="user-menu__trigger mono" id="userTag" aria-haspopup="true" aria-expanded="false">…</button>
+        <div class="user-menu__dropdown" id="userDropdown" hidden>
+          <div class="user-menu__section">
+            <span class="user-menu__label">Cambiar contraseña</span>
+            <input class="user-menu__input" type="password" id="pwdCurrent" placeholder="Contraseña actual" autocomplete="current-password">
+            <input class="user-menu__input" type="password" id="pwdNew" placeholder="Nueva contraseña" autocomplete="new-password">
+            <input class="user-menu__input" type="password" id="pwdConfirm" placeholder="Confirmar nueva" autocomplete="new-password">
+            <p class="user-menu__error" id="pwdError" hidden></p>
+            <button class="btn sage" id="pwdSubmit" style="width:100%;margin-top:4px;">Actualizar</button>
+          </div>
+          <div class="user-menu__divider"></div>
+          <button class="user-menu__item user-menu__item--danger" id="logoutBtn">Cerrar sesión</button>
+        </div>
+      </div>
     </div>
   </nav>
 
@@ -401,6 +420,47 @@
       </div>
     </div>
 
+    <!-- ═══ PROFILING DE COMPORTAMIENTO A LARGO PLAZO (Behavioral Analytics) ═══ -->
+    <div class="sen-panel">
+      <div class="panel-header">
+        <span class="panel-title">Profiling de comportamiento · patrones de uso por empleado</span>
+        <span class="panel-badge" id="behBadge">—</span>
+      </div>
+      <div class="panel-body">
+        <p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 16px;line-height:1.6;">
+          Sentinel analiza cada petición autenticada, no solo la IP. Frecuencia anormal (5+ informes OPHS en menos de 1h) dispara
+          alerta <b style="color:var(--accent-amber);">NARANJA</b>. Acceso a informes OPHS sin proyecto activo asociado en Rëff bloquea
+          al usuario de forma automática (mesa OPHS y mesa Rëff son independientes en ROLE_MESAS) — el humano decide en la cola de abajo.
+        </p>
+
+        <div class="panel-title" style="margin-bottom:10px;">Alertas de comportamiento</div>
+        <table class="sen-table" style="margin-bottom:22px;">
+          <thead><tr><th>Hora</th><th>Nivel</th><th>Tipo</th><th>Usuario</th><th>Detalle</th></tr></thead>
+          <tbody id="behAlertsBody"></tbody>
+        </table>
+        <div id="behAlertsEmpty" class="empty-row" style="display:none;">Sin alertas de comportamiento registradas.</div>
+
+        <div class="panel-title" style="margin:22px 0 10px;">Usuarios en cola de revisión</div>
+        <div class="manual-block-row" style="margin-bottom:14px;">
+          <input type="text" id="manualBlockUser" placeholder="Usuario a bloquear (ej. nombre@snficorp.com)" style="flex:1;min-width:220px;background:var(--bg-elevated);border:1px solid var(--border-mid);color:var(--text-primary);font-family:var(--font-mono);font-size:0.78rem;padding:9px 12px;outline:none;border-radius:var(--radius-sm);">
+          <input type="text" id="manualBlockUserReason" placeholder="Motivo (opcional)" style="flex:1;min-width:200px;background:var(--bg-elevated);border:1px solid var(--border-mid);color:var(--text-primary);font-family:var(--font-mono);font-size:0.78rem;padding:9px 12px;outline:none;border-radius:var(--radius-sm);">
+          <button class="btn-mini danger" id="manualBlockUserBtn" style="padding:9px 16px;">Bloquear ahora</button>
+        </div>
+        <div id="manualBlockUserMsg" style="display:none;margin-bottom:14px;font-family:var(--font-mono);font-size:0.68rem;"></div>
+        <table class="sen-table" style="margin-bottom:22px;">
+          <thead><tr><th>Usuario</th><th>Estado</th><th>Motivo</th><th>Actualizado</th><th>Acciones</th></tr></thead>
+          <tbody id="behQueueBody"></tbody>
+        </table>
+        <div id="behQueueEmpty" class="empty-row" style="display:none;">Sin usuarios en cola.</div>
+
+        <div class="panel-title" style="margin:22px 0 10px;">Heatmap de interés · peticiones por usuario × mesa (últimos 30 días)</div>
+        <div style="overflow-x:auto;">
+          <table class="sen-table" id="behHeatmapTable"><tbody></tbody></table>
+        </div>
+        <div id="behHeatmapEmpty" class="empty-row" style="display:none;">Sin datos suficientes todavía.</div>
+      </div>
+    </div>
+
     <!-- ═══ AVANZADO: log técnico (plegable, secundario) ═══ -->
     <div class="sen-panel">
       <div class="panel-body">
@@ -489,14 +549,51 @@
 
   <script type="module">
     import { api, getUser, getToken, clearSession, requireAuth, toast } from '/js/api.js';
+    import { mountThemeToggle } from '/js/theme.js';
     import { mountAdminNotifications } from '/js/notifications.js';
     requireAuth();
+    mountThemeToggle(document.querySelector('nav.nav .row'));
     document.getElementById('userTag').textContent = getUser() || '';
     mountAdminNotifications(document.querySelector('nav.nav .row'));
     document.getElementById('logoutBtn').addEventListener('click', async () => {
       try { await api.logout(); } catch {}
       clearSession();
       location.href = '/pages/login.html';
+    });
+
+    // User menu dropdown
+    const userMenuTrigger = document.getElementById('userTag');
+    const userMenuDropdown = document.getElementById('userDropdown');
+    userMenuTrigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = !userMenuDropdown.hidden;
+      userMenuDropdown.hidden = open;
+      userMenuTrigger.setAttribute('aria-expanded', String(!open));
+    });
+    document.addEventListener('click', (e) => {
+      if (!document.getElementById('userMenu').contains(e.target)) {
+        userMenuDropdown.hidden = true;
+        userMenuTrigger.setAttribute('aria-expanded', 'false');
+      }
+    });
+    document.getElementById('pwdSubmit').addEventListener('click', async () => {
+      const cur = document.getElementById('pwdCurrent').value;
+      const neu = document.getElementById('pwdNew').value;
+      const con = document.getElementById('pwdConfirm').value;
+      const errEl = document.getElementById('pwdError');
+      errEl.hidden = true;
+      if (!cur || !neu || !con) { errEl.textContent = 'Rellena todos los campos'; errEl.hidden = false; return; }
+      if (neu !== con) { errEl.textContent = 'Las contraseñas no coinciden'; errEl.hidden = false; return; }
+      try {
+        await api.changePassword(cur, neu);
+        toast('Contraseña actualizada');
+        userMenuDropdown.hidden = true;
+        userMenuTrigger.setAttribute('aria-expanded', 'false');
+        ['pwdCurrent','pwdNew','pwdConfirm'].forEach(id => document.getElementById(id).value = '');
+      } catch (ex) {
+        errEl.textContent = ex.message || 'Error al cambiar contraseña';
+        errEl.hidden = false;
+      }
     });
 
     function showError(msg) {
@@ -1148,13 +1245,131 @@
       } catch (ex) { rackMsg(ex.message || 'Error al verificar', false); }
     });
 
+    /* ---- Profiling de comportamiento a largo plazo (Behavioral Analytics) ---- */
+    function behMsg(text, ok) {
+      const el = document.getElementById('manualBlockUserMsg');
+      el.textContent = text;
+      el.style.color = ok ? 'var(--accent-green2)' : 'var(--accent-red)';
+      el.style.display = 'block';
+    }
+
+    async function loadBehaviorAlerts() {
+      try {
+        const { events, total } = await api.sentinelBehaviorAlerts({ limit: 50 });
+        document.getElementById('behBadge').textContent = `${total} alerta(s) registradas`;
+        const body = document.getElementById('behAlertsBody');
+        const empty = document.getElementById('behAlertsEmpty');
+        if (!events.length) {
+          body.innerHTML = '';
+          empty.style.display = 'block';
+          return;
+        }
+        empty.style.display = 'none';
+        body.innerHTML = events.map(e => `<tr>
+          <td class="mono">${fmtTime(e.ts)}</td>
+          <td><span class="level-badge ${e.level}">${escapeHtml(e.level)}</span></td>
+          <td class="mono">${escapeHtml(e.type)}</td>
+          <td class="mono">${escapeHtml(e.user)}</td>
+          <td>${escapeHtml(e.reason || '—')}</td>
+        </tr>`).join('');
+      } catch (ex) {
+        showError('Error cargando alertas de comportamiento: ' + (ex.message || ex));
+      }
+    }
+
+    async function loadBehaviorQueue() {
+      try {
+        const queue = await api.sentinelBehaviorQueue();
+        const body = document.getElementById('behQueueBody');
+        const empty = document.getElementById('behQueueEmpty');
+        if (!queue.length) {
+          body.innerHTML = '';
+          empty.style.display = 'block';
+          return;
+        }
+        empty.style.display = 'none';
+        body.innerHTML = queue.map(q => `<tr>
+          <td class="mono">${escapeHtml(q.user)}</td>
+          <td>${q.decision === 'BLOCKED' ? '<span class="tag blocked">BLOQUEADO</span>' : q.decision === 'ALLOWED' ? '<span class="tag ok">PERMITIDO</span>' : '<span class="tag pending">PENDIENTE</span>'}</td>
+          <td style="max-width:320px;">${escapeHtml(q.reason || '—')}</td>
+          <td class="mono">${fmtTime(q.updatedAt)}</td>
+          <td>
+            <div style="display:flex;gap:6px;">
+              <button class="btn-mini ok" data-beh-allow="${escapeHtml(q.user)}">Permitir</button>
+              <button class="btn-mini danger" data-beh-block="${escapeHtml(q.user)}">Bloquear</button>
+            </div>
+          </td>
+        </tr>`).join('');
+        body.querySelectorAll('[data-beh-allow]').forEach(btn => btn.addEventListener('click', async () => {
+          try { await api.sentinelBehaviorDecide(btn.dataset.behAllow, 'ALLOWED'); toast('Usuario permitido'); loadBehaviorQueue(); }
+          catch (ex) { showError(ex.message || 'Error'); }
+        }));
+        body.querySelectorAll('[data-beh-block]').forEach(btn => btn.addEventListener('click', async () => {
+          try { await api.sentinelBehaviorDecide(btn.dataset.behBlock, 'BLOCKED'); toast('Usuario bloqueado'); loadBehaviorQueue(); }
+          catch (ex) { showError(ex.message || 'Error'); }
+        }));
+      } catch (ex) {
+        showError('Error cargando cola de usuarios: ' + (ex.message || ex));
+      }
+    }
+
+    async function loadBehaviorHeatmap() {
+      try {
+        const { users, mesas, cells } = await api.sentinelBehaviorHeatmap(30);
+        const table = document.getElementById('behHeatmapTable');
+        const empty = document.getElementById('behHeatmapEmpty');
+        if (!users.length || !mesas.length) {
+          table.querySelector('tbody').innerHTML = '';
+          table.classList.remove('heatmap');
+          empty.style.display = 'block';
+          return;
+        }
+        empty.style.display = 'none';
+        table.classList.add('heatmap');
+        const byKey = {};
+        let max = 1;
+        cells.forEach(c => { byKey[`${c.user}::${c.mesa}`] = c; if (c.total > max) max = c.total; });
+        const head = `<thead><tr><th>Usuario</th>${mesas.map(m => `<th>${escapeHtml(m)}</th>`).join('')}</tr></thead>`;
+        const rows = users.map(u => {
+          const cellsHtml = mesas.map(m => {
+            const c = byKey[`${u}::${m}`];
+            if (!c) return '<td>—</td>';
+            const intensity = Math.min(c.total / max, 1);
+            const bg = `rgba(0,152,199,${0.08 + intensity * 0.35})`;
+            return `<td><span class="heatmap-cell" style="background:${bg};" title="${c.total} peticiones${c.sensitive ? ` · ${c.sensitive} sensibles` : ''}">${c.total}</span></td>`;
+          }).join('');
+          return `<tr><td class="mono">${escapeHtml(u)}</td>${cellsHtml}</tr>`;
+        }).join('');
+        table.innerHTML = head + `<tbody>${rows}</tbody>`;
+      } catch (ex) {
+        showError('Error cargando heatmap: ' + (ex.message || ex));
+      }
+    }
+
+    document.getElementById('manualBlockUserBtn').addEventListener('click', async () => {
+      const user = document.getElementById('manualBlockUser').value.trim();
+      const reason = document.getElementById('manualBlockUserReason').value.trim();
+      if (!user) { behMsg('Introduce un usuario', false); return; }
+      try {
+        await api.sentinelBehaviorBlockUser(user, reason);
+        behMsg(`Usuario ${user} bloqueado.`, true);
+        document.getElementById('manualBlockUser').value = '';
+        document.getElementById('manualBlockUserReason').value = '';
+        loadBehaviorQueue();
+      } catch (ex) { behMsg(ex.message || 'Error al bloquear', false); }
+    });
+
+    async function refreshBehavior() {
+      await Promise.all([loadBehaviorAlerts(), loadBehaviorQueue(), loadBehaviorHeatmap()]);
+    }
+
     /* ---- init + polling ---- */
     async function refreshAll() {
-      await Promise.all([loadTimelineTotals(), loadChain(), loadIpTable(), loadReqFeed(), loadLog(), loadLiveFeed(), loadLiveCanvas(), loadRack()]);
+      await Promise.all([loadTimelineTotals(), loadChain(), loadIpTable(), loadReqFeed(), loadLog(), loadLiveFeed(), loadLiveCanvas(), loadRack(), refreshBehavior()]);
     }
     refreshAll();
     setInterval(() => { loadLiveFeed(); loadLiveCanvas(); }, 5000);
-    setInterval(() => { loadTimelineTotals(); loadIpTable(); loadReqFeed(); loadRack(); }, 30000);
+    setInterval(() => { loadTimelineTotals(); loadIpTable(); loadReqFeed(); loadRack(); refreshBehavior(); }, 30000);
   </script>
 </body>
 </html>

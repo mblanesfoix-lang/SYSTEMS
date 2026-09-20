@@ -1,0 +1,1848 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VDR · Globo · Pactvm Viridi · S-NFI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
+  <!-- Globo 3D deliberadamente siempre oscuro (fondo espacial hardcoded):
+       sin script de tema ni toggle, ignora la preferencia clara/oscura global. -->
+  <style>
+    html, body { height: 100%; overflow: hidden; }
+    body { background: #020305; }
+
+    .vdr-stage {
+      position: fixed; inset: 0; background: radial-gradient(ellipse at 50% 40%, #060a10 0%, #020305 70%);
+    }
+    .vdr-stage canvas { display: block; width: 100%; height: 100%; }
+
+    /* ---- HUD flotante: nav translucida, sin caja solida, estilo consola ---- */
+    .vdr-hud {
+      position: fixed; inset: 0; pointer-events: none; z-index: 10;
+      font-family: var(--font-body);
+    }
+    .vdr-hud > * { pointer-events: auto; }
+
+    .vdr-topbar {
+      position: absolute; top: 0; left: 0; right: 0;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 22px;
+      background: linear-gradient(180deg, rgba(3,5,8,0.72) 0%, rgba(3,5,8,0) 100%);
+    }
+    .vdr-brand { display: flex; align-items: center; gap: 10px; font-size: 0.78rem; letter-spacing: 0.02em; color: var(--text-secondary); }
+    .vdr-brand img { height: 18px; width: auto; opacity: 0.9; }
+    .vdr-crumbs { display: flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.03em; color: var(--text-dim); }
+    .vdr-crumbs a { color: var(--text-dim); text-decoration: none; transition: color 0.15s; }
+    .vdr-crumbs a:hover { color: var(--accent-blue-text); }
+    .vdr-crumbs .sep { opacity: 0.4; }
+    .vdr-crumbs .active { color: var(--text-secondary); }
+    /* ---- modo kiosko: en Enel (Res.) VDR la ruta queda muerta ----
+       pointer-events:none impide el clic y cursor:not-allowed lo anuncia.
+       Se aplica al contenedor para cubrir tambien enlaces futuros. */
+    body.client-plane .vdr-crumbs {
+      opacity: 0.6; user-select: none; cursor: not-allowed;
+    }
+    body.client-plane .vdr-crumbs a {
+      pointer-events: none; text-decoration: none; cursor: not-allowed;
+    }
+    body.client-plane .vdr-crumbs a:hover { color: var(--text-dim); }
+    body.client-plane .vdr-crumbs .active { color: #f0bb5c; font-weight: 600; }
+
+    .glass-pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(20,24,32,0.42);
+      border: 1px solid rgba(255,255,255,0.10);
+      backdrop-filter: saturate(180%) blur(18px);
+      -webkit-backdrop-filter: saturate(180%) blur(18px);
+      border-radius: var(--radius-pill);
+      padding: 9px 16px;
+      font-family: var(--font-mono);
+      font-size: 0.62rem;
+      letter-spacing: 0.05em;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: background 0.18s ease, border-color 0.18s ease, transform 0.12s ease;
+      user-select: none;
+    }
+    .glass-pill:hover { background: rgba(30,36,48,0.58); border-color: rgba(255,255,255,0.2); transform: translateY(-1px); }
+    .glass-pill:active { transform: translateY(0); }
+    .glass-pill:disabled { opacity: 0.5; cursor: default; transform: none; }
+    .glass-pill.primary { border-color: rgba(46,143,255,0.45); color: #bcdcff; }
+    .glass-pill.primary:hover { background: rgba(46,143,255,0.16); border-color: rgba(46,143,255,0.7); }
+    .glass-pill.danger { border-color: rgba(255,91,82,0.4); color: #ffb3ad; }
+
+    .vdr-controls-dock {
+      position: absolute; top: 76px; right: 22px;
+      display: flex; flex-direction: column; gap: 10px; align-items: flex-end;
+    }
+
+    .vdr-title-block {
+      position: absolute; left: 22px; top: 72px;
+      max-width: 420px;
+    }
+    .vdr-title {
+      font-family: var(--font-display); font-weight: 700; letter-spacing: 0.1em;
+      font-size: 12px; text-transform: uppercase; color: var(--text-primary);
+      margin: 0 0 4px; text-shadow: 0 2px 24px rgba(0,0,0,0.6);
+    }
+    .vdr-subtitle {
+      font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.06em;
+      color: var(--text-dim); text-transform: uppercase;
+    }
+
+    .vdr-legend {
+      position: absolute; left: 22px; bottom: 22px;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .vdr-legend-item {
+      display: flex; align-items: center; gap: 9px;
+      font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.02em; color: var(--text-muted);
+    }
+    .vdr-legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+    .vdr-hint {
+      position: absolute; right: 22px; bottom: 58px;
+      font-family: var(--font-mono); font-size: 0.58rem; letter-spacing: 0.04em; color: var(--text-dim);
+      opacity: 0.7; max-width: 46vw; text-align: right;
+    }
+
+    /* ---- selector de idioma deslizante ---- */
+    .vdr-lang {
+      /* Un solo 'position': absolute ya sirve de ancestro posicionado para
+         el thumb. Un 'position: relative' duplicado despues anulaba right/
+         bottom y tiraba el selector al flujo normal (invisible). */
+      position: absolute; right: 22px; bottom: 18px; z-index: 26;
+      display: inline-flex; align-items: center;
+      padding: 3px; border-radius: var(--radius-pill);
+      background: rgba(20,24,32,0.5);
+      border: 1px solid rgba(255,255,255,0.12);
+      backdrop-filter: saturate(180%) blur(18px);
+      -webkit-backdrop-filter: saturate(180%) blur(18px);
+      box-shadow: 0 6px 22px -8px rgba(0,0,0,0.7);
+    }
+    .vdr-lang__thumb {
+      position: absolute; top: 3px; left: 3px;
+      width: 40px; height: calc(100% - 6px);
+      border-radius: var(--radius-pill);
+      background: linear-gradient(180deg, rgba(46,143,255,0.5), rgba(46,143,255,0.28));
+      border: 1px solid rgba(46,143,255,0.6);
+      box-shadow: 0 0 14px rgba(46,143,255,0.35);
+      transition: transform 0.32s cubic-bezier(0.34, 1.3, 0.5, 1);
+      pointer-events: none;
+    }
+    .vdr-lang__opt {
+      position: relative; z-index: 1;
+      width: 40px; padding: 6px 0;
+      background: none; border: none; cursor: pointer;
+      font-family: var(--font-mono); font-size: 0.6rem; font-weight: 600; letter-spacing: 0.08em;
+      color: var(--text-dim);
+      transition: color 0.22s ease;
+    }
+    .vdr-lang__opt.is-active { color: #dceaff; }
+    /* ---- geocastral / identidad en la ficha de nodo ---- */
+    .vdr-node-ident {
+      display: flex; flex-direction: column; gap: 5px;
+      margin-top: 10px; padding: 9px 11px;
+      border: 1px solid rgba(255,255,255,0.08); border-radius: 9px;
+      background: rgba(12,16,22,0.55);
+    }
+    .vdr-node-ident__row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .vdr-node-ident__row .k {
+      font-family: var(--font-mono); font-size: 0.52rem; letter-spacing: 0.07em;
+      text-transform: uppercase; color: var(--text-dim); white-space: nowrap;
+    }
+    .vdr-node-ident__row .v {
+      font-family: var(--font-mono); font-size: 0.64rem; color: var(--text-secondary);
+      text-align: right; font-variant-numeric: tabular-nums;
+    }
+    /* badge de clasificacion: mismo lenguaje visual que el bloque SPV grande */
+    .vdr-node-ident__row .v.is-locked {
+      color: #f0bb5c; letter-spacing: 0.08em;
+      padding: 2px 7px; border-radius: 5px;
+      border: 1px dashed rgba(226,166,58,0.42);
+      background: rgba(226,166,58,0.06);
+    }
+    .vdr-lang__opt:hover { color: var(--text-secondary); }
+
+    /* ---- conmutador de plano (interno / cliente) ---- */
+    .vdr-plane {
+      position: relative; display: inline-flex; align-items: center; margin-top: 12px; padding: 3px;
+      border-radius: var(--radius-pill); background: rgba(20,24,32,0.5);
+      border: 1px solid rgba(255,255,255,0.12);
+      backdrop-filter: saturate(180%) blur(18px); -webkit-backdrop-filter: saturate(180%) blur(18px);
+    }
+    .vdr-plane__thumb {
+      position: absolute; top: 3px; left: 3px; width: 112px; height: calc(100% - 6px);
+      border-radius: var(--radius-pill);
+      background: linear-gradient(180deg, rgba(46,143,255,0.5), rgba(46,143,255,0.28));
+      border: 1px solid rgba(46,143,255,0.6); box-shadow: 0 0 14px rgba(46,143,255,0.35);
+      transition: transform 0.32s cubic-bezier(0.34, 1.3, 0.5, 1), background 0.3s ease, border-color 0.3s ease;
+      pointer-events: none;
+    }
+    .vdr-plane.is-client .vdr-plane__thumb {
+      background: linear-gradient(180deg, rgba(226,166,58,0.5), rgba(226,166,58,0.28));
+      border-color: rgba(226,166,58,0.65); box-shadow: 0 0 14px rgba(226,166,58,0.35);
+    }
+    .vdr-plane__opt {
+      position: relative; z-index: 1; width: 112px; padding: 6px 0;
+      background: none; border: none; cursor: pointer;
+      font-family: var(--font-mono); font-size: 0.55rem; font-weight: 600; letter-spacing: 0.08em;
+      color: var(--text-dim); transition: color 0.22s ease;
+    }
+    .vdr-plane__opt.is-active { color: #dceaff; }
+    .vdr-plane.is-client .vdr-plane__opt.is-active { color: #ffe0ab; }
+
+    /* aviso persistente mientras se simula la vista del cliente */
+    body.client-plane .vdr-stage::after {
+      content: ''; position: absolute; inset: 0; pointer-events: none;
+      box-shadow: inset 0 0 0 2px rgba(226,166,58,0.4);
+    }
+
+    /* ---- bloque restringido ---- */
+    /* [hidden] debe ganar al display:flex — si no, el candado se pinta
+       tambien en PLANO INTERNO encima del reparto territorial. */
+    .vdr-locked[hidden] { display: none !important; }
+    .vdr-locked {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 6px; padding: 24px 20px; text-align: center;
+      border: 1px dashed rgba(226,166,58,0.38); border-radius: 12px;
+      background:
+        repeating-linear-gradient(135deg, rgba(226,166,58,0.045) 0 10px, rgba(226,166,58,0) 10px 20px),
+        rgba(226,166,58,0.03);
+    }
+    .vdr-locked__icon { font-size: 18px; opacity: 0.85; }
+    .vdr-locked__title { font-family: var(--font-mono); font-size: 0.66rem; font-weight: 700; letter-spacing: 0.16em; color: #f0bb5c; }
+    .vdr-locked__sub { font-size: 0.7rem; color: var(--text-dim); max-width: 420px; line-height: 1.5; }
+
+    /* ---- dialogo de compartir ---- */
+    .vdr-share-shell {
+      position: relative; width: min(680px, 100%); max-height: 100%; overflow: auto;
+      display: flex; flex-direction: column; gap: 10px;
+      background: rgba(12,15,20,0.9); border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 20px; padding: 24px 26px;
+      box-shadow: 0 32px 90px -20px rgba(0,0,0,0.85);
+    }
+    .vdr-share-form { display: flex; flex-direction: column; gap: 8px; }
+    .vdr-share-label {
+      font-family: var(--font-mono); font-size: 0.54rem; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--text-dim); margin-top: 6px;
+    }
+    .vdr-share-label span { opacity: 0.6; text-transform: none; letter-spacing: 0; }
+    .vdr-share-input {
+      width: 100%; padding: 10px 12px; border-radius: 10px;
+      border: 1px solid var(--border-mid); background: rgba(255,255,255,0.04);
+      color: var(--text-primary); font-family: var(--font-mono); font-size: 0.78rem; outline: none; resize: vertical;
+    }
+    .vdr-share-input:focus { border-color: var(--accent-blue); }
+    .vdr-share-minutes { display: flex; gap: 8px; }
+    .vdr-share-minutes .glass-pill.is-active { border-color: rgba(46,143,255,0.7); color: #bcdcff; background: rgba(46,143,255,0.16); }
+    .vdr-share-err { color: #ffb3ad; font-size: 0.76rem; min-height: 1em; }
+    .vdr-share-result { display: flex; flex-direction: column; gap: 10px; }
+    .vdr-share-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; font-size: 0.78rem; }
+    .vdr-share-row .k { font-family: var(--font-mono); font-size: 0.54rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); }
+    .vdr-share-row .v { font-family: var(--font-mono); color: var(--text-secondary); }
+    .vdr-share-copy { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .vdr-share-copy code {
+      font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-secondary);
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
+      padding: 6px 10px; border-radius: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 340px;
+    }
+    .vdr-share-copy code.big { font-size: 1.1rem; font-weight: 700; letter-spacing: 0.22em; color: #bcdcff; }
+    .vdr-share-note {
+      font-size: 0.72rem; line-height: 1.55; color: var(--text-secondary);
+      background: rgba(226,166,58,0.07); border-left: 2px solid rgba(226,166,58,0.5);
+      padding: 10px 12px; border-radius: 6px;
+    }
+    .vdr-share-list { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+
+    /* ---- bloque de reparto por comunidad ---- */
+    .vdr-region-block { display: flex; flex-direction: column; gap: 8px; }
+    .vdr-region-head {
+      font-family: var(--font-mono); font-size: 0.54rem; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--text-dim);
+    }
+    .vdr-region-scroll { max-height: 168px; flex: none; }
+    .vdr-region-scroll table.vdr-table tbody td { font-size: 0.7rem; padding: 6px 12px; }
+    td.region-cell { color: var(--text-muted); font-size: 0.68rem; }
+
+    /* ---- tarjeta flotante anclada a marcador 3D (proyeccion pantalla) ---- */
+    .vdr-card {
+      position: absolute; z-index: 20;
+      min-width: 240px; max-width: 300px;
+      background: rgba(14,17,23,0.68);
+      border: 1px solid rgba(255,255,255,0.14);
+      backdrop-filter: saturate(180%) blur(22px);
+      -webkit-backdrop-filter: saturate(180%) blur(22px);
+      border-radius: 14px;
+      padding: 14px 16px;
+      box-shadow: 0 12px 40px -8px rgba(0,0,0,0.6);
+      transform: translate(-50%, -120%);
+      transition: opacity 0.22s ease, transform 0.22s ease;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .vdr-card.visible { opacity: 1; pointer-events: auto; }
+    .vdr-card__kicker {
+      font-family: var(--font-mono); font-size: 0.56rem; letter-spacing: 0.08em; text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .vdr-card__kicker.gold { color: #ffd873; }
+    .vdr-card__kicker.red { color: #ff8a80; }
+    .vdr-card__title { font-family: var(--font-display); font-weight: 700; font-size: 0.98rem; color: var(--text-primary); margin-bottom: 8px; letter-spacing: -0.01em; }
+    /* ---- cabecera de sede: logo corporativo + rotulo base matriz ---- */
+    .vdr-card__hq { display: flex; align-items: center; gap: 11px; margin-bottom: 10px; }
+    .vdr-card__hq .vdr-card__title { margin-bottom: 2px; }
+    .vdr-card__hq-logo {
+      height: 26px; width: auto; max-width: 74px; flex-shrink: 0;
+      object-fit: contain;
+      /* el fuente es grande: al reducir, interpolacion de alta calidad */
+      image-rendering: auto;
+      filter: drop-shadow(0 1px 4px rgba(0,0,0,0.55));
+    }
+    .vdr-card__hq-tag {
+      font-family: var(--font-mono); font-size: 0.54rem; letter-spacing: 0.12em;
+      text-transform: uppercase; color: #ffd873;
+      display: inline-flex; align-items: center; gap: 5px;
+    }
+    .vdr-card__hq-tag::before {
+      content: ''; width: 4px; height: 4px; border-radius: 50%;
+      background: #ffd873; box-shadow: 0 0 7px #ffd873;
+    }
+    .vdr-card__row { display: flex; justify-content: space-between; gap: 12px; font-size: 0.74rem; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
+    .vdr-card__row:last-child { border-bottom: none; }
+    .vdr-card__row .k { color: var(--text-dim); }
+    .vdr-card__row .v { color: var(--text-secondary); font-family: var(--font-mono); font-weight: 600; text-align: right; }
+    .vdr-card__note { margin-top: 10px; font-size: 0.68rem; line-height: 1.5; color: var(--text-muted); }
+    .vdr-card__close {
+      position: absolute; top: 8px; right: 10px; background: none; border: none; color: var(--text-dim);
+      font-size: 0.9rem; cursor: pointer; line-height: 1; padding: 2px;
+    }
+    .vdr-card__close:hover { color: var(--text-secondary); }
+
+    /* ---- panel de nodos ES (roster #001..#200) ---- */
+    .vdr-node-panel {
+      position: absolute; z-index: 25; right: 22px; bottom: 66px;
+      width: 320px; max-height: 56vh;
+      background: rgba(12,15,20,0.72);
+      border: 1px solid rgba(255,91,82,0.28);
+      backdrop-filter: saturate(180%) blur(24px);
+      -webkit-backdrop-filter: saturate(180%) blur(24px);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 16px 48px -12px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,91,82,0.06);
+      display: flex; flex-direction: column; gap: 10px;
+      opacity: 0; transform: translateY(8px);
+      transition: opacity 0.24s ease, transform 0.24s ease;
+      pointer-events: none;
+    }
+    .vdr-node-panel.visible { opacity: 1; transform: translateY(0); pointer-events: auto; }
+    .vdr-node-panel__head { display: flex; justify-content: space-between; align-items: flex-start; }
+    .vdr-node-panel__kicker { font-family: var(--font-mono); font-size: 0.56rem; letter-spacing: 0.08em; text-transform: uppercase; color: #ff8a80; }
+    .vdr-node-panel__title { font-family: var(--font-mono); font-weight: 700; font-size: 12px; letter-spacing: 0.06em; color: var(--text-primary); margin-top: 3px; }
+    .vdr-node-panel__stat-row { display: flex; gap: 10px; }
+    .vdr-node-stat { flex: 1; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 10px; padding: 8px 10px; }
+    .vdr-node-stat .lbl { font-family: var(--font-mono); font-size: 0.52rem; letter-spacing: 0.04em; color: var(--text-dim); text-transform: uppercase; }
+    .vdr-node-stat .val { font-family: var(--font-display); font-weight: 800; font-size: 1.05rem; color: #ff9e96; margin-top: 2px; }
+    .vdr-node-panel__clause {
+      font-size: 0.68rem; line-height: 1.55; color: var(--text-secondary);
+      background: rgba(255,91,82,0.07); border-left: 2px solid rgba(255,91,82,0.5);
+      padding: 8px 10px; border-radius: 6px;
+    }
+    .vdr-node-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px;
+      overflow-y: auto; max-height: 180px; padding-right: 2px;
+    }
+    .vdr-node-grid::-webkit-scrollbar { width: 5px; }
+    .vdr-node-grid::-webkit-scrollbar-thumb { background: rgba(255,91,82,0.3); border-radius: 3px; }
+    .vdr-node-chip {
+      font-family: var(--font-mono); font-size: 0.54rem; text-align: center;
+      padding: 5px 2px; border-radius: 5px;
+      background: rgba(255,91,82,0.08); border: 1px solid rgba(255,91,82,0.2);
+      color: #ff9e96;
+    }
+    .vdr-node-panel__close {
+      position: absolute; top: 12px; right: 14px; background: none; border: none; color: var(--text-dim);
+      font-size: 1rem; cursor: pointer; line-height: 1;
+    }
+    .vdr-node-panel__close:hover { color: var(--text-secondary); }
+    .vdr-node-panel.installed { border-color: rgba(53,194,106,0.32); box-shadow: 0 16px 48px -12px rgba(0,0,0,0.7), 0 0 0 1px rgba(53,194,106,0.08); }
+    .vdr-node-panel.installed .vdr-node-panel__kicker { color: #7fe0a4; }
+    .vdr-node-panel.installed .vdr-node-stat .val { color: #7fe0a4; }
+    .vdr-node-panel.installed .vdr-node-panel__clause { background: rgba(53,194,106,0.08); border-left-color: rgba(53,194,106,0.5); }
+
+    .vdr-node-switch-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .vdr-switch-label { font-family: var(--font-mono); font-size: 0.54rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-dim); }
+    .vdr-switch-sub { font-size: 0.74rem; font-weight: 600; color: #ff9e96; margin-top: 2px; }
+    .vdr-node-panel.installed .vdr-switch-sub { color: #7fe0a4; }
+    .vdr-node-revenue {
+      font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-secondary);
+      background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 8px; padding: 8px 10px;
+    }
+
+    /* switch rojo -> verde */
+    .vdr-switch {
+      position: relative; width: 48px; height: 26px; flex-shrink: 0;
+      border-radius: var(--radius-pill); border: 1px solid rgba(255,91,82,0.5);
+      background: rgba(255,91,82,0.18); cursor: pointer; padding: 0;
+      transition: background 0.24s ease, border-color 0.24s ease, box-shadow 0.24s ease;
+      box-shadow: inset 0 0 12px rgba(255,91,82,0.25);
+    }
+    .vdr-switch__knob {
+      position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%;
+      background: linear-gradient(180deg, #ffb0aa, #ff5b52);
+      box-shadow: 0 0 10px rgba(255,91,82,0.8);
+      transition: transform 0.26s cubic-bezier(0.34, 1.4, 0.5, 1), background 0.24s ease, box-shadow 0.24s ease;
+    }
+    .vdr-switch[aria-checked="true"] {
+      background: rgba(53,194,106,0.2); border-color: rgba(53,194,106,0.6);
+      box-shadow: inset 0 0 12px rgba(53,194,106,0.3);
+    }
+    .vdr-switch[aria-checked="true"] .vdr-switch__knob {
+      transform: translateX(22px);
+      background: linear-gradient(180deg, #a8f5c8, #35c26a);
+      box-shadow: 0 0 12px rgba(53,194,106,0.9);
+    }
+
+    /* ---- overlay tabla economica ---- */
+    .vdr-table-overlay {
+      position: fixed; inset: 0; z-index: 35;
+      background: rgba(2,3,5,0.72);
+      backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+      display: flex; align-items: center; justify-content: center;
+      padding: 32px 24px;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.28s ease;
+    }
+    .vdr-table-overlay.visible { opacity: 1; pointer-events: auto; }
+    .vdr-table-shell {
+      position: relative;
+      width: min(1180px, 100%); max-height: 100%;
+      display: flex; flex-direction: column; gap: 16px;
+      background: rgba(12,15,20,0.86);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 20px;
+      padding: 24px 26px;
+      box-shadow: 0 32px 90px -20px rgba(0,0,0,0.85);
+      transform: translateY(10px);
+      transition: transform 0.28s ease;
+      overflow: hidden;
+    }
+    .vdr-table-overlay.visible .vdr-table-shell { transform: translateY(0); }
+    .vdr-table__close {
+      position: absolute; top: 16px; right: 18px; background: none; border: none;
+      color: var(--text-dim); font-size: 1.1rem; cursor: pointer; line-height: 1; z-index: 2;
+    }
+    .vdr-table__close:hover { color: var(--text-primary); }
+    .vdr-table__head { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; flex-wrap: wrap; padding-right: 30px; }
+    .vdr-table__kicker { font-family: var(--font-mono); font-size: 0.56rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim); }
+    .vdr-table__title { font-family: var(--font-display); font-weight: 700; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-primary); margin: 4px 0 0; }
+    .vdr-table__actions { display: flex; gap: 8px; }
+    /* ---- sello S-NFI en la cabecera de la tabla ---- */
+    .vdr-table__brand { display: flex; align-items: center; gap: 11px; }
+    .vdr-table__brand-logo {
+      height: 30px; width: auto; flex-shrink: 0;
+      object-fit: contain;
+      /* fuente 482x454: a 30px la reduccion la hace el navegador con
+         filtrado de alta calidad, sin perder nitidez en pantallas HiDPI */
+      image-rendering: auto;
+      opacity: 0.92;
+      filter: drop-shadow(0 1px 5px rgba(0,0,0,0.5));
+    }
+
+    /* hero: cifra demoledora */
+    .vdr-loss-hero {
+      position: relative; overflow: hidden;
+      border-radius: 16px; padding: 20px 24px;
+      background:
+        radial-gradient(120% 180% at 0% 0%, rgba(255,91,82,0.22) 0%, rgba(255,91,82,0.04) 55%, rgba(255,91,82,0) 100%),
+        rgba(255,91,82,0.05);
+      border: 1px solid rgba(255,91,82,0.3);
+    }
+    .vdr-loss-hero.mitigated {
+      background:
+        radial-gradient(120% 180% at 0% 0%, rgba(53,194,106,0.22) 0%, rgba(53,194,106,0.04) 55%, rgba(53,194,106,0) 100%),
+        rgba(53,194,106,0.05);
+      border-color: rgba(53,194,106,0.32);
+    }
+    .vdr-loss-hero__label {
+      font-family: var(--font-mono); font-size: 0.58rem; letter-spacing: 0.12em; text-transform: uppercase;
+      color: #ff9e96;
+    }
+    .vdr-loss-hero.mitigated .vdr-loss-hero__label { color: #7fe0a4; }
+    .vdr-loss-hero__figure {
+      font-family: var(--font-display); font-weight: 800; letter-spacing: -0.035em;
+      font-size: clamp(2.4rem, 6vw, 4rem); line-height: 1.02; margin: 6px 0 2px;
+      color: #ff6b62;
+      text-shadow: 0 0 40px rgba(255,91,82,0.45);
+      font-variant-numeric: tabular-nums;
+      transition: color 0.4s ease, text-shadow 0.4s ease;
+    }
+    .vdr-loss-hero.mitigated .vdr-loss-hero__figure { color: #4fd483; text-shadow: 0 0 40px rgba(53,194,106,0.45); }
+    .vdr-loss-hero__bar {
+      height: 4px; border-radius: 3px; background: rgba(255,255,255,0.08);
+      overflow: hidden; margin: 12px 0 10px;
+    }
+    .vdr-loss-hero__bar span {
+      display: block; height: 100%; width: 100%;
+      background: linear-gradient(90deg, #ff5b52, #ff9e96);
+      transition: width 0.5s cubic-bezier(0.22,1,0.36,1), background 0.4s ease;
+    }
+    .vdr-loss-hero.mitigated .vdr-loss-hero__bar span { background: linear-gradient(90deg, #35c26a, #a8f5c8); }
+    .vdr-loss-hero__breakdown {
+      font-size: 0.78rem; line-height: 1.6; color: var(--text-secondary);
+      display: flex; flex-wrap: wrap; gap: 6px 18px;
+    }
+    .vdr-loss-hero__breakdown b { color: var(--text-primary); font-family: var(--font-mono); }
+
+    .vdr-table__stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+    .vdr-stat-cell {
+      background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 12px; padding: 12px 14px;
+    }
+    .vdr-stat-cell .lbl { font-family: var(--font-mono); font-size: 0.52rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-dim); }
+    .vdr-stat-cell .val { font-family: var(--font-display); font-weight: 800; font-size: 1.25rem; color: var(--text-primary); margin-top: 4px; font-variant-numeric: tabular-nums; }
+    .vdr-stat-cell .val.red { color: #ff8a80; }
+    .vdr-stat-cell .val.green { color: #7fe0a4; }
+
+    .vdr-table__scroll { overflow: auto; flex: 1; min-height: 120px; border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; }
+    .vdr-table__scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+    .vdr-table__scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 4px; }
+    table.vdr-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+    table.vdr-table thead th {
+      position: sticky; top: 0; z-index: 1;
+      background: rgba(18,22,29,0.98);
+      font-family: var(--font-mono); font-size: 0.52rem; letter-spacing: 0.06em; text-transform: uppercase;
+      color: var(--text-dim); font-weight: 500; text-align: left;
+      padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    table.vdr-table thead th span { color: var(--text-dim); opacity: 0.7; font-size: 0.48rem; }
+    table.vdr-table th.num, table.vdr-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    table.vdr-table th.switch-col, table.vdr-table td.switch-col { text-align: center; width: 68px; }
+    table.vdr-table tbody td {
+      padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.045);
+      color: var(--text-secondary); font-family: var(--font-mono); font-size: 0.72rem;
+    }
+    table.vdr-table tbody tr:hover td { background: rgba(255,255,255,0.03); }
+    table.vdr-table tbody tr.is-installed td { color: #a9e8c3; }
+    table.vdr-table tbody tr.is-installed td.state { color: #7fe0a4; }
+    td.state { font-size: 0.62rem; letter-spacing: 0.03em; text-transform: uppercase; color: #ff9e96; }
+    .vdr-table__scroll .vdr-switch { width: 38px; height: 21px; }
+    .vdr-table__scroll .vdr-switch__knob { width: 15px; height: 15px; }
+    .vdr-table__scroll .vdr-switch[aria-checked="true"] .vdr-switch__knob { transform: translateX(17px); }
+    table.vdr-table tfoot td {
+      position: sticky; bottom: 0;
+      background: rgba(18,22,29,0.98);
+      padding: 11px 12px; border-top: 1px solid rgba(255,255,255,0.14);
+      font-family: var(--font-mono); font-size: 0.76rem; font-weight: 700; color: var(--text-primary);
+    }
+    .vdr-table__clause {
+      font-size: 0.72rem; line-height: 1.55; color: var(--text-secondary);
+      background: rgba(255,91,82,0.07); border-left: 2px solid rgba(255,91,82,0.5);
+      padding: 10px 12px; border-radius: 6px;
+    }
+
+    .vdr-error {
+      position: absolute; top: 76px; left: 50%; transform: translateX(-50%);
+      z-index: 30; background: rgba(255,91,82,0.14); border: 1px solid rgba(255,91,82,0.4);
+      color: #ffb3ad; padding: 10px 18px; border-radius: 10px; font-size: 0.8rem;
+      backdrop-filter: blur(12px); display: none;
+    }
+
+    .vdr-loading {
+      position: fixed; inset: 0; z-index: 40; background: #020305;
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 14px;
+      transition: opacity 0.5s ease;
+    }
+    .vdr-loading.hidden { opacity: 0; pointer-events: none; }
+    .vdr-loading-ring {
+      width: 44px; height: 44px; border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.08); border-top-color: var(--accent-blue);
+      animation: vdr-spin 0.9s linear infinite;
+    }
+    @keyframes vdr-spin { to { transform: rotate(360deg); } }
+    .vdr-loading-label { font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.08em; color: var(--text-dim); text-transform: uppercase; }
+
+    /* user menu translucido, mismo patron .user-menu pero flotante */
+    .vdr-usermenu .user-menu__dropdown {
+      background: rgba(14,17,23,0.85); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px);
+    }
+  </style>
+</head>
+<body>
+  <div class="vdr-stage" id="vdrStage"></div>
+
+  <div class="vdr-loading" id="vdrLoading">
+    <div class="vdr-loading-ring"></div>
+    <div class="vdr-loading-label" data-i18n="loading">Cargando interfaz geoespacial…</div>
+  </div>
+
+  <div class="vdr-hud">
+    <div class="vdr-topbar">
+      <div>
+        <div class="vdr-brand">
+          <img src="/assets/logo-snfi.png" alt="S-NFI">
+          <span class="brand-mark">S-NFI Systems (c)</span>
+        </div>
+        <div class="vdr-crumbs" style="margin-top:6px;">
+          <a href="/pages/dashboard.html">Systems</a><span class="sep">/</span>
+          <a href="/pages/pactum-viridi.html">Pactvm Viridi</a><span class="sep">/</span>
+          <a href="/pages/pactvm-vdr.html">VDR</a><span class="sep">/</span>
+          <span class="active" id="crumbCompany">Empresa</span>
+        </div>
+      </div>
+      <div class="vdr-usermenu user-menu" id="userMenu">
+        <button class="glass-pill mono" id="userTag" aria-haspopup="true" aria-expanded="false">…</button>
+        <div class="user-menu__dropdown" id="userDropdown" hidden>
+          <div class="user-menu__section">
+            <span class="user-menu__label">Cambiar contraseña</span>
+            <input class="user-menu__input" type="password" id="pwdCurrent" placeholder="Contraseña actual" autocomplete="current-password">
+            <input class="user-menu__input" type="password" id="pwdNew" placeholder="Nueva contraseña" autocomplete="new-password">
+            <input class="user-menu__input" type="password" id="pwdConfirm" placeholder="Confirmar nueva" autocomplete="new-password">
+            <p class="user-menu__error" id="pwdError" hidden></p>
+            <button class="btn sage" id="pwdSubmit" style="width:100%;margin-top:4px;">Actualizar</button>
+          </div>
+          <div class="user-menu__divider"></div>
+          <button class="user-menu__item user-menu__item--danger" id="logoutBtn" data-i18n="logout">Cerrar sesión</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="vdr-title-block">
+      <h1 class="vdr-title" id="companyTitle">—</h1>
+      <div class="vdr-subtitle" data-i18n="subtitle">Interfaz geoespacial · VDR</div>
+
+      <!-- conmutador de plano: lo que ves tu vs lo que ve el cliente -->
+      <div class="vdr-plane" id="planeSwitch" role="radiogroup" aria-label="Plano de vista">
+        <span class="vdr-plane__thumb" id="planeThumb"></span>
+        <button class="vdr-plane__opt is-active" data-plane="interno" role="radio" aria-checked="true">PLANO INTERNO</button>
+        <button class="vdr-plane__opt" id="planeClientOpt" data-plane="cliente" role="radio" aria-checked="false">Cliente (Res.) VDR</button>
+      </div>
+    </div>
+
+    <div class="vdr-controls-dock">
+      <button class="glass-pill danger" id="tableBtn" data-i18n="btn.table">TABLA · 200 NODOS</button>
+      <button class="glass-pill" id="shareBtn">COMPARTIR · NDA</button>
+      <button class="glass-pill primary" id="exportPdfBtn" data-i18n="btn.pdf">EXPORTAR PDF</button>
+      <button class="glass-pill" id="focusSpainBtn" data-i18n="btn.spain">IR A ESPAÑA</button>
+      <button class="glass-pill" id="focusStarBtn" data-i18n="btn.hq">IR A SEDE</button>
+      <button class="glass-pill" id="resetViewBtn" data-i18n="btn.reset">REENCUADRAR</button>
+    </div>
+
+    <div class="vdr-legend">
+      <div class="vdr-legend-item"><span class="vdr-legend-dot" style="background:#ffd873; box-shadow:0 0 8px #ffd873;"></span> <span data-i18n="legend.star">Estrella · sede empresa</span></div>
+      <div class="vdr-legend-item"><span class="vdr-legend-dot" style="background:#ff5b52; box-shadow:0 0 8px #ff5b52;"></span> <span data-i18n="legend.red">Nodo rojo · sin desplegar</span></div>
+      <div class="vdr-legend-item"><span class="vdr-legend-dot" style="background:#35c26a; box-shadow:0 0 8px #35c26a;"></span> <span data-i18n="legend.green">Nodo verde · instalado (simulado)</span></div>
+      <div class="vdr-legend-item" style="color:var(--text-dim); font-size:0.55rem;"><span style="width:9px;"></span> <span id="legendCounter">0 / 0</span></div>
+    </div>
+
+    <div class="vdr-hint" data-i18n="hint">arrastra: rotar 360° · shift o botón derecho: desplazar · rueda o pellizco: zoom · doble clic: reencuadrar · clic en nodo: conmutar</div>
+
+    <!-- selector de idioma deslizante -->
+    <div class="vdr-lang" id="langSwitch" role="radiogroup" aria-label="Idioma">
+      <span class="vdr-lang__thumb" id="langThumb"></span>
+      <button class="vdr-lang__opt is-active" data-lang="es" role="radio" aria-checked="true">ES</button>
+      <button class="vdr-lang__opt" data-lang="en" role="radio" aria-checked="false">EN</button>
+      <button class="vdr-lang__opt" data-lang="it" role="radio" aria-checked="false">IT</button>
+      <button class="vdr-lang__opt" data-lang="fr" role="radio" aria-checked="false">FR</button>
+    </div>
+
+    <div class="vdr-error" id="errorBox"></div>
+
+    <div class="vdr-card" id="starCard">
+      <button class="vdr-card__close" id="starCardClose">✕</button>
+      <div class="vdr-card__kicker gold" id="starCardKicker">Ubicación · sede</div>
+      <!-- Cabecera de sede: logo corporativo (si existe el asset) + rotulo
+           de base matriz. El logo se oculta solo si el archivo no esta. -->
+      <div class="vdr-card__hq">
+        <img class="vdr-card__hq-logo" id="starCardLogo" alt="" hidden>
+        <div>
+          <div class="vdr-card__title" id="starCardTitle">—</div>
+          <div class="vdr-card__hq-tag" id="starCardHqTag" data-i18n="star.hq">Base matriz</div>
+        </div>
+      </div>
+      <div id="starCardRows"></div>
+    </div>
+
+    <div class="vdr-node-panel" id="nodePanel">
+      <button class="vdr-node-panel__close" id="nodePanelClose">✕</button>
+      <div class="vdr-node-panel__head">
+        <div>
+          <div class="vdr-node-panel__kicker" id="nodePanelKicker">Nodo · pendiente de desplegar</div>
+          <div class="vdr-node-panel__title" id="nodePanelTitle">#001</div>
+        </div>
+      </div>
+      <div class="vdr-node-panel__stat-row">
+        <div class="vdr-node-stat">
+          <div class="lbl" data-i18n="stat.absorbs">Absorbe GWh/año</div>
+          <div class="val" id="nodeStatGwh">—</div>
+        </div>
+        <div class="vdr-node-stat">
+          <div class="lbl" data-i18n="stat.pellet">Biopellet T/año</div>
+          <div class="val" id="nodeStatPellet">—</div>
+        </div>
+        <div class="vdr-node-stat">
+          <div class="lbl" data-i18n="stat.co2">CO₂+CH₄ T/año</div>
+          <div class="val" id="nodeStatCo2">—</div>
+        </div>
+      </div>
+      <div class="vdr-node-switch-row">
+        <div>
+          <div class="vdr-switch-label" id="nodeSwitchLabel" data-i18n="switch.label">Estado simulado</div>
+          <div class="vdr-switch-sub" id="nodeSwitchSub">rojo · sin desplegar</div>
+        </div>
+        <button class="vdr-switch" id="nodeSwitch" role="switch" aria-checked="false"><span class="vdr-switch__knob"></span></button>
+      </div>
+      <!-- Geocastral e identidad: visibles en PLANO INTERNO, bajo candado en
+           VISTA ENEL. Las metricas operativas de arriba siguen visibles en
+           ambos planos. -->
+      <div class="vdr-node-ident" id="nodeIdent">
+        <div class="vdr-node-ident__row">
+          <span class="k" data-i18n="ident.gis">Ubicación GIS</span>
+          <span class="v" id="nodeGis">—</span>
+        </div>
+        <div class="vdr-node-ident__row">
+          <span class="k" data-i18n="ident.cadastral">Ref. catastral</span>
+          <span class="v" id="nodeCadastral">—</span>
+        </div>
+        <div class="vdr-node-ident__row">
+          <span class="k" data-i18n="ident.client">Cliente / proveedor</span>
+          <span class="v" id="nodeClient">—</span>
+        </div>
+      </div>
+      <div class="vdr-node-revenue" id="nodeRevenue"></div>
+      <div class="vdr-node-panel__clause" id="nodeClause"></div>
+    </div>
+
+    <!-- ---- overlay: generar enlace temporal bajo NDA ---- -->
+    <div class="vdr-table-overlay" id="shareOverlay">
+      <div class="vdr-share-shell">
+        <button class="vdr-table__close" id="shareClose">✕</button>
+        <div class="vdr-table__kicker" data-i18n="share.kicker">Presentación a cliente · enlace temporal</div>
+        <h2 class="vdr-table__title" style="margin-bottom:14px;">Compartir bajo NDA</h2>
+
+        <div class="vdr-share-form" id="shareForm">
+          <label class="vdr-share-label">Correos autorizados <span>uno por línea</span></label>
+          <textarea class="vdr-share-input" id="shareEmails" rows="3" placeholder="nombre@cliente.com"></textarea>
+
+          <label class="vdr-share-label">Validez</label>
+          <div class="vdr-share-minutes" id="shareMinutes">
+            <button class="glass-pill is-active" data-min="15">15 MIN</button>
+            <button class="glass-pill" data-min="30">30 MIN</button>
+            <button class="glass-pill" data-min="60">60 MIN</button>
+          </div>
+
+          <div class="vdr-share-err" id="shareErr"></div>
+          <button class="glass-pill primary" id="shareCreateBtn" style="align-self:flex-start;" data-i18n="share.create">GENERAR ENLACE</button>
+        </div>
+
+        <div class="vdr-share-result" id="shareResult" hidden>
+          <div class="vdr-share-row">
+            <span class="k" data-i18n="share.link">Enlace</span>
+            <div class="vdr-share-copy"><code id="shareUrl"></code><button class="glass-pill" data-copy="shareUrl" data-i18n="share.copy">COPIAR</button></div>
+          </div>
+          <div class="vdr-share-row">
+            <span class="k">Código de acceso</span>
+            <div class="vdr-share-copy"><code class="big" id="shareCode"></code><button class="glass-pill" data-copy="shareCode">COPIAR</button></div>
+          </div>
+          <div class="vdr-share-row"><span class="k" data-i18n="share.expires">Caduca</span><span class="v" id="shareExpires"></span></div>
+          <div class="vdr-share-note">
+            <span data-i18n="share.codeOnce">El código solo se muestra ahora: no queda guardado en claro y no se puede volver a consultar.</span>
+            Dicta el código en la reunión; el enlace por sí solo no da acceso.
+          </div>
+          <button class="glass-pill" id="shareAnotherBtn">GENERAR OTRO</button>
+        </div>
+
+        <div class="vdr-share-list">
+          <div class="vdr-region-head">Enlaces emitidos</div>
+          <div class="vdr-table__scroll" style="max-height:180px;">
+            <table class="vdr-table">
+              <thead><tr><th data-i18n="share.emails">Correos</th><th data-i18n="share.expires">Caduca</th><th data-i18n="th.state">Estado</th><th class="num" data-i18n="share.accesses">Accesos</th><th></th></tr></thead>
+              <tbody id="shareListBody"><tr><td colspan="5" style="text-align:center;color:var(--text-dim);">—</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ---- overlay: tabla economica de los 200 nodos ---- -->
+    <div class="vdr-table-overlay" id="tableOverlay">
+      <div class="vdr-table-shell">
+        <button class="vdr-table__close" id="tableClose">✕</button>
+
+        <div class="vdr-table__head">
+          <div class="vdr-table__brand">
+            <img class="vdr-table__brand-logo" src="/assets/logo-snfi.png" alt="S-NFI Systems">
+            <div>
+              <div class="vdr-table__kicker" data-i18n="table.kicker">Cuantificación de despliegue · España</div>
+              <h2 class="vdr-table__title" id="tableTitle">200</h2>
+            </div>
+          </div>
+          <div class="vdr-table__actions">
+            <button class="glass-pill" id="installAllBtn" data-i18n="btn.installAll">SIMULAR TODOS INSTALADOS</button>
+            <button class="glass-pill" id="resetAllBtn" data-i18n="btn.resetAll">RESET</button>
+          </div>
+        </div>
+
+        <!-- hero: el numero demoledor -->
+        <div class="vdr-loss-hero" id="lossHero">
+          <div class="vdr-loss-hero__label" data-i18n="loss.label">Coste anual de no adoptar BioHybrid</div>
+          <div class="vdr-loss-hero__figure" id="lossFigure">—</div>
+          <div class="vdr-loss-hero__bar"><span id="lossBarFill"></span></div>
+          <div class="vdr-loss-hero__breakdown" id="lossBreakdown"></div>
+        </div>
+
+        <div class="vdr-table__stats" id="tableStats"></div>
+
+        <div class="vdr-region-block">
+          <div class="vdr-region-head" data-i18n="table.byRegion">Reparto por comunidad autónoma</div>
+          <!-- En VISTA ENEL este bloque se sustituye por el candado, para
+               reproducir exactamente lo que ve el invitado. -->
+          <div class="vdr-locked" id="regionLocked" hidden>
+            <div class="vdr-locked__icon">🔒</div>
+            <div class="vdr-locked__title">SPV LEVEL 2 CLEARANCE REQUIRED</div>
+            <div class="vdr-locked__sub" data-i18n="locked.sub">Reparto territorial restringido · no incluido en esta presentación</div>
+          </div>
+          <div class="vdr-table__scroll vdr-region-scroll" id="regionScroll">
+            <table class="vdr-table">
+              <thead>
+                <tr>
+                  <th data-i18n="th.region">Comunidad</th>
+                  <th class="num" data-i18n="th.nodes">Nodos</th>
+                  <th class="num" data-i18n-html="th.absorbs">Absorbe<br><span>GWh/año</span></th>
+                  <th class="num" data-i18n-html="th.pellet">Biopellet<br><span>T/año</span></th>
+                  <th class="num" data-i18n-html="th.value">Valor biopellet<br><span>€/año · 350 €/T</span></th>
+                  <th class="num" data-i18n-html="th.co2">CO₂+CH₄ evitado<br><span>T/año</span></th>
+                </tr>
+              </thead>
+              <tbody id="regionTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="vdr-table__scroll">
+          <table class="vdr-table" id="nodeTable">
+            <thead>
+              <tr>
+                <th data-i18n="th.node">Nodo</th>
+                <th data-i18n="th.region">Comunidad</th>
+                <th data-i18n="th.state">Estado</th>
+                <th class="num" data-i18n-html="th.absorbs">Absorbe<br><span>GWh/año</span></th>
+                <th class="num" data-i18n-html="th.pellet">Biopellet<br><span>T/año</span></th>
+                <th class="num" data-i18n-html="th.value">Valor biopellet<br><span>€/año · 350 €/T</span></th>
+                <th class="num" data-i18n-html="th.co2">CO₂+CH₄ evitado<br><span>T/año</span></th>
+                <th class="switch-col" data-i18n="th.sim">Simular</th>
+              </tr>
+            </thead>
+            <tbody id="nodeTableBody"></tbody>
+            <tfoot id="nodeTableFoot"></tfoot>
+          </table>
+        </div>
+
+        <div class="vdr-table__clause" id="tableClause"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/vendor/jspdf.umd.min.js"></script>
+  <script src="/vendor/topojson-client.min.js"></script>
+  <script type="module">
+    import { api, getUser, requireAuth, clearSession, toast, escapeHtml } from '/js/api.js';
+    import { initGlobe } from '/js/vdr-globe.js';
+
+    requireAuth();
+    document.getElementById('userTag').textContent = getUser() || '';
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      try { await api.logout(); } catch {}
+      clearSession();
+      location.href = '/pages/login.html';
+    });
+
+    const userMenuTrigger = document.getElementById('userTag');
+    const userMenuDropdown = document.getElementById('userDropdown');
+    userMenuTrigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = !userMenuDropdown.hidden;
+      userMenuDropdown.hidden = open;
+      userMenuTrigger.setAttribute('aria-expanded', String(!open));
+    });
+    document.addEventListener('click', (e) => {
+      if (!document.getElementById('userMenu').contains(e.target)) {
+        userMenuDropdown.hidden = true;
+        userMenuTrigger.setAttribute('aria-expanded', 'false');
+      }
+    });
+    document.getElementById('pwdSubmit').addEventListener('click', async () => {
+      const cur = document.getElementById('pwdCurrent').value;
+      const neu = document.getElementById('pwdNew').value;
+      const con = document.getElementById('pwdConfirm').value;
+      const errEl = document.getElementById('pwdError');
+      errEl.hidden = true;
+      if (!cur || !neu || !con) { errEl.textContent = 'Rellena todos los campos'; errEl.hidden = false; return; }
+      if (neu !== con) { errEl.textContent = 'Las contraseñas no coinciden'; errEl.hidden = false; return; }
+      try {
+        await api.changePassword(cur, neu);
+        toast('Contraseña actualizada');
+        userMenuDropdown.hidden = true;
+        userMenuTrigger.setAttribute('aria-expanded', 'false');
+        ['pwdCurrent','pwdNew','pwdConfirm'].forEach(id => document.getElementById(id).value = '');
+      } catch (ex) {
+        errEl.textContent = ex.message || 'Error al cambiar contraseña';
+        errEl.hidden = false;
+      }
+    });
+
+    function showError(msg) {
+      const box = document.getElementById('errorBox');
+      box.textContent = msg;
+      box.style.display = msg ? 'block' : 'none';
+    }
+
+    /* ---- i18n: castellano / ingles / italiano ----
+     * Alcance: esta pantalla. Las cadenas estaticas llevan data-i18n (texto)
+     * o data-i18n-html (permite <br>/<span>); las dinamicas pasan por t().
+     * El idioma elegido se recuerda en localStorage. */
+    const I18N = {
+      es: {
+        subtitle: 'Interfaz geoespacial · VDR',
+        'btn.table': 'TABLA · 200 NODOS',
+        'btn.pdf': 'EXPORTAR PDF',
+        'btn.spain': 'IR A ESPAÑA',
+        'btn.hq': 'IR A SEDE',
+        'btn.reset': 'REENCUADRAR',
+        'btn.installAll': 'SIMULAR TODOS INSTALADOS',
+        'btn.resetAll': 'RESET',
+        'legend.star': 'Estrella · sede empresa',
+        'legend.red': 'Nodo rojo · sin desplegar',
+        'legend.green': 'Nodo verde · instalado (simulado)',
+        hint: 'arrastra: rotar 360° · shift o botón derecho: desplazar · rueda o pellizco: zoom · doble clic: reencuadrar · clic en nodo: conmutar',
+        'loss.label': 'Coste anual de no adoptar BioHybrid',
+        'table.kicker': 'Cuantificación de despliegue · España',
+        'table.byRegion': 'Reparto por comunidad autónoma',
+        'table.total': 'TOTAL · nodos',
+        'th.node': 'Nodo', 'th.region': 'Comunidad', 'th.state': 'Estado', 'th.nodes': 'Nodos',
+        'th.absorbs': 'Absorbe<br><span>GWh/año</span>',
+        'th.pellet': 'Biopellet<br><span>T/año</span>',
+        'th.value': 'Valor biopellet<br><span>€/año · 350 €/T</span>',
+        'th.co2': 'CO₂+CH₄ evitado<br><span>T/año</span>',
+        'th.sim': 'Simular',
+        'stat.absorbs': 'Absorbe GWh/año', 'stat.pellet': 'Biopellet T/año', 'stat.co2': 'CO₂+CH₄ T/año',
+        'switch.label': 'Estado simulado',
+        'state.pending': 'Sin desplegar', 'state.installed': 'Instalado (sim.)',
+        'node.pending': 'Nodo · pendiente de desplegar', 'node.installed': 'Nodo · instalado (simulado)',
+        'sub.red': 'rojo · sin desplegar', 'sub.green': 'verde · operativo simulado',
+        'star.kicker': 'Ubicación · sede en', 'star.country': 'País', 'star.city': 'Ciudad',
+        'star.hq': 'Base matriz',
+        'star.coords': 'Coordenadas', 'star.precision': 'Precisión', 'star.weight': 'Peso ubicación',
+        'precision.city': 'ciudad exacta', 'precision.country': 'centro del país',
+        'stats.deployed': 'Nodos desplegados', 'stats.absorbed': 'Curtailment absorbido',
+        'stats.pellet': 'Biopellet generado', 'stats.value': 'Valor biopellet',
+        'stats.co2': 'CO₂+CH₄ evitado', 'stats.losing': 'Sigue perdiéndose',
+        'loss.pendingNodes': 'nodos sin desplegar', 'loss.simulated': 'simulados instalados',
+        'loss.recovered': 'ya recuperado', 'loss.neutralised': 'nodos desplegados · pérdida anual neutralizada',
+        'loss.recoveredYear': 'recuperados al año',
+        'pdf.generating': 'GENERANDO…',
+        loading: 'Cargando interfaz geoespacial…',
+        'unit.gwhYear': 'GWh/año', 'unit.tYear': 'T/año', 'unit.year': 'año',
+        'pdf.legend': 'Estrella = sede de la empresa · cilindro = curtailment España pendiente de desplegar',
+        'pdf.lossTitle': 'COSTE ANUAL DE NO ADOPTAR BIOHYBRID',
+        'pdf.pendingOf': '{a} de {b} nodos sin desplegar',
+        'pdf.row.location': 'Ubicación geográfica',
+        'pdf.row.pending': 'Nodos curtailment ES pendientes',
+        'pdf.row.absorbNode': 'Absorción por nodo (GWh/año)',
+        'pdf.row.absorbFleet': 'Absorción total flota (GWh/año)',
+        'pdf.row.target': 'Objetivo curtailment (GW)',
+        'pdf.row.pelletPrice': 'Precio biopellet (€/T)',
+        'pdf.row.pelletNode': 'Biopellet por nodo (T/año)',
+        'pdf.row.pelletFleet': 'Biopellet total flota (T/año)',
+        'pdf.row.valueNode': 'Valor biopellet por nodo (€/año)',
+        'pdf.row.valueFleet': 'Valor biopellet total flota (€/año)',
+        'pdf.row.co2Node': 'CO₂+CH₄ evitado por nodo (T/año)',
+        'pdf.row.co2Fleet': 'CO₂+CH₄ evitado total flota (T/año)',
+        'pdf.generatedAt': 'Generado',
+        'clause.ppa': 'Desbloqueo de nodos condicionado exclusivamente a PPA energético de grid curtailment bajo gobernanza Pactvm Viridi — ningún nodo se activa sin contrato de compra de excedente renovable curtailed.',
+        'share.kicker': 'Presentación a cliente · enlace temporal',
+        'share.create': 'GENERAR ENLACE',
+        'share.codeOnce': 'El código solo se muestra ahora: no queda guardado en claro y no se puede volver a consultar.',
+        'share.needEmail': 'Indica al menos un correo autorizado.',
+        'share.failed': 'No se pudo generar el enlace',
+        'share.empty': 'Sin enlaces emitidos',
+        'crumb.restricted': '(Restringido)',
+        'share.link': 'Enlace', 'share.expires': 'Caduca',
+        'share.emails': 'Correos', 'share.accesses': 'Accesos', 'share.copy': 'COPIAR',
+        'locked.sub': 'Reparto territorial restringido · no incluido en esta presentación',
+        logout: 'Cerrar sesión',
+        'ident.gis': 'Ubicación GIS', 'ident.cadastral': 'Ref. catastral',
+        'ident.client': 'Cliente / proveedor',
+        'ident.cadastralPending': 'pendiente de registro',
+        'locked.badge': '🔒 SPV LEVEL 2 CLEARANCE REQUIRED',
+        'locked.anon': '🔒 CLIENT_ANONYMIZED',
+      },
+      en: {
+        subtitle: 'Geospatial interface · VDR',
+        'btn.table': 'TABLE · 200 NODES',
+        'btn.pdf': 'EXPORT PDF',
+        'btn.spain': 'GO TO SPAIN',
+        'btn.hq': 'GO TO HQ',
+        'btn.reset': 'RESET VIEW',
+        'btn.installAll': 'SIMULATE ALL INSTALLED',
+        'btn.resetAll': 'RESET',
+        'legend.star': 'Star · company HQ',
+        'legend.red': 'Red node · not deployed',
+        'legend.green': 'Green node · installed (simulated)',
+        hint: 'drag: rotate 360° · shift or right button: pan · wheel or pinch: zoom · double click: reset view · click a node: toggle',
+        'loss.label': 'Annual cost of not adopting BioHybrid',
+        'table.kicker': 'Deployment quantification · Spain',
+        'table.byRegion': 'Breakdown by autonomous community',
+        'table.total': 'TOTAL · nodes',
+        'th.node': 'Node', 'th.region': 'Community', 'th.state': 'Status', 'th.nodes': 'Nodes',
+        'th.absorbs': 'Absorbs<br><span>GWh/year</span>',
+        'th.pellet': 'Biopellet<br><span>t/year</span>',
+        'th.value': 'Biopellet value<br><span>€/year · €350/t</span>',
+        'th.co2': 'CO₂+CH₄ avoided<br><span>t/year</span>',
+        'th.sim': 'Simulate',
+        'stat.absorbs': 'Absorbs GWh/year', 'stat.pellet': 'Biopellet t/year', 'stat.co2': 'CO₂+CH₄ t/year',
+        'switch.label': 'Simulated status',
+        'state.pending': 'Not deployed', 'state.installed': 'Installed (sim.)',
+        'node.pending': 'Node · pending deployment', 'node.installed': 'Node · installed (simulated)',
+        'sub.red': 'red · not deployed', 'sub.green': 'green · simulated operational',
+        'star.kicker': 'Location · HQ in', 'star.country': 'Country', 'star.city': 'City',
+        'star.hq': 'Parent base',
+        'star.coords': 'Coordinates', 'star.precision': 'Precision', 'star.weight': 'Location weight',
+        'precision.city': 'exact city', 'precision.country': 'country centroid',
+        'stats.deployed': 'Nodes deployed', 'stats.absorbed': 'Curtailment absorbed',
+        'stats.pellet': 'Biopellet produced', 'stats.value': 'Biopellet value',
+        'stats.co2': 'CO₂+CH₄ avoided', 'stats.losing': 'Still being lost',
+        'loss.pendingNodes': 'nodes not deployed', 'loss.simulated': 'simulated as installed',
+        'loss.recovered': 'already recovered', 'loss.neutralised': 'nodes deployed · annual loss neutralised',
+        'loss.recoveredYear': 'recovered per year',
+        'pdf.generating': 'GENERATING…',
+        loading: 'Loading geospatial interface…',
+        'unit.gwhYear': 'GWh/year', 'unit.tYear': 't/year', 'unit.year': 'year',
+        'pdf.legend': 'Star = company HQ · cylinder = Spanish curtailment pending deployment',
+        'pdf.lossTitle': 'ANNUAL COST OF NOT ADOPTING BIOHYBRID',
+        'pdf.pendingOf': '{a} of {b} nodes not deployed',
+        'pdf.row.location': 'Geographic location',
+        'pdf.row.pending': 'Pending ES curtailment nodes',
+        'pdf.row.absorbNode': 'Absorption per node (GWh/year)',
+        'pdf.row.absorbFleet': 'Total fleet absorption (GWh/year)',
+        'pdf.row.target': 'Curtailment target (GW)',
+        'pdf.row.pelletPrice': 'Biopellet price (€/t)',
+        'pdf.row.pelletNode': 'Biopellet per node (t/year)',
+        'pdf.row.pelletFleet': 'Total fleet biopellet (t/year)',
+        'pdf.row.valueNode': 'Biopellet value per node (€/year)',
+        'pdf.row.valueFleet': 'Total fleet biopellet value (€/year)',
+        'pdf.row.co2Node': 'CO₂+CH₄ avoided per node (t/year)',
+        'pdf.row.co2Fleet': 'Total fleet CO₂+CH₄ avoided (t/year)',
+        'pdf.generatedAt': 'Generated',
+        'clause.ppa': 'Node unlocking is conditional solely upon an energy PPA for grid curtailment under Pactvm Viridi governance — no node is activated without a purchase contract for curtailed renewable surplus.',
+        'share.kicker': 'Client presentation · temporary link',
+        'share.create': 'GENERATE LINK',
+        'share.codeOnce': 'The code is shown only now: it is not stored in clear text and cannot be retrieved again.',
+        'share.needEmail': 'Enter at least one authorised email.',
+        'share.failed': 'Could not generate the link',
+        'share.empty': 'No links issued',
+        'crumb.restricted': '(Restricted)',
+        'share.link': 'Link', 'share.expires': 'Expires',
+        'share.emails': 'Emails', 'share.accesses': 'Accesses', 'share.copy': 'COPY',
+        'locked.sub': 'Territorial breakdown restricted · not included in this presentation',
+        logout: 'Sign out',
+        'ident.gis': 'GIS location', 'ident.cadastral': 'Cadastral ref.',
+        'ident.client': 'Client / supplier',
+        'ident.cadastralPending': 'pending registration',
+        'locked.badge': '🔒 SPV LEVEL 2 CLEARANCE REQUIRED',
+        'locked.anon': '🔒 CLIENT_ANONYMIZED',
+      },
+      it: {
+        subtitle: 'Interfaccia geospaziale · VDR',
+        'btn.table': 'TABELLA · 200 NODI',
+        'btn.pdf': 'ESPORTA PDF',
+        'btn.spain': 'VAI IN SPAGNA',
+        'btn.hq': 'VAI ALLA SEDE',
+        'btn.reset': 'REIMPOSTA VISTA',
+        'btn.installAll': 'SIMULA TUTTI INSTALLATI',
+        'btn.resetAll': 'RESET',
+        'legend.star': 'Stella · sede aziendale',
+        'legend.red': 'Nodo rosso · non installato',
+        'legend.green': 'Nodo verde · installato (simulato)',
+        hint: 'trascina: ruota 360° · shift o tasto destro: sposta · rotella o pizzico: zoom · doppio clic: reimposta · clic su un nodo: commuta',
+        'loss.label': 'Costo annuo del non adottare BioHybrid',
+        'table.kicker': 'Quantificazione del dispiegamento · Spagna',
+        'table.byRegion': 'Ripartizione per comunità autonoma',
+        'table.total': 'TOTALE · nodi',
+        'th.node': 'Nodo', 'th.region': 'Comunità', 'th.state': 'Stato', 'th.nodes': 'Nodi',
+        'th.absorbs': 'Assorbe<br><span>GWh/anno</span>',
+        'th.pellet': 'Biopellet<br><span>t/anno</span>',
+        'th.value': 'Valore biopellet<br><span>€/anno · 350 €/t</span>',
+        'th.co2': 'CO₂+CH₄ evitate<br><span>t/anno</span>',
+        'th.sim': 'Simula',
+        'stat.absorbs': 'Assorbe GWh/anno', 'stat.pellet': 'Biopellet t/anno', 'stat.co2': 'CO₂+CH₄ t/anno',
+        'switch.label': 'Stato simulato',
+        'state.pending': 'Non installato', 'state.installed': 'Installato (sim.)',
+        'node.pending': 'Nodo · in attesa di installazione', 'node.installed': 'Nodo · installato (simulato)',
+        'sub.red': 'rosso · non installato', 'sub.green': 'verde · operativo simulato',
+        'star.kicker': 'Ubicazione · sede in', 'star.country': 'Paese', 'star.city': 'Città',
+        'star.hq': 'Base madre',
+        'star.coords': 'Coordinate', 'star.precision': 'Precisione', 'star.weight': 'Peso ubicazione',
+        'precision.city': 'città esatta', 'precision.country': 'centro del paese',
+        'stats.deployed': 'Nodi installati', 'stats.absorbed': 'Curtailment assorbito',
+        'stats.pellet': 'Biopellet prodotto', 'stats.value': 'Valore biopellet',
+        'stats.co2': 'CO₂+CH₄ evitate', 'stats.losing': 'Ancora perduto',
+        'loss.pendingNodes': 'nodi non installati', 'loss.simulated': 'simulati come installati',
+        'loss.recovered': 'già recuperato', 'loss.neutralised': 'nodi installati · perdita annua neutralizzata',
+        'loss.recoveredYear': 'recuperati all’anno',
+        'pdf.generating': 'GENERAZIONE…',
+        loading: 'Caricamento interfaccia geospaziale…',
+        'unit.gwhYear': 'GWh/anno', 'unit.tYear': 't/anno', 'unit.year': 'anno',
+        'pdf.legend': 'Stella = sede aziendale · cilindro = curtailment Spagna in attesa di installazione',
+        'pdf.lossTitle': 'COSTO ANNUO DEL NON ADOTTARE BIOHYBRID',
+        'pdf.pendingOf': '{a} di {b} nodi non installati',
+        'pdf.row.location': 'Ubicazione geografica',
+        'pdf.row.pending': 'Nodi curtailment ES in attesa',
+        'pdf.row.absorbNode': 'Assorbimento per nodo (GWh/anno)',
+        'pdf.row.absorbFleet': 'Assorbimento totale flotta (GWh/anno)',
+        'pdf.row.target': 'Obiettivo curtailment (GW)',
+        'pdf.row.pelletPrice': 'Prezzo biopellet (€/t)',
+        'pdf.row.pelletNode': 'Biopellet per nodo (t/anno)',
+        'pdf.row.pelletFleet': 'Biopellet totale flotta (t/anno)',
+        'pdf.row.valueNode': 'Valore biopellet per nodo (€/anno)',
+        'pdf.row.valueFleet': 'Valore biopellet totale flotta (€/anno)',
+        'pdf.row.co2Node': 'CO₂+CH₄ evitate per nodo (t/anno)',
+        'pdf.row.co2Fleet': 'CO₂+CH₄ evitate totale flotta (t/anno)',
+        'pdf.generatedAt': 'Generato',
+        'clause.ppa': 'Lo sblocco dei nodi è subordinato esclusivamente a un PPA energetico di grid curtailment sotto la governance di Pactvm Viridi — nessun nodo viene attivato senza contratto di acquisto dell’eccedenza rinnovabile curtailed.',
+        'share.kicker': 'Presentazione al cliente · link temporaneo',
+        'share.create': 'GENERA LINK',
+        'share.codeOnce': 'Il codice viene mostrato solo ora: non resta salvato in chiaro e non è più consultabile.',
+        'share.needEmail': 'Indica almeno un indirizzo autorizzato.',
+        'share.failed': 'Impossibile generare il link',
+        'share.empty': 'Nessun link emesso',
+        'crumb.restricted': '(Riservato)',
+        'share.link': 'Link', 'share.expires': 'Scade',
+        'share.emails': 'Email', 'share.accesses': 'Accessi', 'share.copy': 'COPIA',
+        'locked.sub': 'Ripartizione territoriale riservata · non inclusa in questa presentazione',
+        logout: 'Esci',
+        'ident.gis': 'Ubicazione GIS', 'ident.cadastral': 'Rif. catastale',
+        'ident.client': 'Cliente / fornitore',
+        'ident.cadastralPending': 'in attesa di registrazione',
+        'locked.badge': '🔒 SPV LEVEL 2 CLEARANCE REQUIRED',
+        'locked.anon': '🔒 CLIENT_ANONYMIZED',
+      },
+      /* Francais: registre corporatif international (TotalEnergies). */
+      fr: {
+        subtitle: 'Interface géospatiale · VDR',
+        'btn.table': 'TABLEAU · 200 NŒUDS',
+        'btn.pdf': 'EXPORTER PDF',
+        'btn.spain': 'ALLER EN ESPAGNE',
+        'btn.hq': 'ALLER AU SIÈGE',
+        'btn.reset': 'RÉINITIALISER LA VUE',
+        'btn.installAll': 'SIMULER TOUS INSTALLÉS',
+        'btn.resetAll': 'RESET',
+        'legend.star': 'Étoile · siège de l’entreprise',
+        'legend.red': 'Nœud rouge · non déployé',
+        'legend.green': 'Nœud vert · installé (simulé)',
+        hint: 'glisser : rotation 360° · maj ou clic droit : déplacer · molette ou pincement : zoom · double clic : réinitialiser · clic sur un nœud : commuter',
+        'loss.label': 'Coût annuel de la non-adoption de BioHybrid',
+        'table.kicker': 'Quantification du déploiement · Espagne',
+        'table.byRegion': 'Répartition par communauté autonome',
+        'table.total': 'TOTAL · nœuds',
+        'th.node': 'Nœud', 'th.region': 'Communauté', 'th.state': 'Statut', 'th.nodes': 'Nœuds',
+        'th.absorbs': 'Absorbe<br><span>GWh/an</span>',
+        'th.pellet': 'Biopellet<br><span>t/an</span>',
+        'th.value': 'Valeur biopellet<br><span>€/an · 350 €/t</span>',
+        'th.co2': 'CO₂+CH₄ évité<br><span>t/an</span>',
+        'th.sim': 'Simuler',
+        'stat.absorbs': 'Absorbe GWh/an', 'stat.pellet': 'Biopellet t/an', 'stat.co2': 'CO₂+CH₄ t/an',
+        'switch.label': 'Statut simulé',
+        'state.pending': 'Non déployé', 'state.installed': 'Installé (sim.)',
+        'node.pending': 'Nœud · en attente de déploiement', 'node.installed': 'Nœud · installé (simulé)',
+        'sub.red': 'rouge · non déployé', 'sub.green': 'vert · opérationnel simulé',
+        'star.kicker': 'Localisation · siège à', 'star.country': 'Pays', 'star.city': 'Ville',
+        'star.hq': 'Base mère',
+        'star.coords': 'Coordonnées', 'star.precision': 'Précision', 'star.weight': 'Poids de localisation',
+        'precision.city': 'ville exacte', 'precision.country': 'centre du pays',
+        'stats.deployed': 'Nœuds déployés', 'stats.absorbed': 'Curtailment absorbé',
+        'stats.pellet': 'Biopellet produit', 'stats.value': 'Valeur biopellet',
+        'stats.co2': 'CO₂+CH₄ évité', 'stats.losing': 'Toujours perdu',
+        'loss.pendingNodes': 'nœuds non déployés', 'loss.simulated': 'simulés comme installés',
+        'loss.recovered': 'déjà récupéré', 'loss.neutralised': 'nœuds déployés · perte annuelle neutralisée',
+        'loss.recoveredYear': 'récupérés par an',
+        'pdf.generating': 'GÉNÉRATION…',
+        loading: 'Chargement de l’interface géospatiale…',
+        'unit.gwhYear': 'GWh/an', 'unit.tYear': 't/an', 'unit.year': 'an',
+        'pdf.legend': 'Étoile = siège de l’entreprise · cylindre = curtailment Espagne en attente de déploiement',
+        'pdf.lossTitle': 'COÛT ANNUEL DE LA NON-ADOPTION DE BIOHYBRID',
+        'pdf.pendingOf': '{a} sur {b} nœuds non déployés',
+        'pdf.row.location': 'Localisation géographique',
+        'pdf.row.pending': 'Nœuds curtailment ES en attente',
+        'pdf.row.absorbNode': 'Absorption par nœud (GWh/an)',
+        'pdf.row.absorbFleet': 'Absorption totale de la flotte (GWh/an)',
+        'pdf.row.target': 'Objectif curtailment (GW)',
+        'pdf.row.pelletPrice': 'Prix biopellet (€/t)',
+        'pdf.row.pelletNode': 'Biopellet par nœud (t/an)',
+        'pdf.row.pelletFleet': 'Biopellet total de la flotte (t/an)',
+        'pdf.row.valueNode': 'Valeur biopellet par nœud (€/an)',
+        'pdf.row.valueFleet': 'Valeur biopellet totale de la flotte (€/an)',
+        'pdf.row.co2Node': 'CO₂+CH₄ évité par nœud (t/an)',
+        'pdf.row.co2Fleet': 'CO₂+CH₄ évité total de la flotte (t/an)',
+        'pdf.generatedAt': 'Généré',
+        'clause.ppa': 'Le déverrouillage des nœuds est conditionné exclusivement à un PPA énergétique de grid curtailment sous gouvernance Pactvm Viridi — aucun nœud n’est activé sans contrat d’achat du surplus renouvelable curtailed.',
+        'share.kicker': 'Présentation client · lien temporaire',
+        'share.create': 'GÉNÉRER LE LIEN',
+        'share.codeOnce': 'Le code n’est affiché que maintenant : il n’est pas conservé en clair et ne peut plus être consulté.',
+        'share.needEmail': 'Indiquez au moins une adresse autorisée.',
+        'share.failed': 'Impossible de générer le lien',
+        'share.empty': 'Aucun lien émis',
+        'crumb.restricted': '(Restreint)',
+        'share.link': 'Lien', 'share.expires': 'Expire',
+        'share.emails': 'Adresses', 'share.accesses': 'Accès', 'share.copy': 'COPIER',
+        'locked.sub': 'Répartition territoriale restreinte · non incluse dans cette présentation',
+        logout: 'Se déconnecter',
+        'ident.gis': 'Localisation GIS', 'ident.cadastral': 'Réf. cadastrale',
+        'ident.client': 'Client / fournisseur',
+        'ident.cadastralPending': 'en attente d’enregistrement',
+        'locked.badge': '🔒 SPV LEVEL 2 CLEARANCE REQUIRED',
+        'locked.anon': '🔒 CLIENT_ANONYMIZED',
+      },
+    };
+
+    const LANG_KEY = 'vdr.lang';
+    let lang = (() => {
+      try { const s = localStorage.getItem(LANG_KEY); if (s && I18N[s]) return s; } catch {}
+      const nav = (navigator.language || 'es').slice(0, 2).toLowerCase();
+      return I18N[nav] ? nav : 'es';
+    })();
+
+    function t(key) { return (I18N[lang] && I18N[lang][key]) || I18N.es[key] || key; }
+
+    function applyI18n() {
+      document.documentElement.lang = lang;
+      document.querySelectorAll('[data-i18n]').forEach((el) => {
+        el.textContent = t(el.dataset.i18n);
+      });
+      document.querySelectorAll('[data-i18n-html]').forEach((el) => {
+        el.innerHTML = t(el.dataset.i18nHtml);
+      });
+      // el numero del boton de tabla depende de los datos reales
+      const total = currentGlobeData?.esCurtailment?.nodesTargetTotal;
+      if (total) {
+        document.getElementById('tableBtn').textContent = t('btn.table').replace('200', fmtInt(total));
+      }
+      // refrescar lo que se pinta desde JS
+      if (currentGlobeData) {
+        buildTable();
+        renderAggregates();
+        installed.forEach((i) => syncTableRow(i));
+        if (nodePanelState.visible) renderNodePanel();
+        if (starCardState.visible) showStarCard(currentGlobeData);
+      }
+    }
+
+    function setLang(next) {
+      if (!I18N[next] || next === lang) return;
+      lang = next;
+      try { localStorage.setItem(LANG_KEY, next); } catch {}
+      syncLangSwitch();
+      applyI18n();
+    }
+
+    function syncLangSwitch() {
+      const opts = [...document.querySelectorAll('.vdr-lang__opt')];
+      const idx = Math.max(0, opts.findIndex((o) => o.dataset.lang === lang));
+      opts.forEach((o, i) => {
+        o.classList.toggle('is-active', i === idx);
+        o.setAttribute('aria-checked', String(i === idx));
+      });
+      document.getElementById('langThumb').style.transform = `translateX(${idx * 40}px)`;
+    }
+
+    document.querySelectorAll('.vdr-lang__opt').forEach((btn) => {
+      btn.addEventListener('click', () => setLang(btn.dataset.lang));
+    });
+
+    // El motor 3D vive en /js/vdr-globe.js y lo comparten esta vista y
+    // la vista de invitado (enlace temporal). Ver ese modulo para el
+    // render, la camara orbital y el reparto de nodos.
+
+    // ---- tarjetas flotantes (estrella / nodos) ----
+    const starCardEl = document.getElementById('starCard');
+    const starCardState = { visible: false };
+    function positionCard(el, p) {
+      if (!p || !p.visible) { el.style.opacity = '0'; return; }
+      el.style.left = `${p.x}px`;
+      el.style.top = `${p.y - 26}px`;
+    }
+    function showStarCard(globeData) {
+      document.getElementById('starCardKicker').textContent = `${t('star.kicker')} ${globeData.star?.countryLabel || '—'}`;
+      document.getElementById('starCardTitle').textContent = globeData.star?.city
+        ? `${globeData.star.city}, ${globeData.star.countryLabel}`
+        : (globeData.star?.countryLabel || '—');
+      const st = globeData.star || {};
+      /* Logo corporativo de la sede. Convencion de ruta:
+       * /assets/logo-<empresa en minusculas, sin espacios>.png
+       * Si el archivo no existe, onerror lo oculta y la tarjeta queda
+       * igual de limpia (sin icono roto). */
+      const logoEl = document.getElementById('starCardLogo');
+      const slug = String(globeData.name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
+      if (slug) {
+        logoEl.onerror = () => { logoEl.hidden = true; };
+        logoEl.onload = () => { logoEl.hidden = false; };
+        logoEl.alt = globeData.name || '';
+        logoEl.src = `/assets/logo-${slug}.png`;
+      } else {
+        logoEl.hidden = true;
+      }
+      document.getElementById('starCardHqTag').textContent = t('star.hq');
+      document.getElementById('starCardRows').innerHTML = `
+        <div class="vdr-card__row"><span class="k">${escapeHtml(t('star.country'))}</span><span class="v">${escapeHtml(st.countryLabel || '—')}</span></div>
+        <div class="vdr-card__row"><span class="k">${escapeHtml(t('star.city'))}</span><span class="v">${escapeHtml(st.city || '—')}</span></div>
+        <div class="vdr-card__row"><span class="k">${escapeHtml(t('star.coords'))}</span><span class="v">${Number(st.lat ?? 0).toFixed(4)}, ${Number(st.lng ?? 0).toFixed(4)}</span></div>
+        <div class="vdr-card__row"><span class="k">${escapeHtml(t('star.precision'))}</span><span class="v">${escapeHtml(st.precision === 'ciudad' ? t('precision.city') : t('precision.country'))}</span></div>
+        <div class="vdr-card__row"><span class="k">${escapeHtml(t('star.weight'))}</span><span class="v">${st.weight ?? '—'}</span></div>
+      `;
+      starCardState.visible = true;
+      starCardEl.classList.add('visible');
+    }
+    function hideStarCard() { starCardState.visible = false; starCardEl.classList.remove('visible'); }
+    document.getElementById('starCardClose').addEventListener('click', hideStarCard);
+
+    // ---- formato ----
+    // Locale de formato ligada al idioma activo: con 'es-ES' fijo, en EN/FR
+    // los separadores de millar salian en formato espanol.
+    const NUM_LOCALE = { es: 'es-ES', en: 'en-GB', it: 'it-IT', fr: 'fr-FR' };
+    const numLocale = () => NUM_LOCALE[lang] || 'es-ES';
+    const fmtInt = (n) => Number(n || 0).toLocaleString(numLocale(), { maximumFractionDigits: 0 });
+    const fmtDec = (n, d = 2) => Number(n || 0).toLocaleString(numLocale(), { minimumFractionDigits: d, maximumFractionDigits: d });
+    const fmtEur = (n) => `${fmtInt(n)} €`;
+    function fmtEurCompact(n) {
+      const v = Number(n || 0);
+      if (Math.abs(v) >= 1e6) return `${fmtDec(v / 1e6, 1)} M€`;
+      if (Math.abs(v) >= 1e3) return `${fmtDec(v / 1e3, 1)} k€`;
+      return fmtEur(v);
+    }
+
+    // ---- estado de simulacion (solo en memoria de sesion, sin persistir) ----
+    const installed = new Set();
+    let currentGlobeData = null;
+    let globeApi = null;
+
+    // ---- panel de nodo individual ----
+    const nodePanelEl = document.getElementById('nodePanel');
+    const nodePanelState = { visible: false, index: -1 };
+
+    function nodeDefAt(index) {
+      const nodes = currentGlobeData?.esCurtailment?.nodes || [];
+      return nodes[index] || null;
+    }
+
+    function renderNodePanel() {
+      const idx = nodePanelState.index;
+      const def = nodeDefAt(idx);
+      if (!def) return;
+      const es = currentGlobeData.esCurtailment || {};
+      const isOn = installed.has(idx);
+      nodePanelEl.classList.toggle('installed', isOn);
+      document.getElementById('nodePanelKicker').textContent = isOn ? t('node.installed') : t('node.pending');
+      // en VISTA ENELse omite la comunidad, igual que ve el invitado
+      document.getElementById('nodePanelTitle').textContent = (def.regionName && plane !== 'cliente')
+        ? `${def.code} · ${def.regionName}`
+        : def.code;
+      document.getElementById('nodeStatGwh').textContent = fmtDec(def.annualEnergyGwh, 2);
+      document.getElementById('nodeStatPellet').textContent = fmtInt(def.biopelletTonsYear);
+      document.getElementById('nodeStatCo2').textContent = fmtInt(def.co2ch4AvoidedTonsYear);
+      document.getElementById('nodeSwitchSub').textContent = isOn ? t('sub.green') : t('sub.red');
+      const sw = document.getElementById('nodeSwitch');
+      sw.setAttribute('aria-checked', String(isOn));
+      /* Geocastral e identidad bajo SPV LEVEL 2 en ENEL_DEMO_VIEW. Las
+       * metricas operativas (GWh / T / €) se mantienen visibles en ambos
+       * planos: son agregados de nodo, no datos de parcela. */
+      const locked = plane === 'cliente';
+      const gisEl = document.getElementById('nodeGis');
+      const cadEl = document.getElementById('nodeCadastral');
+      const cliEl = document.getElementById('nodeClient');
+      gisEl.textContent = locked
+        ? t('locked.badge')
+        : `${fmtDec(def.lat, 4)}, ${fmtDec(def.lng, 4)}`;
+      // No hay referencia catastral real en el payload: en plano interno se
+      // declara pendiente en vez de inventar un numero de parcela.
+      cadEl.textContent = locked ? t('locked.badge') : t('ident.cadastralPending');
+      cliEl.textContent = locked
+        ? t('locked.anon')
+        : (currentGlobeData?.name || '—');
+      [gisEl, cadEl, cliEl].forEach((el) => el.classList.toggle('is-locked', locked));
+
+      document.getElementById('nodeRevenue').innerHTML =
+        `${fmtInt(def.biopelletTonsYear)} T × ${fmtInt(es.biopelletPriceEurPerTon)} €/T = <b style="color:var(--text-primary)">${fmtEur(def.revenueEurYear)}</b> / ${escapeHtml(t('unit.year'))}`;
+      // La clausula PPA llega del backend siempre en castellano: se traduce
+      // en cliente para no dejar la ficha en dos idiomas.
+      document.getElementById('nodeClause').textContent = t('clause.ppa');
+    }
+
+    function showNodePanel(index) {
+      nodePanelState.index = index;
+      nodePanelState.visible = true;
+      renderNodePanel();
+      nodePanelEl.classList.add('visible');
+    }
+    function hideNodePanel() { nodePanelState.visible = false; nodePanelEl.classList.remove('visible'); }
+    document.getElementById('nodePanelClose').addEventListener('click', hideNodePanel);
+    document.getElementById('nodeSwitch').addEventListener('click', () => {
+      if (nodePanelState.index < 0) return;
+      toggleNode(nodePanelState.index);
+    });
+
+    // ---- conmutar nodo (3D + tabla + agregados, todo en vivo) ----
+    function toggleNode(index, forced) {
+      const isOn = forced === undefined ? !installed.has(index) : forced;
+      if (isOn) installed.add(index); else installed.delete(index);
+      globeApi?.setNodeInstalled(index, isOn);
+      syncTableRow(index);
+      if (nodePanelState.visible && nodePanelState.index === index) renderNodePanel();
+      renderAggregates();
+    }
+
+    function setAll(isOn) {
+      const total = currentGlobeData?.esCurtailment?.nodesTargetTotal || 0;
+      installed.clear();
+      if (isOn) for (let i = 0; i < total; i++) installed.add(i);
+      globeApi?.setAllInstalled(isOn);
+      for (let i = 0; i < total; i++) syncTableRow(i);
+      if (nodePanelState.visible) renderNodePanel();
+      renderAggregates();
+    }
+
+    // ---- tabla economica ----
+    const tableOverlay = document.getElementById('tableOverlay');
+    function buildTable() {
+      const es = currentGlobeData.esCurtailment || {};
+      const nodes = es.nodes || [];
+      document.getElementById('tableTitle').textContent = `${fmtInt(es.nodesTargetTotal)} · ${t('state.pending')}`;
+      document.getElementById('tableClause').textContent = t('clause.ppa');
+
+      // en VISTA ENELla comunidad no se muestra (SPV LEVEL 2)
+      const hideRegion = plane === 'cliente';
+      document.querySelectorAll('#nodeTable thead th[data-i18n="th.region"]').forEach((th) => { th.hidden = hideRegion; });
+      document.getElementById('nodeTableBody').innerHTML = nodes.map((n, i) => `
+        <tr data-row="${i}">
+          <td>${escapeHtml(n.code)}</td>
+          ${hideRegion ? '' : `<td class="region-cell">${escapeHtml(n.regionName || '—')}</td>`}
+          <td class="state" data-cell="state">${escapeHtml(t('state.pending'))}</td>
+          <td class="num">${fmtDec(n.annualEnergyGwh, 2)}</td>
+          <td class="num">${fmtInt(n.biopelletTonsYear)}</td>
+          <td class="num">${fmtEur(n.revenueEurYear)}</td>
+          <td class="num">${fmtInt(n.co2ch4AvoidedTonsYear)}</td>
+          <td class="switch-col">
+            <button class="vdr-switch" data-toggle="${i}" role="switch" aria-checked="false"><span class="vdr-switch__knob"></span></button>
+          </td>
+        </tr>
+      `).join('');
+
+      document.getElementById('nodeTableFoot').innerHTML = `
+        <tr>
+          <td colspan="${hideRegion ? 2 : 3}">${escapeHtml(t('table.total'))} · ${fmtInt(es.nodesTargetTotal)}</td>
+          <td class="num">${fmtDec(es.totalAnnualEnergyGwh, 2)}</td>
+          <td class="num">${fmtInt(es.totalBiopelletTonsYear)}</td>
+          <td class="num">${fmtEur(es.totalRevenueEurYear)}</td>
+          <td class="num">${fmtInt(es.totalCo2ch4AvoidedTonsYear)}</td>
+          <td class="switch-col"></td>
+        </tr>
+      `;
+
+      // resumen por comunidad autonoma
+      const regions = Array.isArray(es.regions) ? es.regions : [];
+      document.getElementById('regionTableBody').innerHTML = regions
+        .slice().sort((a, b) => b.nodes - a.nodes)
+        .map((r) => `
+          <tr data-region="${escapeHtml(r.code)}">
+            <td>${escapeHtml(r.name)}</td>
+            <td class="num">${fmtInt(r.nodes)}</td>
+            <td class="num">${fmtDec(r.annualEnergyGwh, 2)}</td>
+            <td class="num">${fmtInt(r.biopelletTonsYear)}</td>
+            <td class="num">${fmtEur(r.revenueEurYear)}</td>
+            <td class="num">${fmtInt(r.co2ch4AvoidedTonsYear)}</td>
+          </tr>
+        `).join('');
+
+      document.getElementById('nodeTableBody').querySelectorAll('[data-toggle]').forEach((btn) => {
+        btn.addEventListener('click', () => toggleNode(Number(btn.dataset.toggle)));
+      });
+      document.getElementById('nodeTableBody').querySelectorAll('tr[data-row]').forEach((tr) => {
+        tr.addEventListener('click', (e) => {
+          if (e.target.closest('[data-toggle]')) return;
+          showNodePanel(Number(tr.dataset.row));
+        });
+      });
+    }
+
+    function syncTableRow(index) {
+      const tr = document.querySelector(`tr[data-row="${index}"]`);
+      if (!tr) return;
+      const isOn = installed.has(index);
+      tr.classList.toggle('is-installed', isOn);
+      tr.querySelector('[data-cell="state"]').textContent = isOn ? t('state.installed') : t('state.pending');
+      tr.querySelector('[data-toggle]').setAttribute('aria-checked', String(isOn));
+    }
+
+    // ---- agregados + hero de perdida ----
+    function renderAggregates() {
+      const es = currentGlobeData.esCurtailment || {};
+      const total = es.nodesTargetTotal || 0;
+      const on = installed.size;
+      const pending = total - on;
+      const ratioPending = total > 0 ? pending / total : 0;
+
+      // El titular (annualLossEur) es la perdida con CERO nodos desplegados.
+      // Cada nodo simulado como instalado recorta su parte proporcional:
+      // asi el switch traduce "instalar" en "dejar de perder" en vivo.
+      const lossNow = (es.annualLossEur || 0) * ratioPending;
+      const recovered = (es.annualLossEur || 0) - lossNow;
+
+      const heroEl = document.getElementById('lossHero');
+      heroEl.classList.toggle('mitigated', on > 0 && pending === 0);
+      document.getElementById('lossFigure').textContent = `− ${fmtEur(lossNow)}`;
+      document.getElementById('lossBarFill').style.width = `${ratioPending * 100}%`;
+      document.getElementById('lossBreakdown').innerHTML = pending === 0
+        ? `<span><b>${fmtInt(total)}</b> ${escapeHtml(t('loss.neutralised'))} · <b>${fmtEur(recovered)}</b> ${escapeHtml(t('loss.recoveredYear'))}</span>`
+        : `<span><b>${fmtInt(pending)}</b> ${escapeHtml(t('loss.pendingNodes'))}</span>
+           <span><b>${fmtInt(on)}</b> ${escapeHtml(t('loss.simulated'))}</span>
+           <span>${escapeHtml(t('loss.recovered'))}: <b>${fmtEurCompact(recovered)}</b></span>`;
+
+      const pelletT = (es.biopelletTonsPerNodeYear || 0) * on;
+      const co2T = (es.co2ch4AvoidedTonsPerNodeYear || 0) * on;
+      const gwh = (es.nodeAnnualEnergyGwh || 0) * on;
+      const revenue = (es.revenueEurPerNodeYear || 0) * on;
+
+      // Unidades por idioma: el fallback anterior mandaba 'fr' al ingles.
+      const unitY = t('unit.gwhYear');
+      const unitT = t('unit.tYear');
+      document.getElementById('tableStats').innerHTML = `
+        <div class="vdr-stat-cell"><div class="lbl">${escapeHtml(t('stats.deployed'))}</div><div class="val ${on > 0 ? 'green' : ''}">${fmtInt(on)} / ${fmtInt(total)}</div></div>
+        <div class="vdr-stat-cell"><div class="lbl">${escapeHtml(t('stats.absorbed'))}</div><div class="val">${fmtDec(gwh, 2)} <span style="font-size:0.7rem;color:var(--text-dim)">${unitY}</span></div></div>
+        <div class="vdr-stat-cell"><div class="lbl">${escapeHtml(t('stats.pellet'))}</div><div class="val">${fmtInt(pelletT)} <span style="font-size:0.7rem;color:var(--text-dim)">${unitT}</span></div></div>
+        <div class="vdr-stat-cell"><div class="lbl">${escapeHtml(t('stats.value'))}</div><div class="val ${on > 0 ? 'green' : ''}">${fmtEurCompact(revenue)}</div></div>
+        <div class="vdr-stat-cell"><div class="lbl">${escapeHtml(t('stats.co2'))}</div><div class="val">${fmtInt(co2T)} <span style="font-size:0.7rem;color:var(--text-dim)">${unitT}</span></div></div>
+        <div class="vdr-stat-cell"><div class="lbl">${escapeHtml(t('stats.losing'))}</div><div class="val ${pending > 0 ? 'red' : 'green'}">${fmtEurCompact(lossNow)}</div></div>
+      `;
+
+      document.getElementById('legendCounter').textContent = `${fmtInt(on)} / ${fmtInt(total)}`;
+    }
+
+    /* ---- conmutador de plano: interno vs lo que ve el cliente ----
+     * VISTA ENEL reproduce exactamente las restricciones del enlace de
+     * invitado: sin reparto territorial (SPV LEVEL 2), sin columna de
+     * comunidad, sin exportar PDF. Sirve para revisar antes de la reunion
+     * que no se enseña de mas. */
+    let plane = 'interno';
+
+    function applyPlane() {
+      const isClient = plane === 'cliente';
+      document.body.classList.toggle('client-plane', isClient);
+      document.getElementById('planeSwitch').classList.toggle('is-client', isClient);
+      /* Kiosko: la ruta de navegacion se desactiva en plano restringido
+       * para que nadie pueda volver hacia Systems desde la pantalla
+       * compartida. El bloqueo es de UI, no de permisos: la sesion sigue
+       * siendo la del admin. */
+      document.querySelectorAll('.vdr-crumbs a').forEach((a) => {
+        if (isClient) {
+          if (!a.dataset.href) a.dataset.href = a.getAttribute('href') || '';
+          a.removeAttribute('href');
+          a.setAttribute('aria-disabled', 'true');
+          a.setAttribute('tabindex', '-1');
+        } else if (a.dataset.href) {
+          a.setAttribute('href', a.dataset.href);
+          a.removeAttribute('aria-disabled');
+          a.removeAttribute('tabindex');
+        }
+      });
+      const crumbCompanyEl = document.getElementById('crumbCompany');
+      const companyName = currentGlobeData?.name || crumbCompanyEl.dataset.name || crumbCompanyEl.textContent;
+      if (!crumbCompanyEl.dataset.name && companyName) crumbCompanyEl.dataset.name = companyName;
+      crumbCompanyEl.textContent = isClient
+        ? `${crumbCompanyEl.dataset.name || companyName} ${t('crumb.restricted')}`
+        : (crumbCompanyEl.dataset.name || companyName);
+      const planeClientOptEl = document.getElementById('planeClientOpt');
+      if (planeClientOptEl) planeClientOptEl.textContent = `${crumbCompanyEl.dataset.name || companyName} (Res.) VDR`;
+
+      document.getElementById('regionLocked').hidden = !isClient;
+      document.getElementById('regionScroll').hidden = isClient;
+      document.getElementById('exportPdfBtn').hidden = isClient;
+      document.getElementById('shareBtn').hidden = isClient;
+      document.querySelectorAll('.vdr-plane__opt').forEach((o) => {
+        const on = o.dataset.plane === plane;
+        o.classList.toggle('is-active', on);
+        o.setAttribute('aria-checked', String(on));
+      });
+      // Offset medido, no fijo: la etiqueta ENEL_DEMO_VIEW es mas ancha que
+      // PLANO INTERNO y un valor magico descuadraba el selector.
+      const opts = [...document.querySelectorAll('.vdr-plane__opt')];
+      const active = opts.find((o) => o.dataset.plane === plane) || opts[0];
+      const thumb = document.getElementById('planeThumb');
+      if (active) {
+        thumb.style.width = `${active.offsetWidth}px`;
+        thumb.style.transform = `translateX(${active.offsetLeft - (opts[0]?.offsetLeft ?? 0)}px)`;
+      }
+      if (currentGlobeData) { buildTable(); installed.forEach((i) => syncTableRow(i)); }
+      if (nodePanelState.visible) renderNodePanel();
+    }
+
+    document.querySelectorAll('.vdr-plane__opt').forEach((btn) => {
+      btn.addEventListener('click', () => { plane = btn.dataset.plane; applyPlane(); });
+    });
+
+    /* ---- enlace temporal para presentacion bajo NDA ---- */
+    const shareOverlay = document.getElementById('shareOverlay');
+    let shareMinutes = 15;
+
+    document.getElementById('shareBtn').addEventListener('click', () => {
+      shareOverlay.classList.add('visible');
+      loadShareList();
+    });
+    document.getElementById('shareClose').addEventListener('click', () => shareOverlay.classList.remove('visible'));
+    shareOverlay.addEventListener('click', (e) => { if (e.target === shareOverlay) shareOverlay.classList.remove('visible'); });
+
+    document.querySelectorAll('#shareMinutes .glass-pill').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        shareMinutes = Number(btn.dataset.min);
+        document.querySelectorAll('#shareMinutes .glass-pill').forEach((b) => b.classList.toggle('is-active', b === btn));
+      });
+    });
+
+    document.getElementById('shareCreateBtn').addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      const errEl = document.getElementById('shareErr');
+      errEl.textContent = '';
+      const emails = document.getElementById('shareEmails').value
+        .split(/[\n,;]+/).map((s) => s.trim()).filter(Boolean);
+      if (emails.length === 0) { errEl.textContent = t('share.needEmail'); return; }
+      const params = new URLSearchParams(location.search);
+      btn.disabled = true;
+      try {
+        const r = await api.pactvmVdrShareCreate({ companyId: params.get('id'), emails, minutes: shareMinutes });
+        document.getElementById('shareUrl').textContent = r.url;
+        document.getElementById('shareCode').textContent = r.code;
+        document.getElementById('shareExpires').textContent = new Date(r.expiresAt).toLocaleString(numLocale(), { dateStyle: 'short', timeStyle: 'short' });
+        document.getElementById('shareForm').hidden = true;
+        document.getElementById('shareResult').hidden = false;
+        loadShareList();
+      } catch (ex) {
+        errEl.textContent = ex.message || t('share.failed');
+      } finally { btn.disabled = false; }
+    });
+
+    document.getElementById('shareAnotherBtn').addEventListener('click', () => {
+      document.getElementById('shareResult').hidden = true;
+      document.getElementById('shareForm').hidden = false;
+      document.getElementById('shareEmails').value = '';
+    });
+
+    document.querySelectorAll('[data-copy]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const text = document.getElementById(btn.dataset.copy).textContent;
+        try { await navigator.clipboard.writeText(text); toast('Copiado'); } catch { }
+      });
+    });
+
+    async function loadShareList() {
+      const body = document.getElementById('shareListBody');
+      try {
+        const rows = await api.pactvmVdrSharesList();
+        if (rows.length === 0) { body.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text-dim);">${escapeHtml(t('share.empty'))}</td></tr>`; return; }
+        body.innerHTML = rows.map((r) => {
+          const estado = r.revoked ? 'Revocado' : r.expired ? 'Caducado' : 'Activo';
+          const color = r.revoked || r.expired ? 'var(--text-dim)' : '#7fe0a4';
+          return `<tr>
+            <td style="font-size:0.68rem;">${escapeHtml(r.emails.join(', '))}</td>
+            <td style="font-size:0.68rem;">${new Date(r.expiresAt).toLocaleString(numLocale(), { dateStyle: 'short', timeStyle: 'short' })}</td>
+            <td style="font-size:0.66rem;color:${color};">${estado}</td>
+            <td class="num">${r.accessCount}</td>
+            <td>${r.revoked || r.expired ? '' : `<button class="glass-pill" data-revoke="${escapeHtml(r.id)}">REVOCAR</button>`}</td>
+          </tr>`;
+        }).join('');
+        body.querySelectorAll('[data-revoke]').forEach((b) => {
+          b.addEventListener('click', async () => {
+            try { await api.pactvmVdrShareRevoke(b.dataset.revoke); loadShareList(); } catch (ex) { showError(ex.message); }
+          });
+        });
+      } catch (ex) { showError(ex.message || 'Error al cargar enlaces'); }
+    }
+
+    function openTable() { tableOverlay.classList.add('visible'); }
+    function closeTable() { tableOverlay.classList.remove('visible'); }
+    document.getElementById('tableClose').addEventListener('click', closeTable);
+    document.getElementById('tableBtn').addEventListener('click', openTable);
+    tableOverlay.addEventListener('click', (e) => { if (e.target === tableOverlay) closeTable(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeTable(); });
+    document.getElementById('installAllBtn').addEventListener('click', () => setAll(true));
+    document.getElementById('resetAllBtn').addEventListener('click', () => setAll(false));
+
+    function onMarkerClick(hit) {
+      if (!currentGlobeData) return;
+      if (hit.kind === 'star') { showStarCard(currentGlobeData); return; }
+      if (hit.kind === 'cluster') { openTable(); return; }
+      if (hit.kind === 'node') {
+        showNodePanel(hit.index);
+        toggleNode(hit.index);
+      }
+    }
+
+    // ---- Exportar PDF: imagen encuadrada + datos empresa + roster nodos ----
+    async function exportGlobePdf(company, globeData, globeControls, btn) {
+      const originalLabel = btn ? btn.textContent : '';
+      if (btn) { btn.disabled = true; btn.textContent = t('pdf.generating'); }
+      try {
+        const shotDataUrl = globeControls.captureFramedShot();
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+        const pageW = doc.internal.pageSize.getWidth();
+        const MARGIN = 40;
+        const contentW = pageW - MARGIN * 2;
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(18);
+        doc.text('VDR · Pactvm Viridi', MARGIN, MARGIN);
+        doc.setFontSize(13);
+        doc.text(company.name, MARGIN, MARGIN + 22);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(110, 110, 115);
+        doc.text(t('pdf.legend'), MARGIN, MARGIN + 38);
+        doc.setTextColor(20, 20, 20);
+
+        const imgY = MARGIN + 54;
+        const imgH = contentW * 0.6;
+        doc.addImage(shotDataUrl, 'PNG', MARGIN, imgY, contentW, imgH);
+
+        let rowY = imgY + imgH + 26;
+        const es = globeData.esCurtailment || {};
+        const pending = (es.nodesTargetTotal || 0) - installed.size;
+        const lossNow = (es.annualLossEur || 0) * ((es.nodesTargetTotal || 0) > 0 ? pending / es.nodesTargetTotal : 0);
+
+        // titular: la cifra que sostiene el argumento comercial
+        doc.setFillColor(255, 240, 239);
+        doc.setDrawColor(220, 90, 82);
+        doc.roundedRect(MARGIN, rowY - 4, contentW, 54, 6, 6, 'FD');
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(180, 60, 52);
+        doc.text(t('pdf.lossTitle'), MARGIN + 14, rowY + 12);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(22);
+        doc.setTextColor(200, 45, 36);
+        doc.text(`- ${fmtEur(lossNow)}`, MARGIN + 14, rowY + 38);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8.5);
+        doc.setTextColor(150, 80, 74);
+        doc.text(t('pdf.pendingOf').replace('{a}', fmtInt(pending)).replace('{b}', fmtInt(es.nodesTargetTotal)), MARGIN + contentW - 190, rowY + 38);
+        rowY += 74;
+
+        const rows = [
+          [t('pdf.row.location'), globeData.star?.countryLabel || '—'],
+          [t('star.city'), globeData.star?.city || '—'],
+          [t('pdf.row.pending'), `${fmtInt(pending)} / ${fmtInt(es.nodesTargetTotal)}`],
+          [t('pdf.row.target'), `${es.curtailmentGwTargetMin ?? '—'}–${es.curtailmentGwTargetMax ?? '—'}`],
+          [t('pdf.row.absorbNode'), fmtDec(es.nodeAnnualEnergyGwh, 2)],
+          [t('pdf.row.absorbFleet'), fmtDec(es.totalAnnualEnergyGwh, 2)],
+          [t('pdf.row.pelletNode'), fmtInt(es.biopelletTonsPerNodeYear)],
+          [t('pdf.row.pelletFleet'), fmtInt(es.totalBiopelletTonsYear)],
+          [t('pdf.row.pelletPrice'), fmtInt(es.biopelletPriceEurPerTon)],
+          [t('pdf.row.valueNode'), fmtEur(es.revenueEurPerNodeYear)],
+          [t('pdf.row.valueFleet'), fmtEur(es.totalRevenueEurYear)],
+          [t('pdf.row.co2Node'), fmtInt(es.co2ch4AvoidedTonsPerNodeYear)],
+          [t('pdf.row.co2Fleet'), fmtInt(es.totalCo2ch4AvoidedTonsYear)],
+        ];
+        doc.setFontSize(10);
+        rows.forEach(([k, v]) => {
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(110, 110, 115);
+          doc.text(k, MARGIN, rowY);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(20, 20, 20);
+          doc.text(String(v), MARGIN + 280, rowY);
+          doc.setDrawColor(228, 228, 232);
+          doc.line(MARGIN, rowY + 6, pageW - MARGIN, rowY + 6);
+          rowY += 19;
+        });
+
+        if (t('clause.ppa')) {
+          rowY += 8;
+          doc.setFont('helvetica', 'italic');
+          doc.setFontSize(9);
+          doc.setTextColor(150, 40, 35);
+          const wrapped = doc.splitTextToSize(t('clause.ppa'), contentW);
+          doc.text(wrapped, MARGIN, rowY);
+          rowY += wrapped.length * 12;
+        }
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(150, 150, 155);
+        doc.text(`${t('pdf.generatedAt')} ${new Date().toLocaleString(numLocale(), { dateStyle: 'medium', timeStyle: 'short' })} · S-NFI Systems`, MARGIN, rowY + 14);
+
+        const blob = doc.output('blob');
+        const blobUrl = URL.createObjectURL(blob);
+        window.open(blobUrl, '_blank');
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 5 * 60 * 1000);
+      } catch (ex) {
+        showError(ex.message || 'Error al generar el PDF');
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = originalLabel; }
+      }
+    }
+
+    // idioma antes de cargar datos: la pantalla de carga ya sale traducida
+    syncLangSwitch();
+    applyI18n();
+
+    (async () => {
+      const params = new URLSearchParams(location.search);
+      const id = params.get('id');
+      if (!id) { showError('Falta el identificador de empresa (id)'); document.getElementById('vdrLoading').classList.add('hidden'); return; }
+      try {
+        const [company, globeData] = await Promise.all([
+          api.pactvmVdrCompanyGet(id),
+          api.pactvmVdrCompanyGlobe(id),
+        ]);
+        currentGlobeData = globeData;
+        document.getElementById('crumbCompany').textContent = company.name;
+        document.getElementById('companyTitle').textContent = company.name;
+
+        const globeControls = await initGlobe(globeData, {
+          container: 'vdrStage',
+          onMarkerClick,
+          isStarCardVisible: () => starCardState.visible,
+          onStarProject: (p) => positionCard(starCardEl, p),
+        });
+        globeApi = globeControls;
+        buildTable();
+        renderAggregates();
+        applyI18n(); // reetiqueta ya con los datos reales (p.ej. nº de nodos)
+        applyPlane(); // estado inicial del conmutador interno/cliente
+        document.getElementById('vdrLoading').classList.add('hidden');
+
+        document.getElementById('exportPdfBtn').addEventListener('click', (e) => {
+          exportGlobePdf(company, globeData, globeControls, e.currentTarget);
+        });
+        document.getElementById('resetViewBtn').addEventListener('click', () => {
+          globeControls.resetView();
+          hideStarCard();
+          hideNodePanel();
+        });
+        document.getElementById('focusSpainBtn').addEventListener('click', () => globeControls.focusSpain());
+        document.getElementById('focusStarBtn').addEventListener('click', () => {
+          globeControls.focusStar();
+          showStarCard(globeData);
+        });
+      } catch (ex) {
+        showError(ex.message || 'Error al cargar la empresa');
+        document.getElementById('vdrLoading').classList.add('hidden');
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -6,8 +6,16 @@
   <title>Condiciones de Entrada · Pactvm Viridi · S-NFI</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap">
   <link rel="stylesheet" href="/css/theme.css">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('systemsTheme');
+        if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      } catch (e) {}
+    })();
+  </script>
   <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
   <style>
     .pactvm-hero {
@@ -19,7 +27,7 @@
     }
     .pactvm-hero__title {
       font-family: var(--font-display);
-      font-size: clamp(1.8rem, 3.4vw, 2.6rem);
+      font-size: 12px;
       font-weight: 800;
       letter-spacing: -0.02em;
       margin: 0 0 10px;
@@ -67,21 +75,34 @@
   <nav class="nav">
     <div class="brand">
       <img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;">
-      SYSTEMS
+      <span class="brand-mark">S-NFI Systems (c)</span>
     </div>
     <div class="row" style="gap:18px;">
-      <span class="mono" id="userTag">...</span>
-      <button class="btn ghost" id="logoutBtn">Cerrar sesión</button>
+      <div class="user-menu" id="userMenu">
+        <button class="user-menu__trigger mono" id="userTag" aria-haspopup="true" aria-expanded="false">…</button>
+        <div class="user-menu__dropdown" id="userDropdown" hidden>
+          <div class="user-menu__section">
+            <span class="user-menu__label">Cambiar contraseña</span>
+            <input class="user-menu__input" type="password" id="pwdCurrent" placeholder="Contraseña actual" autocomplete="current-password">
+            <input class="user-menu__input" type="password" id="pwdNew" placeholder="Nueva contraseña" autocomplete="new-password">
+            <input class="user-menu__input" type="password" id="pwdConfirm" placeholder="Confirmar nueva" autocomplete="new-password">
+            <p class="user-menu__error" id="pwdError" hidden></p>
+            <button class="btn sage" id="pwdSubmit" style="width:100%;margin-top:4px;">Actualizar</button>
+          </div>
+          <div class="user-menu__divider"></div>
+          <button class="user-menu__item user-menu__item--danger" id="logoutBtn">Cerrar sesión</button>
+        </div>
+      </div>
     </div>
   </nav>
 
   <main class="container">
-    <div class="breadcrumb-row" style="display:flex; align-items:center; gap:8px; font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: -0.005em; color: var(--text-muted); margin-bottom: 22px;">
-      <a href="/pages/dashboard.html" style="color:inherit; text-decoration:none;">Systems</a>
-      <span style="opacity:.35;">/</span>
-      <a href="/pages/pactum-viridi.html" style="color:inherit; text-decoration:none;">Pactvm Viridi</a>
-      <span style="opacity:.35;">/</span>
-      <span style="color: var(--text-primary); font-weight:600;">Condiciones de Entrada</span>
+    <div class="breadcrumb-row">
+      <a href="/pages/dashboard.html">Systems</a>
+      <span class="sep">/</span>
+      <a href="/pages/pactum-viridi.html">Pactvm Viridi</a>
+      <span class="sep">/</span>
+      <span class="active">Condiciones de Entrada</span>
     </div>
 
     <div class="pactvm-hero reveal">
@@ -152,15 +173,52 @@
   </main>
 
   <script type="module">
-    import { api, getUser, requireAuth, clearSession, escapeHtml } from '/js/api.js';
+    import { api, getUser, requireAuth, clearSession, toast, escapeHtml } from '/js/api.js';
+    import { mountThemeToggle } from '/js/theme.js';
     import { mountOfficeBg } from '/js/office-bg.js';
     requireAuth();
+    mountThemeToggle(document.querySelector('nav.nav .row'));
     mountOfficeBg();
     document.getElementById('userTag').textContent = getUser() || '';
     document.getElementById('logoutBtn').addEventListener('click', async () => {
       try { await api.logout(); } catch {}
       clearSession();
       location.href = '/pages/login.html';
+    });
+
+    // User menu dropdown
+    const userMenuTrigger = document.getElementById('userTag');
+    const userMenuDropdown = document.getElementById('userDropdown');
+    userMenuTrigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = !userMenuDropdown.hidden;
+      userMenuDropdown.hidden = open;
+      userMenuTrigger.setAttribute('aria-expanded', String(!open));
+    });
+    document.addEventListener('click', (e) => {
+      if (!document.getElementById('userMenu').contains(e.target)) {
+        userMenuDropdown.hidden = true;
+        userMenuTrigger.setAttribute('aria-expanded', 'false');
+      }
+    });
+    document.getElementById('pwdSubmit').addEventListener('click', async () => {
+      const cur = document.getElementById('pwdCurrent').value;
+      const neu = document.getElementById('pwdNew').value;
+      const con = document.getElementById('pwdConfirm').value;
+      const errEl = document.getElementById('pwdError');
+      errEl.hidden = true;
+      if (!cur || !neu || !con) { errEl.textContent = 'Rellena todos los campos'; errEl.hidden = false; return; }
+      if (neu !== con) { errEl.textContent = 'Las contraseñas no coinciden'; errEl.hidden = false; return; }
+      try {
+        await api.changePassword(cur, neu);
+        toast('Contraseña actualizada');
+        userMenuDropdown.hidden = true;
+        userMenuTrigger.setAttribute('aria-expanded', 'false');
+        ['pwdCurrent','pwdNew','pwdConfirm'].forEach(id => document.getElementById(id).value = '');
+      } catch (ex) {
+        errEl.textContent = ex.message || 'Error al cambiar contraseña';
+        errEl.hidden = false;
+      }
     });
 
     function showError(msg) {

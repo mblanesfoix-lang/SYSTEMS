@@ -3,27 +3,46 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Data Foundry · Elvi-Ra · S-NFI</title>
+  <title>Lab · Elvi-Ra · S-NFI</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap">
   <link rel="stylesheet" href="/css/theme.css">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('systemsTheme');
+        if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      } catch (e) {}
+    })();
+  </script>
   <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
 </head>
 <body>
   <nav class="nav">
     <div class="brand">
       <a href="/pages/dashboard.html" style="color:inherit; text-decoration:none;">
-        <img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;"> SYSTEMS
+        <img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;"> <span class="brand-mark">S-NFI Systems (c)</span>
       </a>
       <span class="mono" style="opacity:0.5; margin:0 8px;">/</span>
       <a href="/pages/elvira-dashboard.html" style="color:inherit; text-decoration:none;">Elvi-Ra</a>
       <span class="mono" style="opacity:0.5; margin:0 8px;">/</span>
-      <span>Data Foundry</span>
+      <span>Lab</span>
     </div>
-    <div class="row" style="gap:18px;">
-      <span class="mono" id="userTag" style="font-size:0.82rem; color:var(--text-muted);">…</span>
-      <button class="btn" id="logoutBtn" style="padding:6px 12px; font-size:0.8rem;">Salir</button>
+    <div class="user-menu" id="userMenu">
+      <button class="user-menu__trigger mono" id="userTag" aria-haspopup="true" aria-expanded="false">…</button>
+      <div class="user-menu__dropdown" id="userDropdown" hidden>
+        <div class="user-menu__section">
+          <span class="user-menu__label">Cambiar contraseña</span>
+          <input class="user-menu__input" type="password" id="pwdCurrent" placeholder="Contraseña actual" autocomplete="current-password">
+          <input class="user-menu__input" type="password" id="pwdNew" placeholder="Nueva contraseña" autocomplete="new-password">
+          <input class="user-menu__input" type="password" id="pwdConfirm" placeholder="Confirmar nueva" autocomplete="new-password">
+          <p class="user-menu__error" id="pwdError" hidden></p>
+          <button class="btn sage" id="pwdSubmit" style="width:100%;margin-top:4px;">Actualizar</button>
+        </div>
+        <div class="user-menu__divider"></div>
+        <button class="user-menu__item user-menu__item--danger" id="logoutBtn">Cerrar sesión</button>
+      </div>
     </div>
   </nav>
 
@@ -73,9 +92,17 @@
   </style>
 
   <main class="container">
+    <div class="breadcrumb-row">
+      <a href="/pages/dashboard.html">Systems</a>
+      <span class="sep">/</span>
+      <a href="/pages/elvira-dashboard.html">Elvi-Ra</a>
+      <span class="sep">/</span>
+      <span class="active">Lab</span>
+    </div>
+
     <header class="reveal">
       <span class="kicker">Dominio Elvi-Ra</span>
-      <h1>Data Foundry</h1>
+      <h1>Lab</h1>
     </header>
 
     <div class="hr"></div>
@@ -156,8 +183,10 @@
 
   <script type="module">
     import { api, getUser, getToken, clearSession, requireAuth, toast } from '/js/api.js';
+    import { mountThemeToggle } from '/js/theme.js';
     import { mountOfficeBg } from '/js/office-bg.js';
     requireAuth();
+    mountThemeToggle(document.querySelector('nav.nav .row'));
     mountOfficeBg();
     document.getElementById('userTag').textContent = getUser() || '';
 
@@ -175,6 +204,41 @@
       try { await api.logout(); } catch {}
       clearSession();
       location.href = '/pages/login.html';
+    });
+
+    // User menu dropdown
+    const userMenuTrigger = document.getElementById('userTag');
+    const userMenuDropdown = document.getElementById('userDropdown');
+    userMenuTrigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = !userMenuDropdown.hidden;
+      userMenuDropdown.hidden = open;
+      userMenuTrigger.setAttribute('aria-expanded', String(!open));
+    });
+    document.addEventListener('click', (e) => {
+      if (!document.getElementById('userMenu').contains(e.target)) {
+        userMenuDropdown.hidden = true;
+        userMenuTrigger.setAttribute('aria-expanded', 'false');
+      }
+    });
+    document.getElementById('pwdSubmit').addEventListener('click', async () => {
+      const cur = document.getElementById('pwdCurrent').value;
+      const neu = document.getElementById('pwdNew').value;
+      const con = document.getElementById('pwdConfirm').value;
+      const errEl = document.getElementById('pwdError');
+      errEl.hidden = true;
+      if (!cur || !neu || !con) { errEl.textContent = 'Rellena todos los campos'; errEl.hidden = false; return; }
+      if (neu !== con) { errEl.textContent = 'Las contraseñas no coinciden'; errEl.hidden = false; return; }
+      try {
+        await api.changePassword(cur, neu);
+        toast('Contraseña actualizada');
+        userMenuDropdown.hidden = true;
+        userMenuTrigger.setAttribute('aria-expanded', 'false');
+        ['pwdCurrent','pwdNew','pwdConfirm'].forEach(id => document.getElementById(id).value = '');
+      } catch (ex) {
+        errEl.textContent = ex.message || 'Error al cambiar contraseña';
+        errEl.hidden = false;
+      }
     });
 
     // ---- Pipeline en vivo ----

@@ -6,14 +6,65 @@
   <title>SYSTEMS · S-NFI</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap">
   <link rel="stylesheet" href="/css/theme.css">
   <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('systemsTheme');
+        if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      } catch (e) {}
+    })();
+  </script>
+  <style>
+    .home-mark-wrap {
+      position: relative;
+      display: flex;
+      justify-content: center;
+      padding: 8px 0 4px;
+    }
+    .home-mark {
+      position: relative;
+      display: inline-block;
+      font-family: var(--font-display);
+      font-size: clamp(1.6rem, 3vw, 2.2rem);
+      font-weight: 600;
+      letter-spacing: -0.015em;
+      line-height: 1.05;
+      color: var(--text-primary);
+    }
+    .home-mark::before {
+      content: '';
+      position: absolute;
+      left: 50%; top: 50%;
+      width: 220%; height: 460%;
+      transform: translate(-50%, -50%);
+      background: radial-gradient(
+        ellipse at center,
+        rgba(200, 243, 29, 0.16) 0%,
+        rgba(200, 243, 29, 0.07) 42%,
+        rgba(200, 243, 29, 0.02) 68%,
+        rgba(200, 243, 29, 0) 82%
+      );
+      filter: blur(26px);
+      pointer-events: none;
+      z-index: -1;
+      animation: homeMarkBreath 6s ease-in-out infinite;
+    }
+    @keyframes homeMarkBreath {
+      0%, 100% { opacity: 0.75; }
+      50%      { opacity: 1; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .home-mark::before { animation: none; }
+    }
+  </style>
 </head>
 <body>
   <nav class="nav">
-    <div class="brand"><img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;"> SYSTEMS</div>
-    <div class="row" style="gap:18px;">
+    <div class="brand"><img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;"> <span class="brand-mark">S-NFI Systems (c)</span></div>
+    <div class="row" style="gap:18px;" id="navControls">
       <div class="user-menu" id="userMenu">
         <button class="user-menu__trigger mono" id="userTag" aria-haspopup="true" aria-expanded="false">…</button>
         <div class="user-menu__dropdown" id="userDropdown" hidden>
@@ -32,55 +83,15 @@
     </div>
   </nav>
 
-  <style>
-    .user-menu { position: relative; }
-    .user-menu__trigger {
-      background: none; border: none; cursor: pointer;
-      padding: 6px 10px; border-radius: 6px;
-      font-size: 0.82rem; color: var(--text-2);
-      transition: background 0.15s;
-    }
-    .user-menu__trigger:hover { background: rgba(20,24,32,0.06); color: var(--text-1); }
-    .user-menu__dropdown {
-      position: absolute; right: 0; top: calc(100% + 8px);
-      background: #fff; border: 1px solid var(--border);
-      border-radius: 10px; box-shadow: 0 8px 32px rgba(0,0,0,0.10);
-      min-width: 240px; padding: 12px 0; z-index: 100;
-    }
-    .user-menu__section { padding: 4px 14px 8px; display: flex; flex-direction: column; gap: 6px; }
-    .user-menu__label { font-size: 0.76rem; font-family: var(--font-body); font-weight: 600; color: var(--text-3); letter-spacing: -0.005em; margin-bottom: 2px; }
-    .user-menu__input {
-      width: 100%; padding: 7px 10px; border: 1px solid var(--border);
-      border-radius: 6px; font-size: 0.82rem; font-family: var(--font-sans);
-      background: var(--bg); color: var(--text-1); outline: none; box-sizing: border-box;
-    }
-    .user-menu__input:focus { border-color: var(--accent-green); }
-    .user-menu__error { font-size: 0.78rem; color: #c0392b; margin: 2px 0 0; }
-    .user-menu__divider { height: 1px; background: var(--border); margin: 4px 0; }
-    .user-menu__item {
-      display: block; width: 100%; text-align: left;
-      padding: 9px 14px; background: none; border: none; cursor: pointer;
-      font-size: 0.85rem; font-family: var(--font-sans); color: var(--text-1);
-      transition: background 0.12s;
-    }
-    .user-menu__item:hover { background: rgba(20,24,32,0.04); }
-    .user-menu__item--danger { color: #c0392b; }
-    .user-menu__item--danger:hover { background: rgba(192,57,43,0.06); }
-    /* Above the background canvas but below .nav (z-index 30 in theme.css),
-       so the notifications dropdown inside the nav receives clicks */
-    main.container { position: relative; z-index: 1; }
-  </style>
-
   <main class="container">
-    <header class="reveal" style="position:relative;">
-      <div style="display:flex; align-items:baseline; gap:14px;">
-        <h1 style="font-size:clamp(3rem,7vw,5.5rem); line-height:1;">S-NFI</h1>
-        <span class="kicker">Systems</span>
+    <header class="reveal" style="position:relative; text-align:center;">
+      <div class="home-mark-wrap">
+        <h1 class="home-mark">S-NFI Systems</h1>
       </div>
-      <p style="max-width:640px; margin-top:8px;">
+      <p style="max-width:640px; margin:8px auto 0;">
         Fuente de verdad de S-NFI. Dos dominios operativos: Rëff analiza y conoce, Elvi-Ra acciona bajo consentimiento humano. Systems custodia variables y métricas de toda la corporación.
       </p>
-      <span class="mono" style="position:absolute; right:-24px; bottom:0; font-size:0.72rem; color:var(--text-3); letter-spacing:0.04em;">Nodriza</span>
+      <span class="mono" style="display:block; margin-top:10px; font-size:0.72rem; color:var(--text-muted); letter-spacing:0.04em;">Nodriza</span>
     </header>
 
     <section class="reveal delay-1">
@@ -94,13 +105,13 @@
 
         <a class="tile reveal delay-2" href="/pages/reff-dashboard.html" data-domain="reff" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
           <h3>Rëff</h3>
-          <p>Cerebro de datos. Mesas: Rëff (CRM inteligencia comercial) y S-NFI U2 (energía desperdiciada sistema eléctrico).</p>
+          <p>Cerebro de datos. Mesas: Rëff (CRM inteligencia comercial) y S-NFI U-2 (energía desperdiciada sistema eléctrico).</p>
           <p class="mono" style="margin-top:10px;">entrar al dominio →</p>
         </a>
 
         <a class="tile reveal delay-3" href="/pages/elvira-dashboard.html" data-domain="elvira" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
           <h3>Elvi-Ra</h3>
-          <p>Palanca de acción. Mesas: Elvi-Ra (Central), Data Foundry (doctrina de ingesta) y Sentinel (seguridad y telemetría forense).</p>
+          <p>Palanca de acción. Mesas: Elvi-Ra (Central), Lab (doctrina de ingesta) y Sentinel (seguridad y telemetría forense).</p>
           <p class="mono" style="margin-top:10px;">entrar al dominio →</p>
         </a>
 
@@ -110,6 +121,27 @@
           <p class="mono" style="margin-top:10px;">entrar al dominio →</p>
         </a>
       </div>
+    </section>
+
+    <div class="hr"></div>
+
+    <section class="reveal">
+      <span class="kicker">Seguridad · Auditoría</span>
+      <div class="tiles" style="margin-top:12px;">
+        <a class="tile reveal" href="/pages/master-gateway.html" data-mesa="gateway" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
+          <h3>Puerto Maestro</h3>
+          <p>Control de tráfico inter-puertos: ningún perfil extrae datos cruzados entre Rëff, Elvi-Ra y OPHS sin pasar por este filtro. Cola de solicitudes firmadas, aprobación exclusiva de Admin, log inmutable.</p>
+          <p class="mono" style="margin-top:10px;">acceso directo →</p>
+        </a>
+        <a class="tile reveal" href="/pages/notificaciones.html" data-mesa="notificaciones" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
+          <h3>Notificaciones</h3>
+          <p>Consola central de todas las notificaciones de SYSTEMS: alertas de sistema y solicitudes de tráfico de todos los usuarios, con acciones aprobar/denegar/requerir justificación en 1 clic. Retención 6 meses.</p>
+          <p class="mono" style="margin-top:10px;">acceso directo →</p>
+        </a>
+      </div>
+      <a href="/pages/herzog-central.html" data-mesa="herzog" class="mono" style="display:inline-block; margin-top:14px; font-size:0.7rem; letter-spacing:0.03em; color:var(--text-muted); text-decoration:none; opacity:0.7;">
+        Herzog · búnker de información de SYSTEMS →
+      </a>
     </section>
 
     <div class="hr"></div>
@@ -161,7 +193,7 @@
         </div>
         <div class="mesa-status-card" data-mesa="snfiu2">
           <div class="mesa-status-head">
-            <span class="mesa-status-name">S-NFI U2</span>
+            <span class="mesa-status-name">S-NFI U-2</span>
             <span class="mesa-status-dot checking"></span>
           </div>
           <span class="mesa-status-label">comprobando...</span>
@@ -195,6 +227,33 @@
           <span class="mesa-status-detail"></span>
           <span class="mesa-status-error"></span>
         </div>
+        <div class="mesa-status-card" data-mesa="gateway">
+          <div class="mesa-status-head">
+            <span class="mesa-status-name">Puerto Maestro</span>
+            <span class="mesa-status-dot checking"></span>
+          </div>
+          <span class="mesa-status-label">comprobando...</span>
+          <span class="mesa-status-detail"></span>
+          <span class="mesa-status-error"></span>
+        </div>
+        <div class="mesa-status-card" data-mesa="herzog">
+          <div class="mesa-status-head">
+            <span class="mesa-status-name">Herzog</span>
+            <span class="mesa-status-dot checking"></span>
+          </div>
+          <span class="mesa-status-label">comprobando...</span>
+          <span class="mesa-status-detail"></span>
+          <span class="mesa-status-error"></span>
+        </div>
+        <div class="mesa-status-card" data-mesa="notificaciones">
+          <div class="mesa-status-head">
+            <span class="mesa-status-name">Notificaciones</span>
+            <span class="mesa-status-dot checking"></span>
+          </div>
+          <span class="mesa-status-label">comprobando...</span>
+          <span class="mesa-status-detail"></span>
+          <span class="mesa-status-error"></span>
+        </div>
       </div>
     </section>
   </main>
@@ -203,12 +262,14 @@
     import { api, getUser, getToken, clearSession, requireAuth, toast } from '/js/api.js';
     import { mountAdminNotifications } from '/js/notifications.js';
     import { mountOfficeBg, mountSphereBg, playSystemsEntry } from '/js/office-bg.js';
+    import { mountThemeToggle } from '/js/theme.js';
     requireAuth();
     mountOfficeBg();
     mountSphereBg();
     playSystemsEntry();
     const user = getUser() || '';
     document.getElementById('userTag').textContent = user;
+    mountThemeToggle(document.getElementById('navControls'));
     mountAdminNotifications(document.querySelector('nav.nav .row'));
 
     // Apply domain permissions — hide domain tiles + health cards not accessible
@@ -222,6 +283,10 @@
       document.querySelectorAll('.tile[data-domain]').forEach(el => {
         const mesas = domainMesas[el.dataset.domain] || [];
         if (!mesas.some(m => allowed.has(m))) el.style.display = 'none';
+      });
+      // Transversal tiles / enlaces (mesa directa, sin dominio) — ej. Puerto Maestro, Herzog
+      document.querySelectorAll('main [data-mesa]').forEach(el => {
+        if (!allowed.has(el.dataset.mesa)) el.style.display = 'none';
       });
       // Health check cards
       document.querySelectorAll('.mesa-status-card[data-mesa]').forEach(el => {
@@ -354,6 +419,15 @@
       });
       checkMesa('pactvm', '/api/pactvm/summary', {
         parse: d => `${d.cibeEmitidos ?? 0} CIBE emitidos`
+      });
+      checkMesa('gateway', '/api/gateway/summary', {
+        parse: d => `${d.pending ?? 0} pendientes de aprobación`
+      });
+      checkMesa('notificaciones', '/api/notif-center/summary', {
+        parse: d => `${d.system?.unread ?? 0} sistema sin leer · ${d.traffic?.pendiente ?? 0} tráfico pendiente`
+      });
+      checkMesa('herzog', '/api/herzog-central/summary', {
+        parse: d => `${d.metricsCount ?? 0} métricas · ${d.documentsCount ?? 0} docs · ${d.notesCount ?? 0} notas`
       });
     }
 

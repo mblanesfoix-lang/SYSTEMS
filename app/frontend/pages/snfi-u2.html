@@ -3,15 +3,23 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>S-NFI U2 · Monitor Electrico · S-NFI</title>
+  <title>S-NFI U-2 · Monitor Electrico · S-NFI</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap">
   <link rel="stylesheet" href="/css/theme.css">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('systemsTheme');
+        if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      } catch (e) {}
+    })();
+  </script>
   <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
   <style>
     /* ═══════════════════════════════════════════
-       S-NFI U2 — full redesign v2
+       S-NFI U-2 — full redesign v2
        Light AMG × deep-tech × 3D energy globe
     ═══════════════════════════════════════════ */
 
@@ -188,7 +196,7 @@
       transform-origin: center;
     }
     .mode-tab.active {
-      background: var(--text-primary);
+      background: var(--accent-blue);
       color: #fff;
       font-weight: 600;
     }
@@ -833,21 +841,34 @@
   <nav class="nav">
     <div class="brand">
       <img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;">
-      SYSTEMS
+      <span class="brand-mark">S-NFI Systems (c)</span>
     </div>
     <div class="row" style="gap:18px;">
-      <span class="mono" id="userTag">...</span>
-      <button class="btn ghost" id="logoutBtn">Cerrar sesion</button>
+      <div class="user-menu" id="userMenu">
+        <button class="user-menu__trigger mono" id="userTag" aria-haspopup="true" aria-expanded="false">…</button>
+        <div class="user-menu__dropdown" id="userDropdown" hidden>
+          <div class="user-menu__section">
+            <span class="user-menu__label">Cambiar contraseña</span>
+            <input class="user-menu__input" type="password" id="pwdCurrent" placeholder="Contraseña actual" autocomplete="current-password">
+            <input class="user-menu__input" type="password" id="pwdNew" placeholder="Nueva contraseña" autocomplete="new-password">
+            <input class="user-menu__input" type="password" id="pwdConfirm" placeholder="Confirmar nueva" autocomplete="new-password">
+            <p class="user-menu__error" id="pwdError" hidden></p>
+            <button class="btn sage" id="pwdSubmit" style="width:100%;margin-top:4px;">Actualizar</button>
+          </div>
+          <div class="user-menu__divider"></div>
+          <button class="user-menu__item user-menu__item--danger" id="logoutBtn">Cerrar sesión</button>
+        </div>
+      </div>
     </div>
   </nav>
 
   <main class="container">
     <div class="breadcrumb-row">
-      <a href="/pages/dashboard.html">SYSTEMS</a>
+      <a href="/pages/dashboard.html">S-NFI Systems (c)</a>
       <span class="sep">/</span>
       <a href="/pages/reff-dashboard.html">Rëff</a>
       <span class="sep">/</span>
-      <span class="active">S-NFI U2</span>
+      <span class="active">S-NFI U-2</span>
     </div>
 
     <!-- HERO -->
@@ -900,6 +921,7 @@
       <button class="mode-tab" id="tabHistoric" onclick="switchMode('historic')">Historico</button>
       <button class="mode-tab" id="tabGeneracion" onclick="switchMode('generacion')">Generacion</button>
       <button class="mode-tab" id="tabRenewables" onclick="switchMode('renewables')">Historico Renov</button>
+      <button class="mode-tab" id="tabCurtailment" onclick="switchMode('curtailment')">Curtailment</button>
     </div>
 
     <!-- ═══════════════════════════════════
@@ -913,6 +935,8 @@
           <div class="status-dot idle" id="statusDot"></div>
           <span class="status-text" id="statusText">Conectando...</span>
         </div>
+        <button class="btn ghost btn--sm" id="gwRequestBtn" style="margin-left:auto;" title="Envia una solicitud firmada al Puerto Maestro para cruzar este dato con Elvi-Ra Analytics">Solicitar Informe Elvi-Ra</button>
+        <span class="mono" id="gwRequestMsg" style="font-size:0.62rem;color:var(--text-muted);"></span>
         <span class="status-time" id="statusTime"></span>
       </div>
 
@@ -1300,12 +1324,106 @@
       </div>
     </div>
 
+    <!-- ═══ Curtailment estimado (no oficial) + comparativa vecinos ═══ -->
+    <div id="panelCurtailment" style="display:none;">
+
+      <div class="mole-nota reveal" style="border-left:3px solid #e2a63a;">
+        <strong>Cálculo NO OFICIAL.</strong> La cifra oficial de renovable no integrada (ERNI) vive en los
+        indicadores ESIOS 2200/2201/2202, que exigen <strong>cuenta institucional</strong>. Con token personal
+        devuelven 403, por eso la pestaña oficial no carga. Esto es una estimación construida con series
+        accesibles: precio SPOT (600) y generación renovable (10351).
+      </div>
+
+      <div class="kpi-grid reveal" style="margin-top:16px;">
+        <div class="kpi-cell">
+          <div class="kpi-label">Curtailment estimado ES</div>
+          <div class="kpi-val" id="curtEsGwh">—</div>
+          <div class="kpi-sub" id="curtEsPct"></div>
+        </div>
+        <div class="kpi-cell">
+          <div class="kpi-label">Horas precio hundido</div>
+          <div class="kpi-val" id="curtHoras">—</div>
+          <div class="kpi-sub" id="curtUmbral"></div>
+        </div>
+        <div class="kpi-cell">
+          <div class="kpi-label">Renovable total periodo</div>
+          <div class="kpi-val" id="curtRenov">—</div>
+          <div class="kpi-sub">GWh generados</div>
+        </div>
+        <div class="kpi-cell">
+          <div class="kpi-label">Media vecinos (ponderada)</div>
+          <div class="kpi-val" id="curtMedia">—</div>
+          <div class="kpi-sub" id="curtMediaSub"></div>
+        </div>
+      </div>
+
+      <div class="card reveal" style="padding:20px; margin-top:16px;">
+        <span class="kicker">Parámetros del modelo</span>
+        <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:flex-end; margin-top:12px;">
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:0.62rem; color:var(--text-muted); font-family:var(--font-mono);">Desde</label>
+            <input class="input" type="date" id="curtFrom" style="width:150px;">
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:0.62rem; color:var(--text-muted); font-family:var(--font-mono);">Hasta</label>
+            <input class="input" type="date" id="curtTo" style="width:150px;">
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:0.62rem; color:var(--text-muted); font-family:var(--font-mono);">Umbral €/MWh</label>
+            <input class="input" id="curtUmbralInput" value="5" style="width:100px;">
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:0.62rem; color:var(--text-muted); font-family:var(--font-mono);">Tasa vertido</label>
+            <input class="input" id="curtTasaInput" value="0.18" style="width:100px;">
+          </div>
+          <button class="btn sage" id="curtRecalcBtn">Recalcular</button>
+        </div>
+        <p style="margin:10px 0 0; font-size:0.72rem; color:#86868b;">
+          Se considera vertida una fracción de la renovable generada en las horas con precio SPOT bajo el umbral.
+          La tasa es un parámetro de modelo: sin la serie ERNI real no hay contra qué calibrarla.
+        </p>
+      </div>
+
+      <div class="card reveal" style="padding:20px; margin-top:16px;">
+        <span class="kicker">Comparativa · España y redes vecinas/fronterizas</span>
+        <div style="overflow-x:auto; margin-top:12px;">
+          <table class="tbl" id="curtNeighbourTable">
+            <thead><tr>
+              <th>País</th><th>TSO</th><th>Frontera</th>
+              <th class="num">% curtailment s/ renovable</th>
+              <th class="num">TWh renovables/año</th>
+              <th>Procedencia</th>
+            </tr></thead>
+            <tbody id="curtNeighbourBody"><tr class="empty-row"><td colspan="6">Cargando…</td></tr></tbody>
+          </table>
+        </div>
+        <p style="margin:10px 0 0; font-size:0.72rem; color:#86868b;" id="curtMediaNota"></p>
+      </div>
+
+      <div class="card reveal" style="padding:20px; margin-top:16px;">
+        <span class="kicker">Serie mensual · estimación España</span>
+        <div style="overflow-x:auto; margin-top:12px;">
+          <table class="tbl">
+            <thead><tr>
+              <th>Mes</th><th class="num">Renovable GWh</th>
+              <th class="num">Horas precio hundido</th><th class="num">Curtailment estimado GWh</th>
+            </tr></thead>
+            <tbody id="curtMonthlyBody"><tr class="empty-row"><td colspan="4">Cargando…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="mole-nota reveal" id="curtMetodologia" style="margin-top:16px;"></div>
+    </div>
+
   </main>
 
   <script type="module">
-    import { api, getToken, requireAuth } from '/js/api.js';
+    import { api, getToken, requireAuth, toast } from '/js/api.js';
+    import { mountThemeToggle } from '/js/theme.js';
     import { mountAdminNotifications } from '/js/notifications.js';
     requireAuth();
+    mountThemeToggle(document.querySelector('nav.nav .row'));
     mountAdminNotifications(document.querySelector('nav.nav .row'));
 
     // Mesa guard
@@ -1320,10 +1438,70 @@
       document.getElementById('userTag').textContent = u.user || '—';
     }).catch(() => {});
 
+    // Puerto Maestro — solicitud real de cruce Reff U2 -> Elvi-Ra Analytics.
+    // Doctrina: ningun perfil extrae datos cruzados sin pasar por el filtro
+    // del Puerto Maestro; esta llamada crea la solicitud firmada, queda
+    // PENDING_MASTER_APPROVAL hasta que un Admin decide en /pages/master-gateway.html.
+    document.getElementById('gwRequestBtn').addEventListener('click', async () => {
+      const btn = document.getElementById('gwRequestBtn');
+      const msg = document.getElementById('gwRequestMsg');
+      btn.disabled = true;
+      msg.textContent = 'enviando…';
+      try {
+        const r = await api.gatewayRequestCreate({
+          sourcePort: 'REFF_U2',
+          targetPort: 'ELVIRA_ANALYTICS',
+          scope: 'BIOHYBRID_MASS_BALANCE',
+          range: 'LAST_30_DAYS',
+        });
+        msg.textContent = `${r.request_id} · pendiente de aprobación`;
+        toast('Solicitud enviada al Puerto Maestro');
+      } catch (ex) {
+        msg.textContent = ex.message || 'error al solicitar';
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
     document.getElementById('logoutBtn').addEventListener('click', async () => {
       try { await api.logout(); } catch (_) {}
       localStorage.removeItem('elvira_token');
       location.href = '/pages/login.html';
+    });
+
+    // User menu dropdown
+    const userMenuTrigger = document.getElementById('userTag');
+    const userMenuDropdown = document.getElementById('userDropdown');
+    userMenuTrigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = !userMenuDropdown.hidden;
+      userMenuDropdown.hidden = open;
+      userMenuTrigger.setAttribute('aria-expanded', String(!open));
+    });
+    document.addEventListener('click', (e) => {
+      if (!document.getElementById('userMenu').contains(e.target)) {
+        userMenuDropdown.hidden = true;
+        userMenuTrigger.setAttribute('aria-expanded', 'false');
+      }
+    });
+    document.getElementById('pwdSubmit').addEventListener('click', async () => {
+      const cur = document.getElementById('pwdCurrent').value;
+      const neu = document.getElementById('pwdNew').value;
+      const con = document.getElementById('pwdConfirm').value;
+      const errEl = document.getElementById('pwdError');
+      errEl.hidden = true;
+      if (!cur || !neu || !con) { errEl.textContent = 'Rellena todos los campos'; errEl.hidden = false; return; }
+      if (neu !== con) { errEl.textContent = 'Las contraseñas no coinciden'; errEl.hidden = false; return; }
+      try {
+        await api.changePassword(cur, neu);
+        toast('Contraseña actualizada');
+        userMenuDropdown.hidden = true;
+        userMenuTrigger.setAttribute('aria-expanded', 'false');
+        ['pwdCurrent','pwdNew','pwdConfirm'].forEach(id => document.getElementById(id).value = '');
+      } catch (ex) {
+        errEl.textContent = ex.message || 'Error al cambiar contraseña';
+        errEl.hidden = false;
+      }
     });
 
     /* ═══════════════════════════════════════════
@@ -1574,6 +1752,7 @@
     let generacionLoaded = false;
     let renewablesLoaded = false;
     let renewHistLoaded = false;
+    let curtailmentLoaded = false;
 
     function switchMode(mode) {
       currentMode = mode;
@@ -1582,14 +1761,17 @@
       document.getElementById('panelHistoric').style.display      = mode === 'historic'      ? '' : 'none';
       document.getElementById('panelGeneracion').style.display    = mode === 'generacion'    ? '' : 'none';
       document.getElementById('panelRenewables').style.display    = mode === 'renewables'    ? '' : 'none';
+      document.getElementById('panelCurtailment').style.display   = mode === 'curtailment'   ? '' : 'none';
       document.getElementById('tabLive').classList.toggle('active',          mode === 'live');
       document.getElementById('tabHistoric').classList.toggle('active',      mode === 'historic');
       document.getElementById('tabGeneracion').classList.toggle('active',    mode === 'generacion');
       document.getElementById('tabRenewables').classList.toggle('active',    mode === 'renewables');
+      document.getElementById('tabCurtailment').classList.toggle('active',   mode === 'curtailment');
       if (mode === 'live') liveRetryCount = 0;
       if (mode === 'historic'     && !historicLoaded)     loadHistoric();
       if (mode === 'generacion'   && !generacionLoaded)   loadGeneracion();
       if (mode === 'renewables'   && !renewablesLoaded)   { loadRenewables(); loadRenewablesHistoric(); }
+      if (mode === 'curtailment'  && !curtailmentLoaded)  loadCurtailment();
     }
     window.switchMode = switchMode;
 
@@ -2444,6 +2626,110 @@
           <span style="width:20px;height:2px;background:${c};display:inline-block;"></span>${l}</span>`).join('');
       }
     }
+
+    /* ═══════════════════════════════════════════
+       CURTAILMENT ESTIMADO (no oficial)
+       La pestana oficial (/curtailment, indicadores ERNI) devuelve 503 con
+       token personal. Esta consume /curtailment-estimado, que construye la
+       cifra con precio SPOT + generacion renovable, ambos accesibles.
+    ═══════════════════════════════════════════ */
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+    const nfmt = (n, d = 0) => (n == null || Number.isNaN(Number(n)))
+      ? '—'
+      : Number(n).toLocaleString('es-ES', { minimumFractionDigits: d, maximumFractionDigits: d });
+
+    async function loadCurtailment() {
+      curtailmentLoaded = true;
+      const qs = new URLSearchParams();
+      const from = document.getElementById('curtFrom').value;
+      const to   = document.getElementById('curtTo').value;
+      const umbral = document.getElementById('curtUmbralInput').value.trim();
+      const tasa   = document.getElementById('curtTasaInput').value.trim();
+      if (from) qs.set('from', from);
+      if (to) qs.set('to', to);
+      if (umbral !== '') qs.set('umbral', umbral);
+      if (tasa !== '') qs.set('tasa', tasa);
+
+      const nBody = document.getElementById('curtNeighbourBody');
+      const mBody = document.getElementById('curtMonthlyBody');
+      nBody.innerHTML = '<tr class="empty-row"><td colspan="6">Cargando…</td></tr>';
+      mBody.innerHTML = '<tr class="empty-row"><td colspan="4">Cargando…</td></tr>';
+
+      try {
+        const { ok, data } = await fetchJson(`/api/snfi-u2/curtailment-estimado?${qs}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!ok) {
+          const msg = esc(data?.error || 'no disponible');
+          nBody.innerHTML = `<tr class="empty-row"><td colspan="6">${msg}</td></tr>`;
+          mBody.innerHTML = `<tr class="empty-row"><td colspan="4">${msg}</td></tr>`;
+          return;
+        }
+
+        const es = data.espana || {};
+        document.getElementById('curtEsGwh').textContent = `${nfmt(es.curtailment_estimado_gwh, 1)} GWh`;
+        document.getElementById('curtEsPct').textContent = es.pct_sobre_renovable != null
+          ? `${nfmt(es.pct_sobre_renovable, 2)} % de la renovable generada` : '';
+        document.getElementById('curtHoras').textContent = nfmt(es.horas_precio_hundido);
+        document.getElementById('curtUmbral').textContent =
+          `precio SPOT ≤ ${nfmt(data.parametros?.umbral_eur_mwh, 0)} €/MWh`;
+        document.getElementById('curtRenov').textContent = nfmt(es.renovable_total_gwh, 0);
+
+        const media = data.media_vecinos || {};
+        document.getElementById('curtMedia').textContent = media.pct_ponderado_por_generacion != null
+          ? `${nfmt(media.pct_ponderado_por_generacion, 2)} %` : '—';
+        document.getElementById('curtMediaSub').textContent = media.pct_aritmetico != null
+          ? `aritmética ${nfmt(media.pct_aritmetico, 2)} % · ${media.paises_con_dato} países` : '';
+        document.getElementById('curtMediaNota').textContent = media.nota || '';
+
+        const vecinos = data.comparativa_vecinos || [];
+        nBody.innerHTML = vecinos.length ? vecinos.map((v) => `
+          <tr${v.esEstimacionPropia ? ' style="background:rgba(47,224,160,0.06);"' : ''}>
+            <td><strong>${esc(v.label)}</strong>${v.esEstimacionPropia ? ' <span style="color:#2fe0a0;font-size:0.7rem;">en vivo</span>' : ''}</td>
+            <td class="mono">${esc(v.tso)}</td>
+            <td>${esc(v.frontera)}</td>
+            <td class="mono num">${v.pctCurtailmentRenovable != null ? nfmt(v.pctCurtailmentRenovable, 2) + ' %' : '—'}</td>
+            <td class="mono num">${v.genRenovableTwhYear != null ? nfmt(v.genRenovableTwhYear, 1) : '—'}</td>
+            <td style="font-size:0.7rem;color:#86868b;">${esc(v.source)}</td>
+          </tr>`).join('') : '<tr class="empty-row"><td colspan="6">Sin datos</td></tr>';
+
+        const mensual = es.mensual || [];
+        mBody.innerHTML = mensual.length ? mensual.map((m) => `
+          <tr${m.completo === false ? ' style="opacity:0.55;"' : ''}>
+            <td class="mono">${esc(m.mes)}${m.completo === false
+              ? ` <span style="color:#e2a63a;font-size:0.68rem;" title="La API no devolvio el mes entero">incompleto ${m.dias_con_dato}/${m.dias_del_mes} d</span>`
+              : ''}</td>
+            <td class="mono num">${nfmt(m.renovable_gwh, 1)}</td>
+            <td class="mono num">${nfmt(m.horas_precio_hundido)}</td>
+            <td class="mono num">${nfmt(m.curtailment_estimado_gwh, 2)}</td>
+          </tr>`).join('') : '<tr class="empty-row"><td colspan="4">Sin datos</td></tr>';
+
+        document.getElementById('curtMetodologia').innerHTML =
+          `<strong>Metodología:</strong> ${esc(data.metodologia || '')}<br>` +
+          `<strong>Fuente:</strong> ${esc(data.fuente || '')}<br>` +
+          `<strong>Aviso:</strong> ${esc(data.aviso || '')}`;
+      } catch (e) {
+        console.error('[curtailment-estimado]', e.message);
+        const msg = esc(e.message || 'error de red');
+        nBody.innerHTML = `<tr class="empty-row"><td colspan="6">${msg}</td></tr>`;
+        mBody.innerHTML = `<tr class="empty-row"><td colspan="4">${msg}</td></tr>`;
+      }
+    }
+
+    // Rango por defecto: ultimo ano movil
+    (() => {
+      const hoy = new Date();
+      const haceAnio = new Date(hoy.getTime() - 365 * 24 * 3600 * 1000);
+      const iso = (d) => d.toISOString().split('T')[0];
+      const f = document.getElementById('curtFrom');
+      const t = document.getElementById('curtTo');
+      if (f && !f.value) f.value = iso(haceAnio);
+      if (t && !t.value) t.value = iso(hoy);
+      const btn = document.getElementById('curtRecalcBtn');
+      if (btn) btn.addEventListener('click', () => loadCurtailment());
+    })();
 
     async function loadRenewables() {
       renewablesLoaded = true;

@@ -6,8 +6,16 @@
   <title>SYSTEMS · Rëff</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap">
   <link rel="stylesheet" href="/css/theme.css">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('systemsTheme');
+        if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      } catch (e) {}
+    })();
+  </script>
   <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
   <style>
     html, body {
@@ -32,7 +40,7 @@
       padding: 0 32px;
       height: 52px;
       min-height: 52px;
-      background: rgba(246,247,249,0.78);
+      background: var(--glass-strong);
       backdrop-filter: saturate(140%) blur(18px);
       -webkit-backdrop-filter: saturate(140%) blur(18px);
       border-bottom: 1px solid var(--border);
@@ -45,9 +53,10 @@
       align-items: center;
       gap: 10px;
       font-family: var(--font-display);
-      font-size: 1rem;
-      font-weight: 700;
-      letter-spacing: -0.01em;
+      font-size: 0.8rem;
+      font-weight: 400;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
       color: var(--text-primary);
       cursor: pointer;
     }
@@ -176,7 +185,7 @@
     <div class="reff-nav">
       <div class="brand" id="brandLogo">
         <div class="dot"></div>
-        SYSTEMS
+        <span class="brand-mark">S-NFI Systems (c)</span>
       </div>
       <div class="breadcrumb">
         <a href="/pages/reff-dashboard.html">Rëff</a>
@@ -187,9 +196,22 @@
         <span id="statusLabel">comprobando...</span>
       </div>
       <div class="controls">
-        <span class="mono" id="userTag"></span>
         <button class="btn btn--ghost" id="backBtn" style="font-size:0.72rem;padding:0 14px;height:32px;">&lt; Dashboard</button>
-        <button class="btn btn--ghost" id="logoutBtn" style="font-size:0.72rem;padding:0 14px;height:32px;">logout</button>
+        <div class="user-menu" id="userMenu">
+          <button class="user-menu__trigger mono" id="userTag" aria-haspopup="true" aria-expanded="false">…</button>
+          <div class="user-menu__dropdown" id="userDropdown" hidden>
+            <div class="user-menu__section">
+              <span class="user-menu__label">Cambiar contraseña</span>
+              <input class="user-menu__input" type="password" id="pwdCurrent" placeholder="Contraseña actual" autocomplete="current-password">
+              <input class="user-menu__input" type="password" id="pwdNew" placeholder="Nueva contraseña" autocomplete="new-password">
+              <input class="user-menu__input" type="password" id="pwdConfirm" placeholder="Confirmar nueva" autocomplete="new-password">
+              <p class="user-menu__error" id="pwdError" hidden></p>
+              <button class="btn sage" id="pwdSubmit" style="width:100%;margin-top:4px;">Actualizar</button>
+            </div>
+            <div class="user-menu__divider"></div>
+            <button class="user-menu__item user-menu__item--danger" id="logoutBtn">Cerrar sesión</button>
+          </div>
+        </div>
       </div>
     </div>
     <div class="reff-frame-wrapper">
@@ -208,9 +230,11 @@
   </div>
 
   <script type="module">
-    import { getUser, clearSession, requireAuth, api, getToken } from '/js/api.js';
+    import { getUser, clearSession, requireAuth, api, getToken, toast } from '/js/api.js';
+    import { mountThemeToggle } from '/js/theme.js';
     import { mountAdminNotifications } from '/js/notifications.js';
     requireAuth();
+    mountThemeToggle(document.querySelector('.reff-nav .controls') || document.querySelector('.reff-nav'));
     mountAdminNotifications(document.querySelector('.reff-nav .controls'));
 
     // Mesa guard
@@ -234,6 +258,41 @@
       try { await api.logout(); } catch {}
       clearSession();
       location.href = '/pages/login.html';
+    });
+
+    // User menu dropdown
+    const userMenuTrigger = document.getElementById('userTag');
+    const userMenuDropdown = document.getElementById('userDropdown');
+    userMenuTrigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = !userMenuDropdown.hidden;
+      userMenuDropdown.hidden = open;
+      userMenuTrigger.setAttribute('aria-expanded', String(!open));
+    });
+    document.addEventListener('click', (e) => {
+      if (!document.getElementById('userMenu').contains(e.target)) {
+        userMenuDropdown.hidden = true;
+        userMenuTrigger.setAttribute('aria-expanded', 'false');
+      }
+    });
+    document.getElementById('pwdSubmit').addEventListener('click', async () => {
+      const cur = document.getElementById('pwdCurrent').value;
+      const neu = document.getElementById('pwdNew').value;
+      const con = document.getElementById('pwdConfirm').value;
+      const errEl = document.getElementById('pwdError');
+      errEl.hidden = true;
+      if (!cur || !neu || !con) { errEl.textContent = 'Rellena todos los campos'; errEl.hidden = false; return; }
+      if (neu !== con) { errEl.textContent = 'Las contraseñas no coinciden'; errEl.hidden = false; return; }
+      try {
+        await api.changePassword(cur, neu);
+        toast('Contraseña actualizada');
+        userMenuDropdown.hidden = true;
+        userMenuTrigger.setAttribute('aria-expanded', 'false');
+        ['pwdCurrent','pwdNew','pwdConfirm'].forEach(id => document.getElementById(id).value = '');
+      } catch (ex) {
+        errEl.textContent = ex.message || 'Error al cambiar contraseña';
+        errEl.hidden = false;
+      }
     });
 
     const frame = document.getElementById('reffFrame');

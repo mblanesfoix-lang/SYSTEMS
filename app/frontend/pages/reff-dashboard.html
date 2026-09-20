@@ -6,15 +6,23 @@
   <title>Rëff · S-NFI</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap">
   <link rel="stylesheet" href="/css/theme.css">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('systemsTheme');
+        if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      } catch (e) {}
+    })();
+  </script>
   <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
 </head>
 <body>
   <nav class="nav">
     <div class="brand">
       <a href="/pages/dashboard.html" style="color:inherit; text-decoration:none;">
-        <img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;"> SYSTEMS
+        <img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;"> <span class="brand-mark">S-NFI Systems (c)</span>
       </a>
       <span class="mono" style="opacity:0.5; margin:0 8px;">/</span>
       <span>Rëff</span>
@@ -38,45 +46,6 @@
     </div>
   </nav>
 
-  <style>
-    .user-menu { position: relative; }
-    .user-menu__trigger {
-      background: none; border: none; cursor: pointer;
-      padding: 6px 10px; border-radius: var(--radius-sm);
-      font-size: 0.82rem; color: var(--text-2);
-      transition: background 0.15s;
-    }
-    .user-menu__trigger:hover { background: rgba(20,24,32,0.06); color: var(--text-1); }
-    .user-menu__dropdown {
-      position: absolute; right: 0; top: calc(100% + 8px);
-      background: #fff; border: 1px solid var(--border);
-      border-radius: var(--radius); box-shadow: 0 8px 32px rgba(0,0,0,0.10);
-      min-width: 240px; padding: 12px 0; z-index: 100;
-    }
-    .user-menu__section { padding: 4px 14px 8px; display: flex; flex-direction: column; gap: 6px; }
-    .user-menu__label { font-size: 0.72rem; font-family: var(--font-mono); color: var(--text-3); letter-spacing: -0.005em; margin-bottom: 2px; }
-    .user-menu__input {
-      width: 100%; padding: 7px 10px; border: 1px solid var(--border);
-      border-radius: var(--radius-sm); font-size: 0.82rem; font-family: var(--font-sans);
-      background: var(--bg); color: var(--text-1); outline: none; box-sizing: border-box;
-    }
-    .user-menu__input:focus { border-color: var(--accent-blue); }
-    .user-menu__error { font-size: 0.78rem; color: #c0392b; margin: 2px 0 0; }
-    .user-menu__divider { height: 1px; background: var(--border); margin: 4px 0; }
-    .user-menu__item {
-      display: block; width: 100%; text-align: left;
-      padding: 9px 14px; background: none; border: none; cursor: pointer;
-      font-size: 0.85rem; font-family: var(--font-sans); color: var(--text-1);
-      transition: background 0.12s;
-    }
-    .user-menu__item:hover { background: rgba(20,24,32,0.04); }
-    .user-menu__item--danger { color: #c0392b; }
-    .user-menu__item--danger:hover { background: rgba(192,57,43,0.06); }
-    /* Above the background canvas but below .nav (z-index 30 in theme.css),
-       so the notifications dropdown inside the nav receives clicks */
-    main.container { position: relative; z-index: 1; }
-  </style>
-
   <main class="container">
     <header class="reveal">
       <span class="kicker">Dominio Rëff · Cerebro de datos</span>
@@ -96,15 +65,15 @@
         </a>
 
         <a class="tile reveal delay-3" href="/pages/snfi-u2.html" data-mesa="snfiu2" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
-          <h3>S-NFI U2</h3>
+          <h3>S-NFI U-2</h3>
           <p>Energía desperdiciada en el sistema eléctrico español. Horas precio 0&nbsp;EUR/MWh, GWh curtailed, comparativa histórica 2023-2026. Dato vivo vía REE.</p>
           <p class="mono" style="margin-top:10px;">acceso directo →</p>
         </a>
 
-        <a class="tile reveal delay-4" href="/pages/factory.html" data-mesa="factory" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
+        <a class="tile reveal delay-4" href="/pages/factory.html" data-mesa="factory" style="text-decoration:none; color:inherit; display:block; cursor:pointer; opacity:0.6;">
           <h3>S-NFI Factory</h3>
-          <p>Control de la cadena de suministro industrial: ensamblaje BioHybrid™, logística de materiales, inventario de componentes mecánicos y mantenimiento de nodos desplegados.</p>
-          <p class="mono" style="margin-top:10px;">acceso directo →</p>
+          <p>Cadena de suministro industrial. En desarrollo pendiente.</p>
+          <p class="mono" style="margin-top:10px;">en desarrollo →</p>
         </a>
 
         <a class="tile reveal delay-4" href="/pages/finance.html" data-mesa="finance" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
@@ -113,9 +82,9 @@
           <p class="mono" style="margin-top:10px;">acceso directo →</p>
         </a>
 
-        <a class="tile reveal delay-4" href="/pages/fl.html" data-mesa="fl" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
-          <h3>S-NFI F&amp;L</h3>
-          <p>Custodia legal del Holding: NDAs, contratos mercantiles y laborales, cesión de licencias y expediente técnico-jurídico para el Modelo de Utilidad ante la OEPM.</p>
+        <a class="tile reveal delay-4" href="/pages/seagle.html" data-mesa="seagle" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
+          <h3>S-EAGLE</h3>
+          <p>Revisión de la información que Herzog retiene: mapa de portales Gob Share + H-CONEXIÓN (verificar/corregir/compartir con Herzog).</p>
           <p class="mono" style="margin-top:10px;">acceso directo →</p>
         </a>
 
@@ -125,15 +94,15 @@
           <p class="mono" style="margin-top:10px;">acceso directo →</p>
         </a>
 
-        <a class="tile reveal delay-4" href="/pages/pactum-viridi.html" data-mesa="pactvm" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
-          <h3>Pactvm Viridi</h3>
-          <p>Guardián doctrinal, científico y de cumplimiento bio-ambiental. Dominio propio con 3 mesas: Certificado CIBE, Nodos por País y Condiciones de Entrada.</p>
+        <a class="tile reveal delay-4" href="/pages/fl.html" data-mesa="fl" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
+          <h3>S-NFI F&amp;L</h3>
+          <p>Audit Legal — Firmas &amp; Normas. Licencias multi-planta SEMARNAT/CONAGUA/CFE/MITECO, matriz de responsabilidad legal por proyecto y alarma de caducidad de poderes y firmas.</p>
           <p class="mono" style="margin-top:10px;">acceso directo →</p>
         </a>
 
-        <a class="tile reveal delay-4" href="/pages/gob-share.html" data-mesa="reff" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
-          <h3>Gob Share</h3>
-          <p>Portales de registro gubernamentales por país (UE-27 + EEUU + China + Marruecos). Globo 3D interactivo con acceso directo a cada portal oficial.</p>
+        <a class="tile reveal delay-4" href="/pages/resilience.html" data-mesa="resilience" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
+          <h3>S-NFI Resilience (BSS)</h3>
+          <p>Inteligencia de detección de fallos de red eléctrica y eventos sistémicos. Continuidad operativa, redundancia de proveedores y resiliencia de datos transfronterizos. Módulo de arbitraje conectado a Elvi-Ra.</p>
           <p class="mono" style="margin-top:10px;">acceso directo →</p>
         </a>
       </div>
@@ -156,7 +125,7 @@
         </div>
         <div class="mesa-status-card" data-mesa="snfiu2">
           <div class="mesa-status-head">
-            <span class="mesa-status-name">S-NFI U2</span>
+            <span class="mesa-status-name">S-NFI U-2</span>
             <span class="mesa-status-dot checking"></span>
           </div>
           <span class="mesa-status-label">comprobando...</span>
@@ -181,15 +150,6 @@
           <span class="mesa-status-detail"></span>
           <span class="mesa-status-error"></span>
         </div>
-        <div class="mesa-status-card" data-mesa="fl">
-          <div class="mesa-status-head">
-            <span class="mesa-status-name">S-NFI F&amp;L</span>
-            <span class="mesa-status-dot checking"></span>
-          </div>
-          <span class="mesa-status-label">comprobando...</span>
-          <span class="mesa-status-detail"></span>
-          <span class="mesa-status-error"></span>
-        </div>
         <div class="mesa-status-card" data-mesa="mna">
           <div class="mesa-status-head">
             <span class="mesa-status-name">S-NFI M&amp;A</span>
@@ -199,9 +159,27 @@
           <span class="mesa-status-detail"></span>
           <span class="mesa-status-error"></span>
         </div>
-        <div class="mesa-status-card" data-mesa="pactvm">
+        <div class="mesa-status-card" data-mesa="seagle">
           <div class="mesa-status-head">
-            <span class="mesa-status-name">Pactvm Viridi</span>
+            <span class="mesa-status-name">S-EAGLE</span>
+            <span class="mesa-status-dot checking"></span>
+          </div>
+          <span class="mesa-status-label">comprobando...</span>
+          <span class="mesa-status-detail"></span>
+          <span class="mesa-status-error"></span>
+        </div>
+        <div class="mesa-status-card" data-mesa="fl">
+          <div class="mesa-status-head">
+            <span class="mesa-status-name">S-NFI F&amp;L</span>
+            <span class="mesa-status-dot checking"></span>
+          </div>
+          <span class="mesa-status-label">comprobando...</span>
+          <span class="mesa-status-detail"></span>
+          <span class="mesa-status-error"></span>
+        </div>
+        <div class="mesa-status-card" data-mesa="resilience">
+          <div class="mesa-status-head">
+            <span class="mesa-status-name">S-NFI Resilience</span>
             <span class="mesa-status-dot checking"></span>
           </div>
           <span class="mesa-status-label">comprobando...</span>
@@ -214,9 +192,11 @@
 
   <script type="module">
     import { api, getUser, getToken, clearSession, requireAuth, toast } from '/js/api.js';
+    import { mountThemeToggle } from '/js/theme.js';
     import { mountAdminNotifications } from '/js/notifications.js';
     import { mountOfficeBg, mountSphereBg } from '/js/office-bg.js';
     requireAuth();
+    mountThemeToggle(document.querySelector('nav.nav .row'));
     mountOfficeBg();
     mountSphereBg();
     const user = getUser() || '';
@@ -229,7 +209,7 @@
         headers: { Authorization: `Bearer ${getToken()}` }
       }).then(r => r.json());
       const allowed = new Set(perms.mesas || []);
-      const domainMesas = ['reff', 'snfiu2', 'factory', 'finance', 'fl', 'mna', 'pactvm'];
+      const domainMesas = ['reff', 'snfiu2', 'factory', 'finance', 'mna', 'seagle', 'fl', 'resilience'];
       if (!domainMesas.some(m => allowed.has(m))) {
         location.href = '/pages/dashboard.html';
       }
@@ -329,20 +309,21 @@
       checkMesa('snfiu2', '/api/snfi-u2/live', {
         parse: d => d.snapshot?.precio_actual_eur_mwh != null ? `${d.snapshot.precio_actual_eur_mwh} EUR/MWh` : ''
       });
-      checkMesa('factory', '/api/factory/summary', {
-        parse: d => `${d.assemblyActive ?? 0} ensamblajes activos`
+      setMesaStatus('factory', 'checking', 'en desarrollo', 'mesa pendiente de reconstrucción', '');
+      checkMesa('seagle', '/api/seagle/summary', {
+        parse: d => `${d.reviewsTotal ?? 0} revisiones`
       });
       checkMesa('finance', '/api/finance/summary', {
         parse: d => `${d.accountsCount ?? 0} cuentas`
       });
-      checkMesa('fl', '/api/fl/summary', {
-        parse: d => `${d.ndasCount ?? 0} NDAs · ${d.contractsCount ?? 0} contratos`
-      });
       checkMesa('mna', '/api/mna/summary', {
         parse: d => `${d.activeDeals ?? 0} deals activos`
       });
-      checkMesa('pactvm', '/api/pactvm/summary', {
-        parse: d => `${d.cibeEmitidos ?? 0} CIBE emitidos`
+      checkMesa('fl', '/api/fl/summary', {
+        parse: d => d.icrl != null ? `ICRL ${d.icrl}%` : ''
+      });
+      checkMesa('resilience', '/api/resilience/summary', {
+        parse: d => d.autonomyHours != null ? `${d.autonomyHours}h autonomía` : ''
       });
     }
 

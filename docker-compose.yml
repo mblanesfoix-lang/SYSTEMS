@@ -18,7 +18,7 @@ version: "3.9"
 #   LLM_PROVIDER        — "anthropic" | "ollama"  (default: anthropic)
 #   OLLAMA_MODEL        — "llama3:70b" | "mistral:7b" (solo si LLM_PROVIDER=ollama)
 #   ANTHROPIC_MODEL     — claude-haiku-4-5-20251001 (optional override)
-#   FOUNDRY_INGRESS_PORT      — puerto dedicado del Ingress Gateway Data Foundry
+#   FOUNDRY_INGRESS_PORT      — puerto dedicado del Ingress Gateway Lab
 #                               (opcional; sin definir, ingesta embebida en /api/foundry/ingress)
 #   FOUNDRY_NODE_SECRET       — secreto HMAC global de nodos (opcional; sin definir,
 #                               solo aceptan nodos registrados con secreto propio)
@@ -109,7 +109,7 @@ services:
       # — solo accesible dentro de elvira-net hasta que el Twin exista.
       ENABLE_TWIN_PORT: ${ENABLE_TWIN_PORT:-false}
       TWIN_PORT: 5174
-      # Data Foundry · Ingress Gateway dedicado (endpoint privado, puerto cerrado).
+      # Lab · Ingress Gateway dedicado (endpoint privado, puerto cerrado).
       # Se expone solo dentro de elvira-net; para hardware externo, mapear el
       # puerto en "ports" y cerrarlo por UFW a la red del nodo.
       FOUNDRY_INGRESS_PORT: ${FOUNDRY_INGRESS_PORT:-}

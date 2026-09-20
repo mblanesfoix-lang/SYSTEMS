@@ -6,8 +6,16 @@
   <title>S-NFI Finance · S-NFI</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap">
   <link rel="stylesheet" href="/css/theme.css">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('systemsTheme');
+        if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      } catch (e) {}
+    })();
+  </script>
   <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
   <style>
     .finance-hero {
@@ -20,7 +28,7 @@
     }
     .finance-hero__title {
       font-family: var(--font-display);
-      font-size: clamp(1.7rem, 3vw, 2.3rem);
+      font-size: 12px;
       font-weight: 800;
       letter-spacing: -0.04em;
       margin: 0 0 8px;
@@ -72,7 +80,7 @@
     .chart-legend .item { display: flex; align-items: center; gap: 7px; font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.02em; color: var(--text-muted); }
     .chart-legend .swatch { width: 10px; height: 10px; display: inline-block; flex-shrink: 0; }
     .chart-tooltip {
-      position: absolute; pointer-events: none; background: var(--text-primary); color: #fff;
+      position: absolute; pointer-events: none; background: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border-mid);
       font-family: var(--font-mono); font-size: 0.7rem; padding: 6px 10px; white-space: nowrap;
       transform: translate(-50%, -120%); opacity: 0; transition: opacity .12s var(--ease); z-index: 5;
     }
@@ -93,7 +101,7 @@
       white-space: nowrap;
     }
     .mode-tab:last-child { border-right: none; }
-    .mode-tab.active { background: var(--text-primary); color: #fff; font-weight: 600; }
+    .mode-tab.active { background: var(--accent-blue); color: #fff; font-weight: 600; }
     .mode-tab:hover:not(.active) { color: var(--text-primary); }
 
     .finance-panel { display: none; }
@@ -108,8 +116,10 @@
     .fin-toolbar .filter-input {
       flex: 1 1 220px; max-width: 320px; height: 36px; padding: 0 12px; font-size: 0.86rem;
       border: 1px solid var(--border-mid); border-radius: var(--radius-sm); background: var(--bg-card); outline: none;
+      color: var(--text-primary); font-family: var(--font-body);
       transition: border-color .2s var(--ease);
     }
+    .fin-toolbar .filter-input::placeholder { color: var(--text-muted); }
     .fin-toolbar .filter-input:focus { border-color: var(--accent-blue); }
     .fin-toolbar select { height: 36px; font-size: 0.8rem; width: auto; min-width: 130px; }
     .fin-toolbar .spacer { flex: 1 1 auto; }
@@ -123,7 +133,7 @@
     /* ---- Edicion inline ---- */
     .editable { cursor: text; position: relative; border-radius: var(--radius-sm); transition: background .15s var(--ease); }
     .editable:hover { background: rgba(0,113,227,0.07); box-shadow: inset 0 0 0 1px rgba(0,113,227,0.18); }
-    .editable.editing { background: #fff; box-shadow: inset 0 0 0 1.5px var(--accent-blue); }
+    .editable.editing { background: var(--bg-card); box-shadow: inset 0 0 0 1.5px var(--accent-blue); }
     .editable input, .editable select {
       width: 100%; height: 28px; padding: 2px 6px; font: inherit; border: none; outline: none;
       background: transparent; font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-primary);
@@ -194,27 +204,128 @@
     .report-card p { font-size: 0.8rem; color: var(--text-muted); margin: 0; line-height: 1.5; }
 
     .transfer-arrow { font-family: var(--font-mono); color: var(--text-muted); padding: 0 4px; }
+
+    /* ---- CRM de empresas: listado + ficha con documentacion ---- */
+    .crm-kpis {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 0;
+      border: 1px solid var(--border-mid); border-radius: var(--radius); overflow: hidden;
+      margin-bottom: 18px;
+    }
+    @media (max-width: 900px) { .crm-kpis { grid-template-columns: repeat(2, 1fr); } }
+    .crm-kpi { padding: 14px 18px; border-right: 1px solid var(--border); }
+    .crm-kpi:last-child { border-right: none; }
+    .crm-kpi__label { display: block; font-family: var(--font-mono); font-size: 0.55rem; letter-spacing: 0.03em; color: var(--text-muted); margin-bottom: 6px; }
+    .crm-kpi__val { font-family: var(--font-display); font-size: 1.25rem; font-weight: 800; letter-spacing: -0.03em; }
+
+    .crm-layout { display: grid; grid-template-columns: 1fr 1.25fr; gap: 18px; align-items: start; }
+    @media (max-width: 1100px) { .crm-layout { grid-template-columns: 1fr; } }
+
+    .crm-list { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; max-height: 620px; overflow-y: auto; }
+    .crm-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 14px; border-bottom: 1px solid var(--border); cursor: pointer;
+      transition: background .15s var(--ease);
+    }
+    .crm-row:last-child { border-bottom: none; }
+    .crm-row:hover { background: var(--bg-hover, rgba(127,127,127,0.06)); }
+    .crm-row.selected { background: rgba(0, 102, 204, 0.08); box-shadow: inset 2px 0 0 var(--accent-blue); }
+    .crm-row__main { flex: 1; min-width: 0; }
+    .crm-row__name { font-weight: 600; font-size: 0.88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .crm-row__meta { font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-muted); margin-top: 3px; }
+    .crm-row__count { font-family: var(--font-mono); font-size: 0.62rem; color: var(--text-muted); white-space: nowrap; }
+
+    .crm-chip {
+      display: inline-block; font-family: var(--font-mono); font-size: 0.55rem; letter-spacing: 0.04em;
+      text-transform: uppercase; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--border-mid);
+      color: var(--text-muted);
+    }
+    .crm-chip--activa { color: #00a878; border-color: #00a878; }
+    .crm-chip--prospecto { color: var(--accent-blue); border-color: var(--accent-blue); }
+    .crm-chip--pausada { color: #c88a00; border-color: #c88a00; }
+    .crm-chip--cerrada { color: #d80300; border-color: #d80300; }
+
+    .crm-detail { border: 1px solid var(--border); border-top: 2px solid var(--accent-blue); border-radius: var(--radius); padding: 20px 22px; min-height: 320px; }
+    .crm-detail__head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+    .crm-detail__title { font-family: var(--font-display); font-size: 1.15rem; font-weight: 800; letter-spacing: -0.03em; margin: 0; }
+    .crm-detail__sub { font-family: var(--font-mono); font-size: 0.62rem; color: var(--text-muted); margin-top: 5px; }
+    .crm-fields { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 16px; margin-bottom: 18px; }
+    @media (max-width: 700px) { .crm-fields { grid-template-columns: 1fr 1fr; } }
+    .crm-field__label { font-family: var(--font-mono); font-size: 0.55rem; letter-spacing: 0.03em; color: var(--text-muted); margin-bottom: 3px; }
+    .crm-field__val { font-size: 0.82rem; }
+    .crm-field__val.editable { cursor: text; border-bottom: 1px dashed var(--border-mid); }
+    .crm-field__val.editable:hover { border-bottom-color: var(--accent-blue); }
+
+    .crm-section { border-top: 1px solid var(--border); padding-top: 14px; margin-top: 14px; }
+    .crm-section__head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+    .crm-section__title { font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+
+    .crm-folders { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+    .crm-folder {
+      font-family: var(--font-mono); font-size: 0.58rem; letter-spacing: 0.04em; text-transform: uppercase;
+      padding: 4px 10px; border: 1px solid var(--border-mid); border-radius: 999px;
+      background: transparent; color: var(--text-muted); cursor: pointer;
+    }
+    .crm-folder.active { border-color: var(--accent-blue); color: var(--accent-blue); }
+
+    .crm-drop {
+      border: 1px dashed var(--border-mid); border-radius: var(--radius);
+      padding: 16px; text-align: center; font-size: 0.75rem; color: var(--text-muted);
+      cursor: pointer; transition: border-color .15s var(--ease), background .15s var(--ease);
+      margin-bottom: 12px;
+    }
+    .crm-drop:hover, .crm-drop.dragover { border-color: var(--accent-blue); background: rgba(0, 102, 204, 0.05); }
+
+    .crm-doc { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 6px; }
+    .crm-doc__icon { font-family: var(--font-mono); font-size: 0.55rem; font-weight: 700; letter-spacing: 0.04em; padding: 4px 6px; border-radius: 4px; background: var(--border); color: var(--text-secondary); }
+    .crm-doc__main { flex: 1; min-width: 0; }
+    .crm-doc__name { font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .crm-doc__meta { font-family: var(--font-mono); font-size: 0.58rem; color: var(--text-muted); margin-top: 2px; }
+    .crm-doc__actions { display: flex; gap: 5px; align-items: center; }
+    .crm-doc__actions select { font-family: var(--font-mono); font-size: 0.58rem; padding: 3px 5px; }
+
+    .crm-note { border-left: 2px solid var(--border-mid); padding: 6px 0 6px 10px; margin-bottom: 8px; }
+    .crm-note__text { font-size: 0.8rem; line-height: 1.5; white-space: pre-wrap; }
+    .crm-note__meta { font-family: var(--font-mono); font-size: 0.58rem; color: var(--text-muted); margin-top: 3px; }
+
+    .modal-error {
+      margin: 0 0 12px; padding: 9px 12px; font-size: 0.78rem; color: #d80300;
+      border: 1px solid #d80300; border-radius: var(--radius-sm); background: rgba(216, 3, 0, 0.08);
+    }
+
+    .crm-empty { padding: 18px; text-align: center; font-size: 0.78rem; color: var(--text-muted); }
+    .crm-empty--big { padding: 90px 18px; }
   </style>
 </head>
 <body>
   <nav class="nav">
     <div class="brand">
       <img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;">
-      SYSTEMS
+      <span class="brand-mark">S-NFI Systems (c)</span>
     </div>
-    <div class="row" style="gap:18px;">
-      <span class="mono" id="userTag">...</span>
-      <button class="btn ghost" id="logoutBtn">Cerrar sesión</button>
+    <div class="user-menu" id="userMenu">
+      <button class="user-menu__trigger mono" id="userTag" aria-haspopup="true" aria-expanded="false">…</button>
+      <div class="user-menu__dropdown" id="userDropdown" hidden>
+        <div class="user-menu__section">
+          <span class="user-menu__label">Cambiar contraseña</span>
+          <input class="user-menu__input" type="password" id="pwdCurrent" placeholder="Contraseña actual" autocomplete="current-password">
+          <input class="user-menu__input" type="password" id="pwdNew" placeholder="Nueva contraseña" autocomplete="new-password">
+          <input class="user-menu__input" type="password" id="pwdConfirm" placeholder="Confirmar nueva" autocomplete="new-password">
+          <p class="user-menu__error" id="pwdError" hidden></p>
+          <button class="btn sage" id="pwdSubmit" style="width:100%;margin-top:4px;">Actualizar</button>
+        </div>
+        <div class="user-menu__divider"></div>
+        <button class="user-menu__item user-menu__item--danger" id="logoutBtn">Cerrar sesión</button>
+      </div>
     </div>
   </nav>
 
   <main class="container">
-    <div class="breadcrumb-row" style="display:flex; align-items:center; gap:8px; font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.02em; color: var(--text-muted); margin-bottom: 22px;">
-      <a href="/pages/dashboard.html" style="color:inherit; text-decoration:none;">SYSTEMS</a>
-      <span style="opacity:.35;">/</span>
-      <a href="/pages/reff-dashboard.html" style="color:inherit; text-decoration:none;">Rëff</a>
-      <span style="opacity:.35;">/</span>
-      <span style="color: var(--text-primary); font-weight:600;">S-NFI Finance</span>
+    <div class="breadcrumb-row">
+      <a href="/pages/dashboard.html">Systems</a>
+      <span class="sep">/</span>
+      <a href="/pages/reff-dashboard.html">Rëff</a>
+      <span class="sep">/</span>
+      <span class="active">S-NFI Finance</span>
     </div>
 
     <div class="finance-hero reveal">
@@ -304,6 +415,7 @@
       <button class="mode-tab" data-panel="cuentas">Cuentas</button>
       <button class="mode-tab" data-panel="analitica">Centros de coste</button>
       <button class="mode-tab" data-panel="activos">Activos</button>
+      <button class="mode-tab" data-panel="empresas">Empresas</button>
       <button class="mode-tab" data-panel="informes">Informes</button>
     </div>
 
@@ -387,6 +499,37 @@
       </div>
     </div>
 
+    <!-- EMPRESAS · CRM documental -->
+    <div class="finance-panel card reveal" id="panel-empresas" style="padding:20px;">
+      <div class="crm-kpis" id="crmKpis">
+        <div class="crm-kpi"><span class="crm-kpi__label">Empresas</span><span class="crm-kpi__val" id="crmKpiCompanies">—</span></div>
+        <div class="crm-kpi"><span class="crm-kpi__label">Activas</span><span class="crm-kpi__val" id="crmKpiActive">—</span></div>
+        <div class="crm-kpi"><span class="crm-kpi__label">Documentos</span><span class="crm-kpi__val" id="crmKpiDocs">—</span></div>
+        <div class="crm-kpi"><span class="crm-kpi__label">Almacenado</span><span class="crm-kpi__val" id="crmKpiStorage">—</span></div>
+      </div>
+
+      <div class="crm-layout">
+        <!-- columna izquierda: listado -->
+        <div class="crm-list-col">
+          <div class="fin-toolbar">
+            <input class="filter-input" id="coFilter" placeholder="Buscar empresa, CIF, sector…">
+            <select id="coFilterRelation"><option value="">Toda relación</option></select>
+            <select id="coFilterStatus"><option value="">Todo estado</option></select>
+            <span class="spacer"></span>
+            <button class="btn sage fab-new" data-modal="company">+ Nueva empresa</button>
+          </div>
+          <div class="crm-list" id="coList">
+            <div class="crm-empty">Cargando…</div>
+          </div>
+        </div>
+
+        <!-- columna derecha: ficha + documentacion -->
+        <div class="crm-detail" id="coDetail">
+          <div class="crm-empty crm-empty--big">Selecciona una empresa para ver su ficha, informes y documentación.</div>
+        </div>
+      </div>
+    </div>
+
     <!-- INFORMES -->
     <div class="finance-panel card reveal" id="panel-informes" style="padding:20px;">
       <p style="font-size:0.82rem; color:var(--text-muted); line-height:1.6; max-width:680px; margin-top:0;">
@@ -427,15 +570,53 @@
   </div>
 
   <script type="module">
-    import { api, getUser, requireAuth, clearSession, toast, escapeHtml, downloadFinanceExport } from '/js/api.js';
+    import { api, getUser, requireAuth, clearSession, toast, escapeHtml, downloadFinanceExport,
+             uploadFinanceCompanyDoc, openFinanceCompanyDoc } from '/js/api.js';
+    import { mountThemeToggle } from '/js/theme.js';
     import { mountOfficeBg } from '/js/office-bg.js';
     requireAuth();
+    mountThemeToggle(document.querySelector('nav.nav .row'));
     mountOfficeBg();
     document.getElementById('userTag').textContent = getUser() || '';
     document.getElementById('logoutBtn').addEventListener('click', async () => {
       try { await api.logout(); } catch {}
       clearSession();
       location.href = '/pages/login.html';
+    });
+
+    // User menu dropdown
+    const userMenuTrigger = document.getElementById('userTag');
+    const userMenuDropdown = document.getElementById('userDropdown');
+    userMenuTrigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = !userMenuDropdown.hidden;
+      userMenuDropdown.hidden = open;
+      userMenuTrigger.setAttribute('aria-expanded', String(!open));
+    });
+    document.addEventListener('click', (e) => {
+      if (!document.getElementById('userMenu').contains(e.target)) {
+        userMenuDropdown.hidden = true;
+        userMenuTrigger.setAttribute('aria-expanded', 'false');
+      }
+    });
+    document.getElementById('pwdSubmit').addEventListener('click', async () => {
+      const cur = document.getElementById('pwdCurrent').value;
+      const neu = document.getElementById('pwdNew').value;
+      const con = document.getElementById('pwdConfirm').value;
+      const errEl = document.getElementById('pwdError');
+      errEl.hidden = true;
+      if (!cur || !neu || !con) { errEl.textContent = 'Rellena todos los campos'; errEl.hidden = false; return; }
+      if (neu !== con) { errEl.textContent = 'Las contraseñas no coinciden'; errEl.hidden = false; return; }
+      try {
+        await api.changePassword(cur, neu);
+        toast('Contraseña actualizada');
+        userMenuDropdown.hidden = true;
+        userMenuTrigger.setAttribute('aria-expanded', 'false');
+        ['pwdCurrent','pwdNew','pwdConfirm'].forEach(id => document.getElementById(id).value = '');
+      } catch (ex) {
+        errEl.textContent = ex.message || 'Error al cambiar contraseña';
+        errEl.hidden = false;
+      }
     });
 
     function showError(msg) {
@@ -519,6 +700,24 @@
           <div class="sf"><label>Vida útil (meses)</label><input class="input" type="number" id="m-astLife" value="60"></div>
         </div>
         <div class="modal-actions"><button class="btn ghost" data-close>Cancelar</button><button class="btn sage" id="m-astSubmit">Añadir activo</button></div>
+      `,
+      company: () => `
+        <div class="modal-box__head"><h3>Nueva empresa</h3><button class="modal-close" data-close>&times;</button></div>
+        <div class="modal-grid">
+          <div class="sf full"><label>Nombre</label><input class="input" id="m-coName" placeholder="Razón social"></div>
+          <div class="sf"><label>Relación</label><select class="input" id="m-coRelation"></select></div>
+          <div class="sf"><label>Estado</label><select class="input" id="m-coStatus"></select></div>
+          <div class="sf"><label>CIF / NIF</label><input class="input" id="m-coTaxId" placeholder="Opcional"></div>
+          <div class="sf"><label>Sector</label><input class="input" id="m-coSector" placeholder="Opcional"></div>
+          <div class="sf"><label>País (ISO-2)</label><input class="input" id="m-coCountry" maxlength="2" placeholder="ES"></div>
+          <div class="sf"><label>Centro coste</label><select class="input" id="m-coCostCenter"><option value="">Ninguno</option></select></div>
+          <div class="sf"><label>Contacto</label><input class="input" id="m-coContactName" placeholder="Opcional"></div>
+          <div class="sf"><label>Email</label><input class="input" type="email" id="m-coContactEmail" placeholder="Opcional"></div>
+          <div class="sf"><label>Teléfono</label><input class="input" id="m-coContactPhone" placeholder="Opcional"></div>
+          <div class="sf full"><label>Notas</label><input class="input" id="m-coNotes" placeholder="Opcional"></div>
+        </div>
+        <p class="modal-error" id="m-coError" hidden></p>
+        <div class="modal-actions"><button class="btn ghost" data-close>Cancelar</button><button class="btn sage" id="m-coSubmit">Crear empresa</button></div>
       `,
     };
 
@@ -616,6 +815,45 @@
             closeModal(); toast('Activo creado'); loadAssets(); loadSummary();
           } catch (ex) { showError(ex.message || 'Error al crear activo'); }
         });
+      } else if (kind === 'company') {
+        const relSel = document.getElementById('m-coRelation');
+        const staSel = document.getElementById('m-coStatus');
+        relSel.innerHTML = crmMeta.relations.map(r => `<option value="${r}">${CRM_LABELS[r] || r}</option>`).join('');
+        staSel.innerHTML = crmMeta.statuses.map(s => `<option value="${s}">${CRM_LABELS[s] || s}</option>`).join('');
+        fillSelect(document.getElementById('m-coCostCenter'), costCentersCache, 'Ninguno');
+        // El error se pinta dentro del modal: el #errorBox global queda arriba
+        // del todo, fuera de la vista, y un fallo pasaba desapercibido.
+        const coErr = document.getElementById('m-coError');
+        const coFail = (msg) => { coErr.textContent = msg; coErr.hidden = false; };
+        const submitBtn = document.getElementById('m-coSubmit');
+        submitBtn.addEventListener('click', async () => {
+          coErr.hidden = true;
+          const name = document.getElementById('m-coName').value.trim();
+          if (!name) return coFail('Indica el nombre de la empresa');
+          submitBtn.disabled = true;
+          try {
+            const created = await api.financeCompanyAdd({
+              name,
+              relation: relSel.value,
+              status: staSel.value,
+              taxId: document.getElementById('m-coTaxId').value.trim() || null,
+              sector: document.getElementById('m-coSector').value.trim() || null,
+              country: document.getElementById('m-coCountry').value.trim() || null,
+              costCenterId: document.getElementById('m-coCostCenter').value || null,
+              contactName: document.getElementById('m-coContactName').value.trim() || null,
+              contactEmail: document.getElementById('m-coContactEmail').value.trim() || null,
+              contactPhone: document.getElementById('m-coContactPhone').value.trim() || null,
+              notes: document.getElementById('m-coNotes').value.trim() || null,
+            });
+            closeModal(); toast('Empresa creada');
+            await loadCompanies();
+            selectCompany(created.id);
+          } catch (ex) {
+            coFail(ex.message || 'Error al crear empresa');
+          } finally {
+            submitBtn.disabled = false;
+          }
+        });
       }
     }
     function closeModal() { overlay.classList.remove('show'); }
@@ -693,6 +931,21 @@
     let accountsCache = [];
     let costCentersCache = [];
     let movementsCache = [];
+
+    // Estado del CRM de empresas. Declarado aqui arriba a proposito: la rama
+    // 'company' de openModal lee crmMeta/CRM_LABELS, y openModal se define antes
+    // del bloque CRM. Con let/const mas abajo caian en temporal dead zone y el
+    // boton "Crear empresa" reventaba con ReferenceError.
+    const CRM_LABELS = {
+      cliente: 'Cliente', proveedor: 'Proveedor', participada: 'Participada', inversor: 'Inversor', otro: 'Otro',
+      activa: 'Activa', prospecto: 'Prospecto', pausada: 'Pausada', cerrada: 'Cerrada',
+      informes: 'Informes', contratos: 'Contratos', facturas: 'Facturas', fiscal: 'Fiscal', tecnico: 'Técnico', otros: 'Otros',
+    };
+    let crmMeta = { folders: ['informes','contratos','facturas','fiscal','tecnico','otros'], relations: ['cliente','proveedor','participada','inversor','otro'], statuses: ['activa','prospecto','pausada','cerrada'], maxUploadMb: 24 };
+    let companiesCache = [];
+    let selectedCompanyId = null;
+    let selectedCompany = null;
+    let activeFolder = '';
 
     // ================= CUENTAS =================
     async function loadAccounts() {
@@ -1111,6 +1364,344 @@
     });
     document.getElementById('astFilter').addEventListener('input', renderAssets);
 
+    // ================= EMPRESAS · CRM DOCUMENTAL =================
+    // Listado a la izquierda, ficha con documentacion a la derecha. La subida es
+    // raw (mismo patron que Herzog): el archivo viaja como body, carpeta y nombre
+    // en cabeceras, sin multipart.
+
+    function fileSize(bytes) {
+      if (!bytes) return '0 B';
+      const units = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+      return `${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+    }
+    function docKindLabel(contentType, filename) {
+      if (contentType === 'application/pdf') return 'PDF';
+      if (contentType.startsWith('image/')) return 'IMG';
+      if (contentType.includes('spreadsheet') || contentType.includes('ms-excel') || contentType === 'text/csv') return 'XLS';
+      if (contentType.includes('word')) return 'DOC';
+      const ext = (filename || '').split('.').pop();
+      return (ext && ext.length <= 4 ? ext : 'FILE').toUpperCase();
+    }
+
+    async function loadCrmMeta() {
+      try {
+        // Si el backend no responde se mantiene el catalogo por defecto ya
+        // declarado arriba: los selects y el modal siguen usables.
+        crmMeta = await api.financeCompaniesMeta();
+      } catch (ex) {
+        console.warn('[Finance CRM] meta:', ex.message);
+      }
+      try {
+        const relSel = document.getElementById('coFilterRelation');
+        const staSel = document.getElementById('coFilterStatus');
+        relSel.innerHTML = '<option value="">Toda relación</option>' + crmMeta.relations.map(r => `<option value="${r}">${CRM_LABELS[r] || r}</option>`).join('');
+        staSel.innerHTML = '<option value="">Todo estado</option>' + crmMeta.statuses.map(s => `<option value="${s}">${CRM_LABELS[s] || s}</option>`).join('');
+      } catch (ex) { showError(ex.message || 'Error al cargar catálogo de empresas'); }
+    }
+
+    async function loadCrmSummary() {
+      try {
+        const s = await api.financeCompaniesSummary();
+        document.getElementById('crmKpiCompanies').textContent = s.companiesCount;
+        document.getElementById('crmKpiActive').textContent = s.activeCount;
+        document.getElementById('crmKpiDocs').textContent = s.documentsCount;
+        document.getElementById('crmKpiStorage').textContent = fileSize(s.storageBytes);
+      } catch (ex) {
+        // El KPI no bloquea la mesa, pero un fallo aqui suele significar que el
+        // servidor no tiene montadas las rutas del CRM (backend sin reiniciar).
+        console.warn('[Finance CRM] summary:', ex.message);
+      }
+    }
+
+    function renderCompanies() {
+      const list = document.getElementById('coList');
+      const q = document.getElementById('coFilter').value.trim().toLowerCase();
+      const rows = companiesCache.filter(c => !q
+        || c.name.toLowerCase().includes(q)
+        || (c.taxId || '').toLowerCase().includes(q)
+        || (c.sector || '').toLowerCase().includes(q));
+      if (rows.length === 0) {
+        list.innerHTML = '<div class="crm-empty">Sin empresas. Crea la primera con “+ Nueva empresa”.</div>';
+        return;
+      }
+      list.innerHTML = rows.map(c => `
+        <div class="crm-row ${c.id === selectedCompanyId ? 'selected' : ''}" data-id="${c.id}">
+          <div class="crm-row__main">
+            <div class="crm-row__name">${escapeHtml(c.name)}</div>
+            <div class="crm-row__meta">${CRM_LABELS[c.relation] || c.relation}${c.sector ? ` · ${escapeHtml(c.sector)}` : ''}${c.country ? ` · ${escapeHtml(c.country)}` : ''}</div>
+          </div>
+          <span class="crm-chip crm-chip--${c.status}">${CRM_LABELS[c.status] || c.status}</span>
+          <span class="crm-row__count">${c.documentsCount} doc</span>
+        </div>`).join('');
+      list.querySelectorAll('.crm-row').forEach(row => row.addEventListener('click', () => selectCompany(row.dataset.id)));
+    }
+
+    async function loadCompanies() {
+      try {
+        const params = {};
+        const rel = document.getElementById('coFilterRelation').value;
+        const sta = document.getElementById('coFilterStatus').value;
+        if (rel) params.relation = rel;
+        if (sta) params.status = sta;
+        companiesCache = await api.financeCompaniesList(params);
+        renderCompanies();
+        loadCrmSummary();
+      } catch (ex) { showError(ex.message || 'Error al cargar empresas'); }
+    }
+
+    async function selectCompany(id) {
+      selectedCompanyId = id;
+      activeFolder = '';
+      renderCompanies();
+      const panel = document.getElementById('coDetail');
+      panel.innerHTML = '<div class="crm-empty">Cargando ficha…</div>';
+      try {
+        selectedCompany = await api.financeCompanyGet(id);
+        renderCompanyDetail();
+      } catch (ex) {
+        panel.innerHTML = `<div class="crm-empty">${escapeHtml(ex.message || 'Error al cargar la ficha')}</div>`;
+      }
+    }
+
+    function renderCompanyDetail() {
+      const c = selectedCompany;
+      const panel = document.getElementById('coDetail');
+      if (!c) { panel.innerHTML = '<div class="crm-empty crm-empty--big">Selecciona una empresa.</div>'; return; }
+
+      const field = (label, fieldName, value, type = 'text') => `
+        <div>
+          <div class="crm-field__label">${label}</div>
+          <div class="crm-field__val editable" data-field="${fieldName}" data-type="${type}" data-value="${escapeHtml(value ?? '')}">${escapeHtml(value || '—')}</div>
+        </div>`;
+
+      const ccName = (costCentersCache.find(cc => cc.id === c.costCenterId) || {}).name || null;
+      const docs = activeFolder ? c.documents.filter(d => d.folder === activeFolder) : c.documents;
+
+      panel.innerHTML = `
+        <div class="crm-detail__head">
+          <div style="flex:1;">
+            <h3 class="crm-detail__title editable" data-field="name" data-type="text" data-value="${escapeHtml(c.name)}">${escapeHtml(c.name)}</h3>
+            <div class="crm-detail__sub">${c.documents.length} documento(s) · ${c.notes.length} nota(s) · alta ${new Date(c.createdAt).toLocaleDateString('es-ES')}</div>
+          </div>
+          <button class="btn ghost btn--sm" id="coDelete">Eliminar</button>
+        </div>
+
+        <div class="crm-fields">
+          <div>
+            <div class="crm-field__label">Relación</div>
+            <div class="crm-field__val editable" data-field="relation" data-type="select" data-options="relations" data-value="${c.relation}">${CRM_LABELS[c.relation] || c.relation}</div>
+          </div>
+          <div>
+            <div class="crm-field__label">Estado</div>
+            <div class="crm-field__val editable" data-field="status" data-type="select" data-options="statuses" data-value="${c.status}">${CRM_LABELS[c.status] || c.status}</div>
+          </div>
+          ${field('CIF / NIF', 'taxId', c.taxId)}
+          ${field('Sector', 'sector', c.sector)}
+          ${field('País', 'country', c.country)}
+          <div>
+            <div class="crm-field__label">Centro de coste</div>
+            <div class="crm-field__val">${escapeHtml(ccName || '—')}</div>
+          </div>
+          ${field('Contacto', 'contactName', c.contactName)}
+          ${field('Email', 'contactEmail', c.contactEmail)}
+          ${field('Teléfono', 'contactPhone', c.contactPhone)}
+        </div>
+
+        <div class="crm-section">
+          <div class="crm-section__head">
+            <span class="crm-section__title">Informes y documentación</span>
+            <span class="spacer" style="flex:1;"></span>
+            <span class="crm-row__count">máx ${crmMeta.maxUploadMb} MB por archivo</span>
+          </div>
+          <div class="crm-folders">
+            <button class="crm-folder ${activeFolder === '' ? 'active' : ''}" data-folder="">Todo (${c.documents.length})</button>
+            ${crmMeta.folders.map(f => `<button class="crm-folder ${activeFolder === f ? 'active' : ''}" data-folder="${f}">${CRM_LABELS[f] || f} (${c.documents.filter(d => d.folder === f).length})</button>`).join('')}
+          </div>
+          <div class="crm-drop" id="coDrop">
+            Arrastra aquí un archivo o haz click para subirlo a
+            <strong>${activeFolder ? (CRM_LABELS[activeFolder] || activeFolder) : 'Informes'}</strong>
+            <div style="margin-top:4px; font-size:0.66rem;">PDF · Word · Excel/CSV · imágenes</div>
+          </div>
+          <input type="file" id="coFileInput" hidden>
+          <div id="coDocs">
+            ${docs.length === 0 ? '<div class="crm-empty">Sin documentos en esta carpeta.</div>' : docs.map(d => `
+              <div class="crm-doc" data-id="${d.id}" data-filename="${escapeHtml(d.filename)}">
+                <span class="crm-doc__icon">${docKindLabel(d.contentType, d.filename)}</span>
+                <div class="crm-doc__main">
+                  <div class="crm-doc__name">${escapeHtml(d.label || d.filename)}</div>
+                  <div class="crm-doc__meta">${fileSize(d.size)} · ${escapeHtml(d.uploadedBy || '')} · ${d.uploadedAt ? new Date(d.uploadedAt).toLocaleDateString('es-ES') : ''}</div>
+                </div>
+                <div class="crm-doc__actions">
+                  <select class="doc-folder">${crmMeta.folders.map(f => `<option value="${f}" ${f === d.folder ? 'selected' : ''}>${CRM_LABELS[f] || f}</option>`).join('')}</select>
+                  <button class="btn ghost btn--sm doc-open">Abrir</button>
+                  <button class="btn ghost btn--sm doc-dl">Bajar</button>
+                  <button class="btn ghost btn--sm doc-del">×</button>
+                </div>
+              </div>`).join('')}
+          </div>
+        </div>
+
+        <div class="crm-section">
+          <div class="crm-section__head"><span class="crm-section__title">Seguimiento</span></div>
+          <div style="display:flex; gap:8px; margin-bottom:10px;">
+            <input class="input" id="coNoteText" placeholder="Añadir nota de seguimiento…" style="flex:1;">
+            <button class="btn sage btn--sm" id="coNoteAdd">Añadir</button>
+          </div>
+          ${c.notes.length === 0 ? '<div class="crm-empty">Sin notas.</div>' : c.notes.map(n => `
+            <div class="crm-note" data-id="${n.id}">
+              <div class="crm-note__text">${escapeHtml(n.text)}</div>
+              <div class="crm-note__meta">${escapeHtml(n.authorId || '')} · ${new Date(n.createdAt).toLocaleString('es-ES')}
+                <button class="btn ghost btn--sm note-del" style="margin-left:8px;">Eliminar</button></div>
+            </div>`).join('')}
+        </div>
+      `;
+
+      bindCompanyDetailEvents();
+    }
+
+    function bindCompanyDetailEvents() {
+      const c = selectedCompany;
+      const panel = document.getElementById('coDetail');
+
+      panel.querySelectorAll('.crm-folder').forEach(btn => btn.addEventListener('click', () => {
+        activeFolder = btn.dataset.folder;
+        renderCompanyDetail();
+      }));
+
+      document.getElementById('coDelete').addEventListener('click', async () => {
+        if (!confirm(`Eliminar "${c.name}" y todos sus documentos y notas? Esta accion no se puede deshacer.`)) return;
+        try {
+          await api.financeCompanyDelete(c.id);
+          toast('Empresa eliminada');
+          selectedCompanyId = null; selectedCompany = null;
+          document.getElementById('coDetail').innerHTML = '<div class="crm-empty crm-empty--big">Selecciona una empresa para ver su ficha, informes y documentación.</div>';
+          loadCompanies();
+        } catch (ex) { showError(ex.message || 'Error al eliminar empresa'); }
+      });
+
+      // Edicion inline de la ficha: click en el valor -> input/select en su sitio.
+      panel.querySelectorAll('.editable').forEach(cell => cell.addEventListener('click', () => {
+        if (cell.dataset.editing === '1') return;
+        cell.dataset.editing = '1';
+        const field = cell.dataset.field;
+        const raw = cell.dataset.value || '';
+        let el;
+        if (cell.dataset.type === 'select') {
+          el = document.createElement('select');
+          const opts = crmMeta[cell.dataset.options] || [];
+          el.innerHTML = opts.map(o => `<option value="${o}" ${o === raw ? 'selected' : ''}>${CRM_LABELS[o] || o}</option>`).join('');
+        } else {
+          el = document.createElement('input');
+          el.className = 'input';
+          el.value = raw;
+        }
+        cell.innerHTML = '';
+        cell.appendChild(el);
+        el.focus();
+
+        let done = false;
+        const commit = async () => {
+          if (done) return;
+          done = true;
+          const value = el.value.trim ? el.value.trim() : el.value;
+          if (value === raw) { renderCompanyDetail(); return; }
+          try {
+            await api.financeCompanyPatch(c.id, { [field]: value || null });
+            selectedCompany = await api.financeCompanyGet(c.id);
+            renderCompanyDetail();
+            loadCompanies();
+          } catch (ex) { showError(ex.message || 'Error al actualizar'); renderCompanyDetail(); }
+        };
+        el.addEventListener('blur', commit);
+        el.addEventListener('change', () => { if (cell.dataset.type === 'select') commit(); });
+        el.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') commit();
+          if (e.key === 'Escape') { done = true; renderCompanyDetail(); }
+        });
+      }));
+
+      // Subida: click o drag & drop sobre la zona.
+      const drop = document.getElementById('coDrop');
+      const fileInput = document.getElementById('coFileInput');
+      drop.addEventListener('click', () => fileInput.click());
+      fileInput.addEventListener('change', () => { if (fileInput.files[0]) uploadDoc(fileInput.files[0]); });
+      ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('dragover'); }));
+      ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('dragover'); }));
+      drop.addEventListener('drop', (e) => {
+        const file = e.dataTransfer?.files?.[0];
+        if (file) uploadDoc(file);
+      });
+
+      async function uploadDoc(file) {
+        showError('');
+        if (file.size > crmMeta.maxUploadMb * 1024 * 1024) {
+          return showError(`El archivo supera ${crmMeta.maxUploadMb} MB`);
+        }
+        try {
+          await uploadFinanceCompanyDoc(c.id, file, activeFolder || 'informes');
+          toast('Documento subido');
+          selectedCompany = await api.financeCompanyGet(c.id);
+          renderCompanyDetail();
+          loadCompanies();
+        } catch (ex) { showError(ex.message || 'Error al subir el documento'); }
+        fileInput.value = '';
+      }
+
+      panel.querySelectorAll('.crm-doc').forEach(row => {
+        const fileId = row.dataset.id;
+        const filename = row.dataset.filename;
+        row.querySelector('.doc-open').addEventListener('click', async () => {
+          try { await openFinanceCompanyDoc(fileId, filename, false); } catch (ex) { showError(ex.message); }
+        });
+        row.querySelector('.doc-dl').addEventListener('click', async () => {
+          try { await openFinanceCompanyDoc(fileId, filename, true); } catch (ex) { showError(ex.message); }
+        });
+        row.querySelector('.doc-del').addEventListener('click', async () => {
+          if (!confirm(`Eliminar "${filename}"?`)) return;
+          try {
+            await api.financeCompanyDocDelete(fileId);
+            selectedCompany = await api.financeCompanyGet(c.id);
+            renderCompanyDetail(); loadCompanies();
+          } catch (ex) { showError(ex.message); }
+        });
+        row.querySelector('.doc-folder').addEventListener('change', async (e) => {
+          try {
+            await api.financeCompanyDocPatch(fileId, { folder: e.target.value });
+            selectedCompany = await api.financeCompanyGet(c.id);
+            renderCompanyDetail();
+          } catch (ex) { showError(ex.message); }
+        });
+      });
+
+      document.getElementById('coNoteAdd').addEventListener('click', async () => {
+        const input = document.getElementById('coNoteText');
+        const text = input.value.trim();
+        if (!text) return;
+        try {
+          await api.financeCompanyNoteAdd(c.id, text);
+          selectedCompany = await api.financeCompanyGet(c.id);
+          renderCompanyDetail(); loadCompanies();
+        } catch (ex) { showError(ex.message || 'Error al añadir la nota'); }
+      });
+      document.getElementById('coNoteText').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') document.getElementById('coNoteAdd').click();
+      });
+
+      panel.querySelectorAll('.note-del').forEach(btn => btn.addEventListener('click', async (e) => {
+        const noteId = e.target.closest('.crm-note').dataset.id;
+        try {
+          await api.financeCompanyNoteDelete(noteId);
+          selectedCompany = await api.financeCompanyGet(c.id);
+          renderCompanyDetail(); loadCompanies();
+        } catch (ex) { showError(ex.message); }
+      }));
+    }
+
+    document.getElementById('coFilter').addEventListener('input', renderCompanies);
+    document.getElementById('coFilterRelation').addEventListener('change', loadCompanies);
+    document.getElementById('coFilterStatus').addEventListener('change', loadCompanies);
+
     // ================= INFORMES =================
     let selectedReport = 'tesoreria';
     document.querySelectorAll('.report-card').forEach(card => {
@@ -1164,6 +1755,7 @@
     });
     loadAssets();
     loadExports();
+    loadCrmMeta().then(loadCompanies);
   </script>
 </body>
 </html>
