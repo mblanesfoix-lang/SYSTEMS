@@ -1,7 +1,18 @@
 import { MongoClient } from 'mongodb';
+import dns from 'node:dns';
 
 let client = null;
 let elviraDb = null;
+
+// Fix entorno dev: el resolver DNS interno de Node (c-ares) puede quedar
+// apuntando a 127.0.0.1 (proxy/VPN/antivirus local) e ignorar el DNS del
+// adaptador de red, rompiendo la resolucion SRV de mongodb+srv:// aunque
+// nslookup del sistema resuelva bien. Forzamos DNS publicos solo para las
+// consultas SRV de Node. No afecta a mongodb:// sin SRV ni a produccion
+// con DNS correctamente configurado (setServers es idempotente).
+if (process.env.MONGO_URI?.startsWith('mongodb+srv://')) {
+  dns.setServers(['8.8.8.8', '1.1.1.1']);
+}
 
 export async function connectMongo() {
   if (client) return client;

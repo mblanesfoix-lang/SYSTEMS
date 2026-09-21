@@ -591,7 +591,7 @@ app.get('/', (req, res) => res.redirect('/pages/login.html'));
     // Issues a short-lived JWT so el cliente React de Rëff autentica con la sesión de Elvi-Ra, sin login propio
     const ELVIRA_TO_REFF_USERNAME = {
       'mblanes@s-nficorp.com': 'marc',
-      'nzaroual@s-nficorp.com': 'nour',
+      'nzaroual@s-nfi.com': 'nour',
       'ventures@s-nficorp.com': 'amir',
       'gonzalosb@s-nficorp.com': 'gonzalo',
     };

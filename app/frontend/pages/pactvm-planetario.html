@@ -73,6 +73,9 @@
 
     .cuda-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
     @media (max-width: 1000px) { .cuda-grid { grid-template-columns: repeat(1, 1fr); } }
+    @media (max-width: 620px) {
+      #worldMapWrap { min-width: 0 !important; flex-basis: 100% !important; }
+    }
     .cuda-cell {
       background: #090c10; border: 1px solid #1c2733; border-radius: var(--radius-sm);
       padding: 16px 18px; position: relative; overflow: hidden;

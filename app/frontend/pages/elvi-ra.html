@@ -129,6 +129,25 @@
     .log-entry .le-hash { font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-muted); }
     .log-entry.CONFIRMED { border-left-color: var(--accent-green); }
     .log-entry.REJECTED { border-left-color: #d80300; }
+
+    @media (max-width: 760px) {
+      .er-nav { padding: 0 14px; gap: 8px; }
+      .er-nav .breadcrumb { display: none; }
+      .er-nav .controls #backBtn { padding: 0 10px !important; font-size: 0.66rem !important; }
+      .er-doctrine { padding: 6px 14px; font-size: 0.58rem; white-space: normal; }
+      .central-wrap { flex-direction: column; }
+      .chat-col { padding: 14px 14px 12px; min-height: 0; }
+      .side-col {
+        width: auto; min-width: 0; max-height: 34vh;
+        border-left: none; border-top: 1px solid var(--border);
+        padding: 12px 14px;
+      }
+      .msg, .action-card { max-width: 92%; }
+      .chat-input-row { padding: 10px 0 0; }
+    }
+    @media (max-width: 420px) {
+      .er-nav .brand .brand-mark { font-size: 0.66rem; }
+    }
   </style>
 </head>
 <body>

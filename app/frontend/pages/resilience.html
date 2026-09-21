@@ -44,6 +44,9 @@
       border: 1px solid var(--border-mid); border-radius: var(--radius); overflow: hidden; margin-bottom: 24px; background: var(--bg-card);
     }
     @media (max-width: 900px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 620px) {
+      #worldMapWrap { min-width: 0 !important; flex-basis: 100% !important; }
+    }
     .kpi-cell {
       padding: 20px 22px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
       position: relative;

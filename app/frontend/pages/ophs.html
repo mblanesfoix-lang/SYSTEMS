@@ -131,6 +131,15 @@
     .grid-card .gc-rows { font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-muted); margin: 10px 0 12px; line-height: 1.7; }
     .grid-card .gc-rows b { color: var(--text-primary); font-weight: 600; }
     .grid-card .gc-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+    @media (max-width: 760px) {
+      .op-nav { padding: 0 14px; gap: 8px; }
+      .op-nav .breadcrumb { display: none; }
+      .op-nav .controls #backBtn { padding: 0 10px !important; font-size: 0.66rem !important; }
+      .op-tabs { padding: 8px 14px 0; overflow-x: auto; }
+      .op-doctrine { display: none; }
+      .cockpit-wrap, .grid-wrap { padding: 18px 14px; }
+    }
   </style>
 </head>
 <body>

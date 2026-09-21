@@ -263,6 +263,7 @@ p  { color: var(--text-secondary); line-height: 1.6; }
 /* Layout primitives */
 .container { max-width: var(--max-w); margin: 0 auto; padding: 36px 32px 64px; }
 @media (max-width: 720px) { .container { padding: 24px 20px 48px; } }
+@media (max-width: 420px) { .container { padding: 18px 14px 40px; } }
 .row { display: flex; gap: 16px; align-items: center; min-height: 36px; }
 .spread { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 36px; }
 .stack > * + * { margin-top: 14px; }
@@ -390,6 +391,7 @@ label {
 .nav {
   position: sticky; top: 0; z-index: 30;
   display: flex; align-items: center; justify-content: space-between;
+  gap: 12px;
   padding: 0 32px;
   height: var(--nav-h);
   background: rgba(10,12,17,0.78);
@@ -404,10 +406,22 @@ label {
   font-family: var(--font-display);
   font-size: 0.8rem;
   font-weight: 400;
+  min-width: 0;
 }
 .brand-mark {
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+@media (max-width: 640px) {
+  .nav { padding: 0 16px; gap: 8px; }
+  .brand {
+    font-size: 0.7rem; gap: 6px;
+    min-width: 0; flex: 1 1 auto;
+    overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  }
+  .brand img { height: 18px !important; margin-right: 4px !important; flex-shrink: 0; }
+  .brand > a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .user-menu, .admin-notif { flex-shrink: 0; }
 }
 .brand .dot {
   width: 8px; height: 8px; border-radius: 50%;
@@ -424,7 +438,8 @@ label {
 .breadcrumb-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 4px 8px;
   font-family: var(--font-mono);
   font-size: 0.62rem;
   letter-spacing: 0.02em;
@@ -512,6 +527,20 @@ table.tbl thead th {
 table.tbl tbody tr { transition: background .2s var(--ease); }
 table.tbl tbody tr:hover { background: rgba(46,143,255,0.035); }
 table.tbl tbody tr:last-child td { border-bottom: none; }
+
+/* Mobile — tables scroll horizontally as a block instead of squeezing
+   columns unreadable or breaking the page layout. Applies to any bare
+   <table class="tbl"> without requiring a wrapper div in markup. */
+@media (max-width: 720px) {
+  table.tbl {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+  }
+  table.tbl thead, table.tbl tbody, table.tbl tr { display: table; width: 100%; table-layout: auto; }
+  table.tbl th, table.tbl td { padding: 11px 14px; font-size: 0.86rem; }
+}
 
 /* Badges */
 .badge {
@@ -1220,6 +1249,9 @@ main.container > header + * { margin-top: 28px; }
   border-top: 1px solid var(--border);
   background: var(--bg-elevated);
 }
+@media (max-width: 640px) {
+  .entity__details { padding: 8px 16px 18px 16px; }
+}
 .entity.open .entity__details { display: block; animation: entity-open .35s var(--ease); }
 @keyframes entity-open {
   from { opacity: 0; transform: translateY(-4px); }
@@ -1624,6 +1656,11 @@ main.container > header + * { margin-top: 28px; }
   flex-direction: column;
   gap: 22px;
 }
+@media (max-width: 640px) {
+  .email-card { padding: 18px 16px; gap: 16px; }
+  .card { padding: 18px 16px; }
+  .dr-block { padding: 16px 16px; }
+}
 .email-card__head {
   display: flex;
   justify-content: space-between;
@@ -1672,7 +1709,7 @@ main.container > header + * { margin-top: 28px; }
 .admin-notif__dropdown[hidden] { display: none; }
 .admin-notif__dropdown {
   position: absolute; right: 0; top: calc(100% + 10px);
-  width: 380px; max-height: 480px; display: flex; flex-direction: column;
+  width: 380px; max-width: calc(100vw - 24px); max-height: 480px; display: flex; flex-direction: column;
   background: rgba(20,23,29,0.88);
   backdrop-filter: saturate(180%) blur(24px);
   -webkit-backdrop-filter: saturate(180%) blur(24px);
@@ -1682,6 +1719,10 @@ main.container > header + * { margin-top: 28px; }
   z-index: 200; overflow: hidden;
   transform-origin: top right;
   animation: admin-notif-pop 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@media (max-width: 480px) {
+  .admin-notif__dropdown { position: fixed; top: calc(var(--nav-h) + 8px); right: 12px; left: 12px; width: auto; max-width: none; }
+  .user-menu__dropdown { position: fixed; top: calc(var(--nav-h) + 8px); right: 12px; left: 12px; width: auto; min-width: 0; max-width: none; }
 }
 :root[data-theme="light"] .admin-notif__dropdown {
   background: rgba(255,255,255,0.92);

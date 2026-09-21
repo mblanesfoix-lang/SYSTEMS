@@ -572,6 +572,24 @@
     .vdr-usermenu .user-menu__dropdown {
       background: rgba(14,17,23,0.85); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px);
     }
+
+    /* ---- mobile: HUD kiosko reordenado para no solapar en pantallas
+       estrechas. La proyeccion 3D->pantalla de .vdr-card sigue calculandola
+       JS (transform inline), aqui solo se acotan anchos/posiciones fijas. ---- */
+    @media (max-width: 640px) {
+      .vdr-topbar { padding: 12px 14px; flex-wrap: wrap; gap: 8px; }
+      .vdr-crumbs { display: none; }
+      .vdr-title-block { left: 14px; top: 64px; max-width: calc(100vw - 28px); }
+      .vdr-controls-dock { top: auto; bottom: 96px; right: 14px; }
+      .vdr-legend { left: 14px; bottom: 100px; }
+      .vdr-hint { display: none; }
+      .vdr-lang { right: 14px; bottom: 14px; }
+      .vdr-node-panel { left: 14px; right: 14px; width: auto; bottom: 14px; }
+      .vdr-card { min-width: 0; width: calc(100vw - 48px); max-width: 300px; }
+      .vdr-share-shell, .vdr-table-shell { padding: 18px 16px; }
+      .vdr-share-copy code { max-width: 60vw; }
+      .vdr-table-overlay { padding: 16px; }
+    }
   </style>
 </head>
 <body>

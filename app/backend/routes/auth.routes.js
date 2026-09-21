@@ -13,7 +13,7 @@ import bcrypt from 'bcrypt';
 import crypto from 'node:crypto';
 
 const SEED_USERS = {
-  'nzaroual@s-nficorp.com': { password: process.env.SEED_NOUR_PASSWORD,     role: 'admin'    },
+  'nzaroual@s-nfi.com':     { password: process.env.SEED_NOUR_PASSWORD,     role: 'admin'    },
   'mblanes@s-nficorp.com':  { password: process.env.SEED_MARC_PASSWORD,     role: 'admin'    },
   'gonzalosb@s-nficorp.com':{ password: process.env.SEED_GONZALO_PASSWORD,  role: 'admin'    },
   'ventures@s-nficorp.com': { password: process.env.SEED_AMIR_PASSWORD,     role: 'amir'     },

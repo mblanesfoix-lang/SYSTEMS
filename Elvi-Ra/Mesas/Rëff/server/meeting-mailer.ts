@@ -7,7 +7,7 @@ import type { Meeting } from './routes/meetings.routes.js';
 export const MEETING_NOTIFY_RECIPIENTS = [
   'mblanes@s-nficorp.com',
   'gonzalosb@s-nficorp.com',
-  'nzaroual@s-nficorp.com',
+  'nzaroual@s-nfi.com',
 ];
 
 // Sin SMTP_HOST configurado, el mailer queda en modo simulado: registra en

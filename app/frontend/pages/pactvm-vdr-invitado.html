@@ -354,6 +354,24 @@
       color: var(--text-dim); text-transform: uppercase;
     }
     .gate__state { font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.06em; color: var(--text-muted); }
+
+    /* ---- mobile: HUD kiosko reordenado para no solapar en pantallas
+       estrechas. La proyeccion 3D->pantalla de .vdr-card sigue calculandola
+       JS (transform inline), aqui solo se acotan anchos/posiciones fijas. ---- */
+    @media (max-width: 640px) {
+      .vdr-topbar { padding: 12px 14px; flex-wrap: wrap; gap: 8px; }
+      .vdr-title-block { left: 14px; top: 64px; max-width: calc(100vw - 28px); }
+      .vdr-controls-dock { top: auto; bottom: 96px; right: 14px; }
+      .vdr-legend { left: 14px; bottom: 100px; }
+      .vdr-hint { display: none; }
+      .vdr-lang { right: 14px; bottom: 14px; }
+      .vdr-confidential { display: none; }
+      .vdr-node-panel { left: 14px; right: 14px; width: auto; bottom: 14px; }
+      .vdr-card { min-width: 0; width: calc(100vw - 48px); max-width: 300px; }
+      .gate__card { padding: 22px 18px; }
+      .vdr-table-shell { padding: 18px 16px; }
+      .vdr-table-overlay { padding: 16px; }
+    }
   </style>
 </head>
 <body>
