@@ -164,7 +164,7 @@
 }
 
 * { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; }
+html, body { margin: 0; padding: 0; max-width: 100%; overflow-x: hidden; }
 body {
   font-family: var(--font-body);
   color: var(--text-primary);
@@ -264,6 +264,10 @@ p  { color: var(--text-secondary); line-height: 1.6; }
 .container { max-width: var(--max-w); margin: 0 auto; padding: 36px 32px 64px; }
 @media (max-width: 720px) { .container { padding: 24px 20px 48px; } }
 @media (max-width: 420px) { .container { padding: 18px 14px 40px; } }
+@media (max-width: 480px) {
+  .tiles { grid-template-columns: 1fr; gap: 14px; }
+  .tile { padding: 20px 18px 22px; }
+}
 .row { display: flex; gap: 16px; align-items: center; min-height: 36px; }
 .spread { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 36px; }
 .stack > * + * { margin-top: 14px; }
@@ -421,7 +425,19 @@ label {
   }
   .brand img { height: 18px !important; margin-right: 4px !important; flex-shrink: 0; }
   .brand > a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .nav .row, .nav .controls, #navControls, .er-nav .controls, .op-nav .controls, .reff-nav .controls {
+    gap: 6px !important;
+    flex-shrink: 0;
+  }
   .user-menu, .admin-notif { flex-shrink: 0; }
+  /* Theme toggle: colapsa a icono unico bajo el ancho movil, el texto
+     OSCURO/CLARO no cabe junto a campana + user-menu en 375px. */
+  .theme-toggle { padding: 0 8px; gap: 0; }
+  .theme-toggle__label { display: none; }
+  .theme-toggle__track { margin: 0; }
+  /* User tag muestra el email completo (userTag.textContent) — no cabe
+     junto a toggle+campana en movil, se trunca con elipsis. */
+  .user-menu__trigger { max-width: 84px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 6px 6px; }
 }
 .brand .dot {
   width: 8px; height: 8px; border-radius: 50%;
@@ -643,6 +659,7 @@ table.tbl tbody tr:last-child td { border-bottom: none; }
   color: inherit;
   transition: transform .3s var(--ease), box-shadow .3s var(--ease), border-color .3s var(--ease);
   position: relative;
+  min-width: 0;
   overflow: hidden;
   min-height: 180px;
 }

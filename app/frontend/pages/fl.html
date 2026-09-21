@@ -58,8 +58,10 @@
       border: 1px solid var(--border-mid); border-radius: var(--radius); overflow: hidden; margin-bottom: 24px; background: var(--bg-card);
     }
     @media (max-width: 1000px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 480px) { .kpi-grid { grid-template-columns: 1fr; } .kpi-cell { border-right: none !important; } }
     .kpi-cell { padding: 20px 22px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); position: relative; }
     .kpi-cell:nth-child(5n) { border-right: none; }
+    @media (max-width: 1000px) { .kpi-cell:nth-child(2n) { border-right: none; } }
     .kpi-cell.alert::before { content: ''; position: absolute; top: 0; left: 0; width: 3px; height: 100%; background: #d80300; }
     .kpi-label { font-family: var(--font-mono); font-size: 0.55rem; letter-spacing: 0.04em; color: var(--text-muted); margin-bottom: 10px; }
     .kpi-val { font-family: var(--font-display); font-size: 1.8rem; font-weight: 800; letter-spacing: -0.03em; }
@@ -551,7 +553,7 @@
           <select class="input" id="expFiltroBloque"><option value="">Todas las carpetas</option></select>
           <select class="input" id="expFiltroEstado"><option value="">Todos los estados</option></select>
         </div>
-        <div style="display:flex; gap:8px;">
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
           <button class="btn" id="expRevisarBtn">Revisar caducidades</button>
           <button class="btn sage" id="expNuevoBtn">Nuevo documento</button>
         </div>

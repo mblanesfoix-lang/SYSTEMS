@@ -45,10 +45,12 @@
       border: 1px solid var(--border-mid); border-radius: var(--radius); overflow: hidden; margin-bottom: 24px; background: var(--bg-card);
     }
     @media (max-width: 1100px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 480px) { .kpi-grid { grid-template-columns: 1fr; } .kpi-cell { border-right: none !important; } }
     .kpi-cell {
       padding: 20px 22px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
     }
     .kpi-cell:last-child { border-right: none; }
+    @media (max-width: 1100px) { .kpi-cell:nth-child(2n) { border-right: none; } }
     .kpi-label { font-family: var(--font-mono); font-size: 0.55rem; letter-spacing: 0.04em; color: var(--text-muted); margin-bottom: 10px; }
     .kpi-val { font-family: var(--font-display); font-size: 1.8rem; font-weight: 800; letter-spacing: -0.03em; }
     .kpi-val.warn { color: #d80300; }

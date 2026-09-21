@@ -53,6 +53,8 @@
 
     /* ---- Pipeline en vivo ---- */
     .fd-live-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:12px; }
+    @media (max-width: 900px) { .fd-live-grid { grid-template-columns:repeat(2,1fr); } }
+    @media (max-width: 480px) { .fd-live-grid { grid-template-columns:1fr; } }
     .fd-live-card {
       background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius);
       padding:14px 16px; display:flex; flex-direction:column; gap:6px;

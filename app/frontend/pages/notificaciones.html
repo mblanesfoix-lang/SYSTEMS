@@ -46,8 +46,11 @@
     }
     @media (max-width: 1200px) { .kpi-grid { grid-template-columns: repeat(3, 1fr); } }
     @media (max-width: 640px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 420px) { .kpi-grid { grid-template-columns: 1fr; } .kpi-cell { border-right: none !important; } }
     .kpi-cell { padding: 18px 20px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
     .kpi-cell:last-child { border-right: none; }
+    @media (max-width: 1200px) { .kpi-cell:nth-child(3n) { border-right: none; } }
+    @media (max-width: 640px) { .kpi-cell:nth-child(2n) { border-right: none; } }
     .kpi-label { font-family: var(--font-mono); font-size: 0.55rem; letter-spacing: 0.04em; color: var(--text-muted); margin-bottom: 8px; }
     .kpi-val { font-family: var(--font-display); font-size: 1.5rem; font-weight: 800; letter-spacing: -0.03em; }
     .kpi-val.warn { color: #d80300; }

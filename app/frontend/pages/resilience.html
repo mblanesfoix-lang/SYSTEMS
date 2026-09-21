@@ -44,6 +44,8 @@
       border: 1px solid var(--border-mid); border-radius: var(--radius); overflow: hidden; margin-bottom: 24px; background: var(--bg-card);
     }
     @media (max-width: 900px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 480px) { .kpi-grid { grid-template-columns: 1fr; } .kpi-cell { border-right: none !important; } }
+    @media (max-width: 900px) { .kpi-cell:nth-child(2n) { border-right: none; } }
     @media (max-width: 620px) {
       #worldMapWrap { min-width: 0 !important; flex-basis: 100% !important; }
     }
@@ -168,7 +170,7 @@
           <span class="status-dot-sm" id="isoDot" style="background:#8a8a8a;"></span>
           <span id="isoLabel">comprobando…</span>
         </div>
-        <div style="display:flex; gap:10px;">
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
           <button class="btn btn-danger" id="isoActivateBtn">ACTIVAR MODO AISLADO</button>
           <button class="btn ghost" id="isoDeactivateBtn" style="display:none;">Desactivar</button>
         </div>
