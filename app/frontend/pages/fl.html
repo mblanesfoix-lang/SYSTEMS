@@ -52,6 +52,10 @@
     .mode-tab:last-child { border-right: none; }
     .mode-tab.active { background: var(--accent-blue); color: #fff; font-weight: 600; }
     .mode-tab:hover:not(.active) { color: var(--text-primary); }
+    @media (max-width: 720px) {
+      .mode-tabs { width: 100%; overflow-x: auto; }
+      .mode-tab { flex-shrink: 0; white-space: nowrap; }
+    }
 
     .kpi-grid {
       display: grid; grid-template-columns: repeat(5, 1fr); gap: 0;
@@ -189,6 +193,31 @@
     .exp-state-pendiente { background: var(--bg-elevated); color: var(--text-muted); }
     .exp-state-en_tramite { background: rgba(0,113,227,0.12); color: #0071e3; }
     .exp-state-no_aplica { background: var(--bg-elevated); color: var(--text-muted); }
+
+    /* ---- Accesos externos (portales de terceros: verificacion CSV de la Abogacia, Overleaf) ---- */
+    .ext-intro { font-size: 0.82rem; color: var(--text-muted); margin: 0; max-width: 720px; }
+    .ext-intro + .ext-item, .ext-item + .ext-item { margin-top: 26px; padding-top: 22px; border-top: 1px solid var(--border); }
+    .ext-item__note { font-size: 0.78rem; color: var(--text-muted); line-height: 1.5; margin: 0 0 12px; max-width: 720px; }
+    .ext-access {
+      display: flex; align-items: center; gap: 18px; padding: 22px 24px; margin-bottom: 14px;
+      border: 1px solid var(--border-mid); border-radius: var(--radius); background: var(--bg-card);
+      color: inherit; text-decoration: none;
+      transition: border-color 0.2s var(--ease), background 0.2s var(--ease), transform 0.2s var(--ease);
+    }
+    .ext-access:hover { border-color: var(--accent-blue); background: rgba(0,113,227,0.05); transform: translateY(-1px); }
+    .ext-access:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 3px; }
+    .ext-access__icon { flex-shrink: 0; width: 44px; height: 44px; display: grid; place-items: center; border-radius: var(--radius-sm); background: rgba(0,113,227,0.12); color: var(--accent-blue); }
+    /* Logo de marca de terceros: baldosa blanca fija, el verde de marca contrasta igual en tema oscuro y claro */
+    .ext-access__icon--logo { background: #fff; box-shadow: inset 0 0 0 1px var(--border-mid); }
+    .ext-access__icon--logo img { display: block; height: 28px; width: auto; }
+    .ext-access__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+    .ext-access__kicker { font-family: var(--font-mono); font-size: 0.56rem; letter-spacing: 0.04em; color: var(--text-muted); }
+    .ext-access__title { font-size: 1rem; font-weight: 600; letter-spacing: -0.02em; }
+    .ext-access__url { font-family: var(--font-mono); font-size: 0.64rem; color: var(--text-muted); overflow-wrap: anywhere; }
+    .ext-access__cta { flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 0.65rem; color: var(--accent-blue); white-space: nowrap; }
+    .ext-access__cta svg { transition: transform 0.2s var(--ease); }
+    .ext-access:hover .ext-access__cta svg { transform: translate(2px, -2px); }
+    @media (max-width: 560px) { .ext-access { flex-wrap: wrap; } .ext-access__cta { width: 100%; } }
   </style>
 </head>
 <body>
@@ -266,6 +295,7 @@
       <button class="mode-tab" data-panel="poderes">Poderes &amp; Firmas</button>
       <button class="mode-tab" data-panel="inspecciones">Inspecciones</button>
       <button class="mode-tab" data-panel="expediente">Expediente Fiscal y Jurídico</button>
+      <button class="mode-tab" data-panel="externos">Accesos externos</button>
     </div>
 
     <!-- LICENCIAS -->
@@ -564,6 +594,58 @@
         <aside class="exp-ficha" id="expFicha">
           <p class="empty-state">Selecciona un documento de la lista, o crea uno nuevo.</p>
         </aside>
+      </div>
+    </div>
+
+    <!-- ACCESOS EXTERNOS (verificacion CSV de la Abogacia Espanola + Overleaf) -->
+    <div class="fl-panel card reveal" id="panel-externos" style="padding:20px;">
+      <p class="ext-intro">
+        Accesos directos a portales externos. Cada uno se abre en una pestaña nueva: lo que se haga allí
+        ocurre en la web del propio servicio, este sistema no recibe ni guarda códigos, sesiones ni documentos.
+      </p>
+
+      <div class="ext-item">
+        <p class="ext-item__note">
+          Portal de verificación del Código Seguro de Verificación (CSV) del Consejo General de la Abogacía
+          Española. Con el código impreso en un documento, comprueba su autenticidad e integridad.
+        </p>
+        <a class="ext-access" id="csvAccess" href="https://www.abogacia.es/repositorio/csv/" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">
+          <span class="ext-access__icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
+          </span>
+          <span class="ext-access__body">
+            <span class="ext-access__kicker">CONSEJO GENERAL DE LA ABOGACÍA ESPAÑOLA</span>
+            <span class="ext-access__title">Verificación de documentos por CSV</span>
+            <span class="ext-access__url">www.abogacia.es/repositorio/csv/</span>
+          </span>
+          <span class="ext-access__cta">
+            Abrir portal
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7"/><path d="M8 7h9v9"/></svg>
+          </span>
+        </a>
+        <button class="btn ghost ext-copy" type="button" aria-label="Copiar enlace del verificador CSV">Copiar enlace</button>
+      </div>
+
+      <div class="ext-item">
+        <p class="ext-item__note">
+          Editor LaTeX en línea, sin instalación y con colaboración en tiempo real.
+        </p>
+        <a class="ext-access" id="overleafAccess" href="https://www.overleaf.com/" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">
+          <span class="ext-access__icon ext-access__icon--logo" aria-hidden="true">
+            <!-- Logo oficial de Overleaf (O logo, primary), kit https://www.overleaf.com/for/partners/logos, descargado 2026-10-01, sin modificar. Solo identifica el enlace; si la pagina sale del uso interno, consultar a Overleaf. -->
+            <img src="/assets/logo-overleaf.svg" alt="" width="24" height="28">
+          </span>
+          <span class="ext-access__body">
+            <span class="ext-access__kicker">EDITOR LATEX EN LÍNEA</span>
+            <span class="ext-access__title">Overleaf</span>
+            <span class="ext-access__url">www.overleaf.com</span>
+          </span>
+          <span class="ext-access__cta">
+            Abrir editor
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7"/><path d="M8 7h9v9"/></svg>
+          </span>
+        </a>
+        <button class="btn ghost ext-copy" type="button" aria-label="Copiar enlace de Overleaf">Copiar enlace</button>
       </div>
     </div>
   </main>
@@ -1513,6 +1595,16 @@
     });
     document.getElementById('expFiltroBloque').addEventListener('change', loadExpediente);
     document.getElementById('expFiltroEstado').addEventListener('change', loadExpediente);
+
+    // ---- Accesos externos ----
+    document.getElementById('panel-externos').addEventListener('click', async (e) => {
+      const btn = e.target.closest('.ext-copy');
+      if (!btn) return;
+      try {
+        await navigator.clipboard.writeText(btn.closest('.ext-item').querySelector('.ext-access').href);
+        toast('Enlace copiado');
+      } catch { toast('No se pudo copiar el enlace'); }
+    });
 
     // ---- Init ----
     (async () => {
