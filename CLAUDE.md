@@ -232,6 +232,7 @@ Seed Rëff (`server/db.ts`): contraseñas via env `REFF_SEED_<USER>_PASSWORD` (m
 - **No inventar APIs, versiones, flags, paquetes**. Verificar antes.
 - **Saltar archivos >100KB** salvo necesidad.
 - **Tono respuestas**: conciso, técnico, directo.
+- **Identificadores técnicos en ASCII**: rutas de Express, colecciones y campos de Mongo, scopes CIBE y claves JSON no llevan `ø`/`Ø` (`ops`, `ophs`). Express 4 responde 404 a toda ruta registrada con `ø` literal aunque la URL llegue percent-encoded (verificado 2026-10-01 con Express 4.22.2 y con los módulos reales: `/api/øps/nodes` 404 frente a `/api/ops/nodes` 200), y renombrar colecciones o campos deja huérfanos los datos ya guardados. La `Ø` va en texto visible y en nombres de archivos estáticos (`express.static` sirve `øphs.html` con 200, verificado).
 - **Idioma**: ES para UI y docs internas. Código en EN.
 
 ## Estado actual (post Volumen 3 backend, 2026-07-08)
@@ -386,6 +387,7 @@ Al cerrar cada tarea o cambio estructural:
 2. **CLAUDE.md**: actualizar "Estado actual", arquitectura y stack si cambiaron. Borrar en el momento cualquier referencia a archivos/ficheros eliminados o afirmaciones ya falsas (ej. "falta server.js").
 3. **Memoria persistente** (`~/.claude/.../memory/`): actualizar el archivo afectado; borrar memorias que hayan dejado de ser ciertas; nunca duplicar lo que ya cuenta el repo.
 4. Trabajo grande → dividir en tareas de una sesión y dejar el plan en un archivo del repo para sobrevivir compactación.
+5. **Commit al cerrar la tarea (regla del usuario, 2026-10-01)**: cada vez que una tarea queda completa y probada con éxito (`node --check`, `npm test`, typecheck o boot según toque) se hace commit en ese momento, atómico y solo con los archivos de esa tarea: `git add <rutas>` y `git commit -- <rutas>`. Nunca `git add -A`, `git stash`, `git checkout .` ni `git clean` sobre el working tree: varias sesiones de Claude editan el mismo árbol a la vez y se pisarían el trabajo. Lo que está a medias o sin probar no entra en `master` (si hay que respaldarlo, rama local aparte). Mensaje en español con prefijo convencional (`feat:`, `fix:`, `docs:`, `chore:`). Push solo a petición expresa. Remotos: `private` es el respaldo vigente; `origin` (github.com/mblanesfoix-lang/SYSTEMS) es PÚBLICO (verificado 2026-10-01 vía API de GitHub sin credenciales) y no se le empuja nada hasta que sea privado.
 
 ## Context Model 1 (briefing doctrinal; el .txt original ya no existe, esta sección es la fuente)
 
