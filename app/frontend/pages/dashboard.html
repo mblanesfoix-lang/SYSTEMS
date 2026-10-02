@@ -98,8 +98,8 @@
       <span class="kicker">Dominios</span>
       <div class="tiles" style="margin-top:12px;">
         <a class="tile reveal delay-2" href="/pages/ophs.html" data-domain="ophs" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
-          <h3>OPHS</h3>
-          <p>Consola Soberana: Cockpit que fusiona OPS (telemetría), PAIA (analítica predictiva), Herzog (cumplimiento) y Sentinel, más Grid Interlink.</p>
+          <h3>ØPHS</h3>
+          <p>Consola Soberana: Cockpit que fusiona ØPS (telemetría), PAIA (analítica predictiva), Herzog (cumplimiento) y Sentinel, más Grid Interlink.</p>
           <p class="mono" style="margin-top:10px;">entrar al dominio →</p>
         </a>
 
@@ -130,7 +130,7 @@
       <div class="tiles" style="margin-top:12px;">
         <a class="tile reveal" href="/pages/master-gateway.html" data-mesa="gateway" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
           <h3>Puerto Maestro</h3>
-          <p>Control de tráfico inter-puertos: ningún perfil extrae datos cruzados entre Rëff, Elvi-Ra y OPHS sin pasar por este filtro. Cola de solicitudes firmadas, aprobación exclusiva de Admin, log inmutable.</p>
+          <p>Control de tráfico inter-puertos: ningún perfil extrae datos cruzados entre Rëff, Elvi-Ra y ØPHS sin pasar por este filtro. Cola de solicitudes firmadas, aprobación exclusiva de Admin, log inmutable.</p>
           <p class="mono" style="margin-top:10px;">acceso directo →</p>
         </a>
         <a class="tile reveal" href="/pages/notificaciones.html" data-mesa="notificaciones" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
@@ -202,7 +202,7 @@
         </div>
         <div class="mesa-status-card" data-mesa="ophs">
           <div class="mesa-status-head">
-            <span class="mesa-status-name">OPHS</span>
+            <span class="mesa-status-name">ØPHS</span>
             <span class="mesa-status-dot checking"></span>
           </div>
           <span class="mesa-status-label">comprobando...</span>
@@ -412,7 +412,7 @@
         parse: d => d.snapshot?.precio_actual_eur_mwh != null ? `${d.snapshot.precio_actual_eur_mwh} EUR/MWh` : ''
       });
       checkMesa('ophs', '/api/ophs-cockpit/summary', {
-        parse: d => `${d.ops?.nodesTotal ?? 0} nodos OPS · ${d.sentinel?.colaRevisionPendiente ?? 0} en cola Sentinel`
+        parse: d => `${d.ops?.nodesTotal ?? 0} nodos ØPS · ${d.sentinel?.colaRevisionPendiente ?? 0} en cola Sentinel`
       });
       checkMesa('sentinel', '/api/sentinel/ip-stats', {
         parse: d => `${Array.isArray(d) ? d.length : 0} IPs monitorizadas`

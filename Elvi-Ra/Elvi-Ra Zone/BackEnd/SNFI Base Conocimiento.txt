@@ -308,7 +308,7 @@ Variables a evaluar con datos públicos:
 
 - Opacidad CNMC o sanciones previas
 
-- Incompatibilidad OPHS (estructura jerárquica que no permite gobernanza externa S-NFI)
+- Incompatibilidad ØPHS (estructura jerárquica que no permite gobernanza externa S-NFI)
 
 ## **6.6 Clasificación Final**
 
@@ -326,7 +326,7 @@ Regla de oro: si existe duda razonable, clasificar como no estratégico. Calidad
 
 - SECTOR / UBICACIÓN
 
-- PUNTUACIÓN OPHS (0-100): facilidad para integrar Ops, PAIA, Herzog y Sentinel
+- PUNTUACIÓN ØPHS (0-100): facilidad para integrar ØPS, PAIA, Herzog y Sentinel
 
 - CÁLCULO RESILIENCE (BSS): MWh necesarios para 48h de autonomía
 
@@ -346,9 +346,9 @@ Regla de oro: si existe duda razonable, clasificar como no estratégico. Calidad
 
 - Pactvm Viridi / CIBE: evaluación de aptitud para sello de estándar circular S-NFI
 
-## **7.2 Framework OPHS**
+## **7.2 Framework ØPHS**
 
-El OPHS Framework es el sistema de evaluación y gobernanza interna de S-NFI al que el S-NFI Agent se conecta. Gestiona la compatibilidad operativa de candidatos.
+El ØPHS Framework es el sistema de evaluación y gobernanza interna de S-NFI al que el S-NFI Agent se conecta. Gestiona la compatibilidad operativa de candidatos.
 
 # **8. PILOTOS Y PROYECTOS DOCUMENTADOS**
 
@@ -451,7 +451,7 @@ Claude (IA de Anthropic) se usa internamente para:
 
 ## **10.2 S-NFI Agent**
 
-Sistema de IA interno conectado al OPHS Framework para identificación, evaluación y clasificación automática de candidatos. Versión actual: V.2 (Lead Audit & Integration).
+Sistema de IA interno conectado al ØPHS Framework para identificación, evaluación y clasificación automática de candidatos. Versión actual: V.2 (Lead Audit & Integration).
 
 # **11. CRITERIOS DE INCOMPATIBILIDAD ESTRATÉGICA**
 

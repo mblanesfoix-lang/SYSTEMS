@@ -1,7 +1,7 @@
-# OPHS Framework — ESIOS Energy Waste Connector
+# ØPHS Framework — ESIOS Energy Waste Connector
 
 Módulo Python para integrar datos de **energía desperdiciada** (vertido a red a precio 0€)
-del sistema eléctrico español en el OPHS Framework, vía la API oficial de Red Eléctrica (ESIOS).
+del sistema eléctrico español en el ØPHS Framework, vía la API oficial de Red Eléctrica (ESIOS).
 
 -----
 
@@ -53,7 +53,7 @@ python esios_connector.py 2025
 python esios_connector.py 2026
 ```
 
-### Integración en OPHS Framework (Python)
+### Integración en ØPHS Framework (Python)
 
 ```python
 from ophs_esios.esios_connector import (

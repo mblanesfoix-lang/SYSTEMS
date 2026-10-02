@@ -129,8 +129,8 @@
       <h1 class="herzog-hero__title">Herzog <em style="font-style:normal;color:var(--accent-blue);">Central</em></h1>
       <p class="herzog-hero__sub">
         Receptor de toda la información y datos de SYSTEMS. Cualquier departamento reporta métricas,
-        sube documentos o deja una nota aquí. Distinto del Herzog interno de OPHS Framework (que
-        recibe solo telemetría física de OPS/PAIA). Todo movimiento queda en un log inmutable con
+        sube documentos o deja una nota aquí. Distinto del Herzog interno de ØPHS Framework (que
+        recibe solo telemetría física de ØPS/PAIA). Todo movimiento queda en un log inmutable con
         cadena de hashes.
       </p>
     </div>
@@ -163,7 +163,7 @@
         <span class="herzog-section__eyebrow">01 · Solo lectura</span>
         <h2 class="herzog-section__title">Variables base</h2>
         <p class="herzog-section__desc">
-          Snapshot automático de U2, Finance, OPHS y Pactvm Viridi — copia periódica (cada 5 min) de los
+          Snapshot automático de U2, Finance, ØPHS y Pactvm Viridi — copia periódica (cada 5 min) de los
           números ya calculados en cada mesa. Se sigue viendo aquí el último valor conocido aunque la
           mesa origen esté caída en ese momento.
         </p>
@@ -183,7 +183,7 @@
         <p class="herzog-section__desc">Cualquier persona con acceso reporta un dato suelto de su departamento.</p>
       </div>
       <div class="add-row">
-        <div class="sf"><label>Departamento</label><input class="input" id="metDept" placeholder="ej. Finance, OPHS..."></div>
+        <div class="sf"><label>Departamento</label><input class="input" id="metDept" placeholder="ej. Finance, ØPHS..."></div>
         <div class="sf"><label>Métrica</label><input class="input" id="metName" placeholder="ej. temperatura_nodo_12"></div>
         <div class="sf"><label>Valor</label><input class="input" id="metValue" style="width:100px;" placeholder="0"></div>
         <div class="sf"><label>Unidad</label><input class="input" id="metUnit" style="width:90px;" placeholder="°C"></div>
@@ -330,7 +330,7 @@
           if (!latest.has(key)) latest.set(key, r);
         }
         const dedup = [...latest.values()].sort((a, b) => a.department.localeCompare(b.department) || a.metric.localeCompare(b.metric));
-        if (dedup.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="5">Sin datos aún. Se rellena solo cada 5 min desde U2/Finance/OPHS/Pactvm.</td></tr>'; return; }
+        if (dedup.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="5">Sin datos aún. Se rellena solo cada 5 min desde U2/Finance/ØPHS/Pactvm.</td></tr>'; return; }
         body.innerHTML = dedup.map(r => `<tr>
           <td>${escapeHtml(r.department)}</td>
           <td class="mono">${escapeHtml(r.metric)}</td>

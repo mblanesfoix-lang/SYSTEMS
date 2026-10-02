@@ -71,7 +71,7 @@ Si tienes un solo agente asignado, el dashboard abre directamente su espacio de 
 | ID | Nombre | Categoria | Color |
 |----|--------|-----------|-------|
 | `orchestrator` | Orquestador Central | Sistema | `#c9a84c` |
-| `ophs` | OPHS Framework | Sistema | `#1e3a5c` |
+| `ophs` | ØPHS Framework | Sistema | `#1e3a5c` |
 | `u2` | S-NFI U-2 | Sistema | `#5b2d8e` |
 | `resilience` | S-NFI Resilience | Operaciones | `#8b1a1a` |
 | `iia` | S-NFI IIA | Operaciones | `#2d6a4f` |
