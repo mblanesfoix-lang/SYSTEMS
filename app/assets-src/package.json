@@ -1,0 +1,16 @@
+{
+  "name": "snfi-assets-src",
+  "private": true,
+  "type": "module",
+  "description": "Herramientas offline para preparar assets del frontend. No se despliegan (el Dockerfile solo copia app/backend y app/frontend).",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "optimize": "node optimize-models.mjs"
+  },
+  "dependencies": {
+    "@gltf-transform/core": "4.5.1",
+    "@gltf-transform/functions": "4.5.1"
+  }
+}
