@@ -87,7 +87,7 @@ Doctrina: ØPS/PAIA nunca ejecutan acciones sobre hardware. PAIA solo propone (i
 
 **Edición directa de nodos mock (`systems_nodes`)**: `PATCH /api/øphs/nodes/:id` en `elvira-central.js` — solo admin, edita status/target_temp_c/throughput_kg_h/bss_charge_pct/pellet_stock_t directamente (sin pasar por el flujo LLM propone→confirma de Central, porque quien llama el endpoint ya es el humano autorizando). Queda igual en el log inmutable (`central_action_log`, type `node.direct_edit`, decision `DIRECT_ADMIN`). Endpoint solo backend: sin UI que lo consuma hoy.
 
-**CRUD nodos ØPS**: `app/backend/øps.js` — `POST/PATCH/DELETE /api/øps/nodes/:nodeId` (label, lat, lng opcionales; delete purga `øps_readings` y `paia_analyses` del nodo). `øps_nodes` (Cockpit, telemetría) y `systems_nodes` (mock Central) son colecciones separadas sin fusión de esquema. Sin UI que lo consuma hoy (el Cockpit de `øphs.html` es solo hub de tiles): alta/edición/borrado solo por API.
+**CRUD nodos ØPS**: `app/backend/øps.js` — `POST/PATCH/DELETE /api/øps/nodes/:nodeId` (label, lat, lng opcionales; delete purga `ops_readings` y `paia_analyses` del nodo). `ops_nodes` (Cockpit, telemetría) y `systems_nodes` (mock Central) son colecciones separadas sin fusión de esquema. Sin UI que lo consuma hoy (el Cockpit de `øphs.html` es solo hub de tiles): alta/edición/borrado solo por API.
 
 ## Doctrina Lab (ingesta asincrona, 2026-07-08)
 
