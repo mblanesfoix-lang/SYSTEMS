@@ -1,6 +1,6 @@
 # SYSTEMS (S-NFI Corp.) · Instrucciones del proyecto
 
-Monorepo del programa SYSTEMS. Es lo único que se carga siempre: solo lo vigente y corto (objetivo < 14 KB). Detalle bajo demanda con Grep, sin leer entero: [docs/REFERENCIA.md](docs/REFERENCIA.md) (doctrina completa y ficha de cada mesa) y [docs/ESTADO-HISTORICO.md](docs/ESTADO-HISTORICO.md) (bitácora fechada; las entradas nuevas van allí, no aquí).
+Monorepo del programa SYSTEMS. Es lo único que se carga siempre: solo lo vigente y corto (objetivo < 15 KB). Detalle bajo demanda con Grep, sin leer entero: [docs/REFERENCIA.md](docs/REFERENCIA.md) (doctrina completa y ficha de cada mesa) y [docs/ESTADO-HISTORICO.md](docs/ESTADO-HISTORICO.md) (bitácora fechada; las entradas nuevas van allí, no aquí).
 
 ## Doctrina (inmutable, no negociable)
 
@@ -75,9 +75,8 @@ Bearer en `localStorage`; cada página llama `requireAuth()` y `/api/me/permissi
 
 ## Pendientes vigentes
 
-- Reiniciar el servidor para cargar los cambios de backend recientes (guest-token con sesión, desbloqueos públicos limitados, `path-normalize.js`) y reconstruir antes el cliente de Rëff (`npm run build` en `Elvi-Ra/Mesas/Rëff`): el SPA antiguo no manda el Bearer de Elvi-Ra y recibiría 401 en `/api/guest-token`. Los códigos de verificación de carbono emitidos antes del cambio (guardados en claro) ya no sirven: emitir uno nuevo.
-
-- Verificar en navegador real, con login real (clics, no solo API; Sentinel bloquea la IP local por HTTP): Pactvm (Carbono, Planetario, VDR e invitados), Consola Maestra y Comunicaciones de Rëff, Finance Empresas, F&L (Expediente y Accesos externos), Resilience, S-EAGLE, Herzog Central, Centro de Notificaciones y el visor 3D de PAIA con HUD.
+- Reiniciar el servidor (el dev server aún no tiene guest-token con sesión, desbloqueos limitados ni `path-normalize.js`), reconstruyendo antes el cliente de Rëff (`npm run build` en `Elvi-Ra/Mesas/Rëff`): el SPA antiguo no manda el Bearer y recibiría 401. Los códigos de verificación de carbono emitidos antes del cambio ya no sirven.
+- Verificar en navegador real con login real (Sentinel bloquea la IP local por HTTP): Pactvm (Carbono, Planetario, VDR e invitados), Consola Maestra y Comunicaciones de Rëff, Finance Empresas, F&L, Resilience, S-EAGLE, Herzog Central, Centro de Notificaciones y el visor 3D de PAIA con HUD.
 - Datos reales: todo es PLACEHOLDER hasta que el jefe confirme (Pactvm planetario, nodos por país y ratio de carbono; Resilience; fechas de caducidad del Expediente F&L; países de `VDR_COUNTRY_COORDS`).
 - ØPS/PAIA: el código vuelve a leer `ops_nodes`, `ops_readings` y `ops_log` (2026-10-02), que es donde están los datos (3 y 246 docs; `ops_log` vacía); no hay migración. Las rutas, la clave de mesa y los scopes CIBE con ø siguen en el árbol de trabajo y funcionan por `path-normalize.js` (el dev server necesita reinicio para cargarlo): decidir si se revierten a ASCII según la convención.
 - HUD de PAIA: telemetría SIMULADA (`createTelemetryFeed()` es el punto de sustitución por la fuente real). Dos incoherencias de la spec por decidir con el jefe: composición del piloto (2 BioGrinders + 1 BioDeshidratador en la base de conocimiento frente a los totales por nodo) y 80 % de extracción secundaria frente al 7 % de humedad estándar.
