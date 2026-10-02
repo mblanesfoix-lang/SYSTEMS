@@ -11,6 +11,11 @@
 // url: null cuando la busqueda no confirmo un dominio oficial unico — el campo
 // `note` explica por que (ver cada nodo). No marcar como verificado sin confirmar.
 //
+// Campo opcional `accesos_directos`: [{ label, url, note? }] con enlaces adicionales al
+// portal principal. Un pais con un solo enlace valido abre directo al hacer clic; con mas
+// de uno, la UI muestra un selector (ver getNodeLinks y gob-share-links.js). Para anadir
+// un enlace a cualquier otro pais basta con declarar este campo en su nodo.
+//
 // world_atlas_id = ISO 3166-1 numeric id usado por world-atlas/countries-110m.json
 // (necesario para el hit-test de clic sobre el globo). Malta no existe como poligono
 // en la resolucion 110m (Natural Earth la omite por tamano) — nodo sin geometria,
@@ -57,6 +62,10 @@ export const GOB_SHARE_NODES = {
     nombre_sistema: 'España',
     portal_registro_oficial: { label: 'REC / DIR3 (Registro Electrónico Común)', url: 'https://rec.redsara.es/registro/action/are/acceso.do' },
     gateway_eid_auth: { label: 'Cl@ve / FNMT / AutoFirma', url: 'https://clave.gob.es/' },
+    // Enlace aportado por el usuario el 2026-10-02; nombre oficial leido en idae.es/conozcanos/quienes-somos.
+    accesos_directos: [
+      { label: 'IDAE (Instituto para la Diversificación y Ahorro de la Energía)', url: 'https://www.idae.es/' },
+    ],
     api_status_check: 'pendiente',
     protocolo_csv_trazabilidad: 'pendiente',
   },
@@ -355,6 +364,36 @@ export const GOB_SHARE_NODES = {
     protocolo_csv_trazabilidad: 'pendiente',
   },
 };
+
+function isHttpUrl(url) {
+  if (typeof url !== 'string') return false;
+  try {
+    const { protocol } = new URL(url);
+    return protocol === 'https:' || protocol === 'http:';
+  } catch {
+    return false;
+  }
+}
+
+// Enlaces abribles de un nodo: el portal principal (si tiene URL) y despues los
+// accesos_directos. Descarta entradas sin URL http(s) valida. Devuelve [] si no hay ninguno.
+export function getNodeLinks(node) {
+  if (!node) return [];
+  const links = [];
+  const portal = node.portal_registro_oficial;
+  if (portal && isHttpUrl(portal.url)) links.push({ label: portal.label, url: portal.url, note: portal.note });
+  for (const extra of node.accesos_directos || []) {
+    if (extra && isHttpUrl(extra.url)) links.push({ label: extra.label || extra.url, url: extra.url, note: extra.note });
+  }
+  return links;
+}
+
+// Texto buscable de un nodo: pais, codigo y etiqueta de todos sus enlaces (aunque no tengan URL).
+export function getNodeSearchText(node) {
+  const labels = [node.portal_registro_oficial && node.portal_registro_oficial.label]
+    .concat((node.accesos_directos || []).map((l) => l && l.label));
+  return [node.nombre_sistema, node.id_pais, ...labels].filter(Boolean).join(' ').toLowerCase();
+}
 
 export const GOB_SHARE_NODES_BY_WORLD_ATLAS_ID = Object.fromEntries(
   Object.values(GOB_SHARE_NODES)

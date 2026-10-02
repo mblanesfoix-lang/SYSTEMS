@@ -3,7 +3,8 @@
 // Solo los paises con nodo registrado tienen relleno/hover/click; el resto queda en blanco
 // (contorno fino, sin relleno destacado), igual que la referencia de mapa mundi clasico.
 
-import { GOB_SHARE_NODES_BY_WORLD_ATLAS_ID } from './gob-share-nodes.js';
+import { GOB_SHARE_NODES_BY_WORLD_ATLAS_ID, getNodeLinks } from './gob-share-nodes.js';
+import { openNodeLinks, closeNodeLinks, isNodeLinksOpen } from './gob-share-links.js';
 
 function pointInRing(lng, lat, ring) {
   let inside = false;
@@ -31,12 +32,6 @@ function pointInFeature(lng, lat, feature) {
     if (!inHole) return true;
   }
   return false;
-}
-
-export function openNodePortal(node) {
-  if (!node) return;
-  const url = node.portal_registro_oficial && node.portal_registro_oficial.url;
-  if (url) window.open(url, '_blank', 'noopener,noreferrer');
 }
 
 export async function mountGobShareMap(container, { tooltip, emptyBadge } = {}) {
@@ -156,12 +151,15 @@ export async function mountGobShareMap(container, { tooltip, emptyBadge } = {}) 
       const node = GOB_SHARE_NODES_BY_WORLD_ATLAS_ID[String(feature.id)];
       container.classList.toggle('hoverable', !!node);
       if (tooltip) {
-        if (node) {
+        // Con el selector de enlaces abierto el tooltip se oculta para no taparlo ni duplicarlo.
+        if (node && !isNodeLinksOpen()) {
+          const total = getNodeLinks(node).length;
+          const hint = total > 1 ? `${total} enlaces · clic para elegir →` : 'clic para abrir →';
           tooltip.innerHTML = `<span class="gobshare-tooltip__country">${node.nombre_sistema} (${node.id_pais})</span>` +
             `<span class="gobshare-tooltip__service">${node.portal_registro_oficial.label}</span>` +
-            `<span class="gobshare-tooltip__hint">clic para abrir →</span>`;
-          tooltip.style.left = `${e.clientX + 14}px`;
-          tooltip.style.top = `${e.clientY + 14}px`;
+            `<span class="gobshare-tooltip__hint">${hint}</span>`;
+          tooltip.style.left = `${e.clientX + 8}px`;
+          tooltip.style.top = `${e.clientY + 8}px`;
           tooltip.hidden = false;
         } else {
           tooltip.hidden = true;
@@ -183,9 +181,9 @@ export async function mountGobShareMap(container, { tooltip, emptyBadge } = {}) 
     const feature = hitTest(e.clientX, e.clientY);
     if (!feature) return;
     const node = GOB_SHARE_NODES_BY_WORLD_ATLAS_ID[String(feature.id)];
-    const url = node && node.portal_registro_oficial && node.portal_registro_oficial.url;
-    if (url) {
-      window.open(url, '_blank', 'noopener,noreferrer');
+    // Un enlace abre directo; varios abren el selector (gob-share-links.js); ninguno muestra el aviso.
+    if (openNodeLinks(node, { x: e.clientX, y: e.clientY })) {
+      if (tooltip) tooltip.hidden = true;
     } else if (emptyBadge) {
       emptyBadge.hidden = false;
       clearTimeout(emptyBadge._hideTimer);
@@ -195,6 +193,7 @@ export async function mountGobShareMap(container, { tooltip, emptyBadge } = {}) 
 
   return {
     dispose() {
+      closeNodeLinks();
       resizeObserver.disconnect();
       if (container.contains(canvas)) container.removeChild(canvas);
     },

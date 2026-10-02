@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap">
   <link rel="stylesheet" href="/css/theme.css">
+  <link rel="stylesheet" href="/css/gob-share-links.css">
   <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
   <style>
     /* Gob Share corre en modo oscuro propio, aislado del tema claro global (body.gobshare-dark).
@@ -150,7 +151,7 @@
       <span class="kicker">Dominio Rëff · Enlaces institucionales</span>
       <h1>Gob Share</h1>
       <p style="max-width:640px; margin-top:8px;">
-        Portales de registro gubernamentales por país. Pasa el cursor sobre un país registrado (resaltado en verde) para ver su servicio, haz clic para abrir el portal oficial.
+        Portales de registro gubernamentales por país. Pasa el cursor sobre un país registrado (resaltado en verde) para ver su servicio, haz clic para abrir el portal oficial. Si el país tiene varios enlaces, se abre un selector para elegir.
       </p>
     </header>
 
@@ -183,8 +184,9 @@
     import { api, getUser, getToken, clearSession, requireAuth, toast } from '/js/api.js';
     import { mountAdminNotifications } from '/js/notifications.js';
     import { mountOfficeBg } from '/js/office-bg.js';
-    import { mountGobShareMap, openNodePortal } from '/js/gob-share-map.js';
-    import { GOB_SHARE_NODES } from '/js/gob-share-nodes.js';
+    import { mountGobShareMap } from '/js/gob-share-map.js';
+    import { openNodeLinks } from '/js/gob-share-links.js';
+    import { GOB_SHARE_NODES, getNodeLinks, getNodeSearchText } from '/js/gob-share-nodes.js';
     requireAuth();
     mountOfficeBg();
     const user = getUser() || '';
@@ -213,16 +215,17 @@
       const q = filter.trim().toLowerCase();
       listEl.innerHTML = '';
       for (const node of nodes) {
-        const url = node.portal_registro_oficial && node.portal_registro_oficial.url;
-        const hay = `${node.nombre_sistema} ${node.id_pais} ${node.portal_registro_oficial.label}`.toLowerCase();
-        if (q && !hay.includes(q)) continue;
+        const total = getNodeLinks(node).length;
+        if (q && !getNodeSearchText(node).includes(q)) continue;
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'gobshare-node' + (url ? '' : ' gobshare-node--nolink');
+        btn.className = 'gobshare-node' + (total ? '' : ' gobshare-node--nolink');
         btn.innerHTML = `<span class="gobshare-node__row"><span class="gobshare-node__country">${node.nombre_sistema}</span><span class="gobshare-node__code">${node.id_pais}</span></span>` +
-          `<span class="gobshare-node__service">${node.portal_registro_oficial.label}</span>`;
-        btn.title = url ? 'Abrir portal oficial' : 'Sin URL verificada todavía';
-        btn.addEventListener('click', () => openNodePortal(node));
+          `<span class="gobshare-node__service">${node.portal_registro_oficial.label}` +
+          (total > 1 ? `<span class="gobshare-node__multi">${total} enlaces</span>` : '') + `</span>`;
+        btn.title = total > 1 ? 'Elegir enlace' : total ? 'Abrir portal oficial' : 'Sin URL verificada todavía';
+        if (total > 1) btn.setAttribute('aria-haspopup', 'dialog');
+        btn.addEventListener('click', () => openNodeLinks(node, { element: btn }));
         listEl.appendChild(btn);
       }
     }

@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap">
   <link rel="stylesheet" href="/css/theme.css">
+  <link rel="stylesheet" href="/css/gob-share-links.css">
   <script>
     (function () {
       try {
@@ -120,7 +121,8 @@
       <h1>Mapa Gob Share</h1>
       <p style="max-width:640px; margin-top:8px;">
         Directorio de portales oficiales de registro por país (mismo dataset que Gob Share). Pasa el
-        cursor sobre un país registrado para ver su servicio, clic para abrir el portal oficial.
+        cursor sobre un país registrado para ver su servicio, clic para abrir el portal oficial. Si tiene
+        varios enlaces, se abre un selector para elegir.
       </p>
     </header>
 
@@ -153,7 +155,8 @@
     import { mountThemeToggle } from '/js/theme.js';
     import { mountAdminNotifications } from '/js/notifications.js';
     import { mountGobShareMap } from '/js/gob-share-map.js';
-    import { GOB_SHARE_NODES } from '/js/gob-share-nodes.js';
+    import { openNodeLinks } from '/js/gob-share-links.js';
+    import { GOB_SHARE_NODES, getNodeLinks, getNodeSearchText } from '/js/gob-share-nodes.js';
     requireAuth();
     mountThemeToggle(document.querySelector('nav.nav .row'));
     const user = getUser() || '';
@@ -178,16 +181,17 @@
       const q = filter.trim().toLowerCase();
       listEl.innerHTML = '';
       for (const node of nodes) {
-        const url = node.portal_registro_oficial && node.portal_registro_oficial.url;
-        const hay = `${node.nombre_sistema} ${node.id_pais} ${node.portal_registro_oficial.label}`.toLowerCase();
-        if (q && !hay.includes(q)) continue;
+        const total = getNodeLinks(node).length;
+        if (q && !getNodeSearchText(node).includes(q)) continue;
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'gobshare-node' + (url ? '' : ' gobshare-node--nolink');
+        btn.className = 'gobshare-node' + (total ? '' : ' gobshare-node--nolink');
         btn.innerHTML = `<span class="gobshare-node__row"><span class="gobshare-node__country">${escapeHtml(node.nombre_sistema)}</span><span class="gobshare-node__code">${escapeHtml(node.id_pais)}</span></span>` +
-          `<span class="gobshare-node__service">${escapeHtml(node.portal_registro_oficial.label)}</span>`;
-        btn.title = url ? 'Abrir portal oficial' : 'Sin URL verificada todavía';
-        btn.addEventListener('click', () => { if (url) window.open(url, '_blank', 'noopener,noreferrer'); });
+          `<span class="gobshare-node__service">${escapeHtml(node.portal_registro_oficial.label)}` +
+          (total > 1 ? `<span class="gobshare-node__multi">${total} enlaces</span>` : '') + `</span>`;
+        btn.title = total > 1 ? 'Elegir enlace' : total ? 'Abrir portal oficial' : 'Sin URL verificada todavía';
+        if (total > 1) btn.setAttribute('aria-haspopup', 'dialog');
+        btn.addEventListener('click', () => openNodeLinks(node, { element: btn }));
         listEl.appendChild(btn);
       }
     }
