@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { connectMongo, getElviraDb, getMongoClient, withTransaction } from './db/mongo.js';
+import { connectMongo, closeMongo, getElviraDb, getMongoClient, withTransaction } from './db/mongo.js';
 import { createSentinelForensics } from './sentinel-forensics.js';
 import { callLLM } from './llm.js';
 
@@ -53,7 +53,9 @@ import { mountReffGuestToken } from './routes/reff-guest.routes.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const FRONT = path.join(ROOT, 'frontend');
-const DATA_DIR = path.join(__dirname, 'data');
+// DATA_DIR: en k8s el volumen persistente (PVC) se monta en /app/backend/data, y los tests/sandbox necesitan
+// aislar el estado local sin tocar data/ real. Sin la variable, el default de siempre.
+const DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(__dirname, 'data');
 const HISTORY_FILE = path.join(DATA_DIR, 'search_history.json');
 const ELVIRA_FILE = path.join(DATA_DIR, 'elvira.json');
 const BUS_HISTORY_FILE = path.join(DATA_DIR, 'bus_history.json');
@@ -175,6 +177,67 @@ function requireAdmin(req, res, next) {
 const app = express();
 app.set('trust proxy', 1);
 
+/* ==========================================================================
+   K8s · sondas de liveness / readiness. Se montan LO PRIMERO (antes de cors,
+   body parser, rate limit y Sentinel), con motivo medido, no teorico:
+   - livez no puede depender de Mongo. Detras del middleware forense de
+     Sentinel (consulta Mongo en cada peticion) una caida de Mongo dejaba livez
+     colgado y el kubelet reiniciaba pods sanos en cadena (verificado: livez
+     sin respuesta en 4s con Mongo parado).
+   - Las sondas se repiten cada pocos segundos: no son trafico de usuario y no
+     deben llenar forensic_log (cadena de hashes inmutable), contar contra el
+     rate limit ni mezclarse con el analisis de comportamiento.
+   Contrato:
+     /api/livez  200 mientras el event loop responda (tambien durante el
+                 apagado: el kubelet no debe matar un pod que esta drenando).
+     /api/readyz 200 solo si Mongo responde en <2s, Rack State tiene rol, la
+                 integracion Reff ya termino de cargar y no hay apagado en curso.
+                 503 saca el pod del Service sin reiniciarlo.
+     /api/ophs/readyz  mismo criterio de infraestructura, namespaced para cuando
+                 ØPHS se separe a su propio Deployment (hoy comparte proceso).
+========================================================================== */
+let rackState = null;      // asignado al montar Rack State (mas abajo)
+let reffState = 'loading'; // 'loading' | 'mounted' | 'failed' (integracion Reff, mas abajo)
+let shuttingDown = false;  // true desde SIGTERM: readyz pasa a 503 y el kubelet drena el trafico
+
+const READYZ_MONGO_TIMEOUT_MS = 2000;
+async function pingMongo() {
+  let timer;
+  try {
+    await Promise.race([
+      mongo.command({ ping: 1 }),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`ping Mongo > ${READYZ_MONGO_TIMEOUT_MS}ms`)), READYZ_MONGO_TIMEOUT_MS); }),
+    ]);
+  } finally { clearTimeout(timer); }
+}
+
+app.get('/api/livez', (_req, res) => {
+  res.json({ status: 'ok', service: 'elvira', uptimeSec: Math.floor(process.uptime()) });
+});
+
+app.get('/api/readyz', async (_req, res) => {
+  const checks = { mongo: false, rack: 'n/a', reff: reffState };
+  if (!shuttingDown) {
+    try { await pingMongo(); checks.mongo = true; } catch { checks.mongo = false; }
+    if (rackState) {
+      const s = rackState.status();
+      checks.rack = s.role === 'leader' || s.role === 'follower' ? s.role : 'unavailable';
+    }
+  }
+  const ready = !shuttingDown && checks.mongo === true && checks.rack !== 'unavailable' && checks.reff !== 'loading';
+  res.status(ready ? 200 : 503).json({ ready, shuttingDown, checks, uptimeSec: Math.floor(process.uptime()) });
+});
+
+app.get('/api/ophs/readyz', async (_req, res) => {
+  if (shuttingDown) return res.status(503).json({ ready: false, shuttingDown: true });
+  try {
+    await pingMongo();
+    res.json({ ready: true, note: 'ØPHS aun corre en el proceso monolito: readiness real por dominio pendiente de separacion a Deployment propio' });
+  } catch (err) {
+    res.status(503).json({ ready: false, error: String(err?.message || err) });
+  }
+});
+
 const CORS_ORIGIN = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map((s) => s.trim())
   : null;
@@ -204,17 +267,25 @@ app.use('/api', apiLimiter);
  * módulos — los middlewares de mas abajo solo los invocan dentro de un
  * closure, en tiempo de petición, cuando ya están asignados.
  */
-let adminNotify, busEmit, busEmitAlert, busEvents, auth, listAdminNotifications;
+let adminNotify, busEmit, busEmitAlert, busEvents, auth, listAdminNotifications, flushBusHistory;
 // (sseClients del bus no se usa fuera de bus.routes.js; se ignora aquí)
 
-/* Captura cualquier caída no controlada del proceso y la sube a notificaciones Admin */
+/* Captura cualquier caída no controlada del proceso y la sube a notificaciones Admin.
+ * Tras una excepción no capturada el estado del proceso queda indefinido (doctrina
+ * Node): no debe seguir sirviendo tráfico. Antes esto solo logueaba y continuaba —
+ * si app.listen() fallaba (ej. EADDRINUSE por un reinicio de nodemon superpuesto),
+ * el proceso quedaba "zombie" sin escuchar el puerto pero tampoco moría, generando
+ * la misma notificación repetida en bucle. Ahora se notifica y se sale limpio;
+ * el supervisor (nodemon/systemd/k8s) reinicia un proceso fresco. */
 process.on('uncaughtException', (err) => {
   console.error('[uncaughtException]', err);
-  adminNotify({ origin: 'SYSTEM', label: 'Excepción no controlada', detail: err?.stack || err?.message || String(err), severity: 'error' });
+  adminNotify({ origin: 'SYSTEM', label: 'Excepción no controlada — proceso reiniciando', detail: err?.stack || err?.message || String(err), severity: 'error' });
+  setTimeout(() => process.exit(1), 300);
 });
 process.on('unhandledRejection', (reason) => {
   console.error('[unhandledRejection]', reason);
-  adminNotify({ origin: 'SYSTEM', label: 'Promesa rechazada sin manejar', detail: reason?.stack || reason?.message || String(reason), severity: 'error' });
+  adminNotify({ origin: 'SYSTEM', label: 'Promesa rechazada sin manejar — proceso reiniciando', detail: reason?.stack || reason?.message || String(reason), severity: 'error' });
+  setTimeout(() => process.exit(1), 300);
 });
 
 const authLimiter = rateLimit({
@@ -273,7 +344,7 @@ app.use(sentinelForensics.middleware(mesaForPath));
 ({ adminNotify, listAdminNotifications } = mountNotifications(app, { auth: (req, res, next) => auth(req, res, next), requireAdmin, atomicWriteJson, NOTIFICATIONS_FILE }));
 
 /* ---- Event Bus (mount temprano: busEmit es dependencia compartida por ~10 modulos) ---- */
-({ busEvents, busEmit, busEmitAlert } = mountBus(app, {
+({ busEvents, busEmit, busEmitAlert, flushBusHistory } = mountBus(app, {
   auth: (req, res, next) => auth(req, res, next),
   requireAdmin, atomicWriteJson, BUS_HISTORY_FILE, adminNotify,
 }));
@@ -446,7 +517,7 @@ mountOphsCockpit(app, { auth, requireMesa, mongo, getMongoClient });
    parametrizados y estados de seguridad. Sin quorum: escrituras bloqueadas,
    lecturas Offline-First del ultimo estado comprometido. Mesa sentinel.
 ========================================================================== */
-const rackState = mountRackState(app, { auth, requireMesa, mongo, busEmit, adminNotify, cibe });
+rackState = mountRackState(app, { auth, requireMesa, mongo, busEmit, adminNotify, cibe });
 
 /* ==========================================================================
    Grid Interlink · redes electricas transnacionales (Instrucciones.txt §2)
@@ -455,45 +526,7 @@ const rackState = mountRackState(app, { auth, requireMesa, mongo, busEmit, admin
 ========================================================================== */
 mountGridInterlink(app, { auth, requireMesa, mongo, busEmit, adminNotify, cibe });
 
-/* ==========================================================================
-   K8s · Liveness / Readiness (Fase 0 escalado horizontal)
-   /api/livez  — proceso vivo, sin dependencias externas (kubelet mata/reinicia
-                 el pod si esto no responde: nunca debe tocar Mongo ni red).
-   /api/readyz — listo para tráfico: ping real a Mongo + rol Rack State. Si
-                 Mongo no responde o el rack esta sin quorum, fuera del
-                 Service (kubelet deja de enrutar, no reinicia el pod).
-   /api/ophs/readyz — placeholder namespaced para cuando OPHS se separe a su
-                 propio Deployment (Fase 1); hoy vive en el mismo proceso asi
-                 que refleja el mismo Mongo, sin logica propia todavia.
-========================================================================== */
-app.get('/api/livez', (_req, res) => {
-  res.json({ status: 'ok', service: 'elvira', uptimeSec: Math.floor(process.uptime()) });
-});
-
-app.get('/api/readyz', async (_req, res) => {
-  const checks = { mongo: false, rack: 'n/a' };
-  try {
-    await mongo.command({ ping: 1 });
-    checks.mongo = true;
-  } catch (err) {
-    checks.mongo = false;
-  }
-  if (rackState) {
-    const s = rackState.status();
-    checks.rack = s.role === 'leader' || s.role === 'follower' ? s.role : 'unavailable';
-  }
-  const ready = checks.mongo === true && checks.rack !== 'unavailable';
-  res.status(ready ? 200 : 503).json({ ready, checks, uptimeSec: Math.floor(process.uptime()) });
-});
-
-app.get('/api/ophs/readyz', async (_req, res) => {
-  try {
-    await mongo.command({ ping: 1 });
-    res.status(200).json({ ready: true, note: 'OPHS aun corre en el proceso monolito — readiness real por dominio pendiente de separacion a Deployment propio (Fase 1)' });
-  } catch (err) {
-    res.status(503).json({ ready: false, error: String(err?.message || err) });
-  }
-});
+/* K8s · sondas /api/livez, /api/readyz y /api/ophs/readyz: ver el bloque al principio de este archivo (justo tras crear `app`). */
 
 /* ==========================================================================
    ELVI-RA · puentes mock (Sentinel/Herzog) + OPHS scoring + T'Controler
@@ -574,6 +607,7 @@ app.get('/', (req, res) => res.redirect('/pages/login.html'));
     const { default: reffWatchRoutes }     = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'watch.routes.js')));
     const { default: reffTrafficRoutes }   = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'traffic.routes.js')));
     const { default: reffMeetingsRoutes }  = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'meetings.routes.js')));
+    const { default: reffCommsRoutes }     = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'communications.routes.js')));
     const { startWatchCron }               = await import(toFileUrl(path.join(REFF_SERVER, 'watch.js')));
     const { startMeetingReminderCron }     = await import(toFileUrl(path.join(REFF_SERVER, 'meeting-reminders.js')));
 
@@ -588,6 +622,7 @@ app.get('/', (req, res) => res.redirect('/pages/login.html'));
     app.use('/reff/api/crm',  reffSheetsRoutes);
     app.use('/reff/api/crm',  reffCompaniesRoutes);
     app.use('/reff/api/crm',  reffMeetingsRoutes);
+    app.use('/reff/api/crm',  reffCommsRoutes);
     app.use('/reff/api/geo',  reffGeoRoutes);
     app.use('/reff/api/herzog', reffHerzogRoutes);
     app.use('/reff/api/watch', reffWatchRoutes);
@@ -607,6 +642,7 @@ app.get('/', (req, res) => res.redirect('/pages/login.html'));
     app.use('/api/crm',    reffSheetsRoutes);
     app.use('/api/crm',    reffCompaniesRoutes);
     app.use('/api/crm',    reffMeetingsRoutes);
+    app.use('/api/crm',    reffCommsRoutes);
     app.use('/api/geo',    reffGeoRoutes);
     app.use('/api/herzog', reffHerzogRoutes);
     app.use('/api/watch',  reffWatchRoutes);
@@ -646,8 +682,10 @@ app.get('/', (req, res) => res.redirect('/pages/login.html'));
     }
 
     console.log('[Rëff] Integrado en Elvi-Ra bajo /reff');
+    reffState = 'mounted';
   } catch (err) {
     console.error('[Rëff] Error al integrar — Rëff no disponible:', err.message);
+    reffState = 'failed';
   }
 })();
 
@@ -661,42 +699,59 @@ app.use((err, req, res, _next) => {
 });
 
 /* ==========================================================================
-   K8s · Fase 2 — puente entre deteccion de infra (kubelet) y capa de negocio
-   (Sentinel/bus). kubelet reinicia un pod roto sin que Sentinel se entere
-   nunca por si solo (viven en procesos/planos distintos). Este flag,
-   persistido en el mismo volumen que /app/backend/data (PVC en k8s, bind
-   mount en compose), sobrevive al restart del contenedor: si ya existe al
-   arrancar, este boot es una recuperacion tras caida, no un primer arranque.
+   K8s · puente entre la deteccion de infraestructura (kubelet) y la capa de
+   negocio (Sentinel/bus). Un contenedor roto lo reinicia el kubelet sin que
+   Sentinel se entere por si solo (viven en planos distintos). Marca de arranque
+   en DATA_DIR (PVC en k8s: sobrevive al reinicio del contenedor y del pod):
+     - al arrancar se escribe { cleanShutdown: false };
+     - el apagado ordenado (SIGTERM del kubelet en rollout, drain o scale a 0)
+       la pasa a true justo antes de salir.
+   Si al arrancar la marca previa sigue en false, la instancia anterior murio
+   sin apagarse (OOMKilled, SIGKILL, crash, liveness colgada) y se avisa al
+   Admin. Un despliegue normal NO avisa; un pod que llevaba horas vivo y muere
+   SI (la version anterior solo detectaba reinicios dentro de los 5 min del
+   boot previo, y avisaba en falso al redesplegar dos veces seguidas).
+
+   Solo dentro de un pod k8s real: KUBERNETES_SERVICE_HOST lo inyecta el propio
+   Kubernetes. Sin el, cualquier reinicio manual en desarrollo (nodemon,
+   npm run dev) generaba avisos falsos de "pod recuperado tras caida".
 ========================================================================== */
 const BOOT_FLAG_FILE = path.join(DATA_DIR, '.last_boot');
-{
+const IN_K8S = Boolean(process.env.KUBERNETES_SERVICE_HOST);
+let bootFlag = null;
+
+function writeBootFlag(patch) {
+  bootFlag = { ...bootFlag, ...patch };
+  try { fs.writeFileSync(BOOT_FLAG_FILE, JSON.stringify(bootFlag)); }
+  catch (err) { console.error('[k8s-boot-flag] no se pudo persistir:', err.message); }
+}
+
+if (IN_K8S) {
   const now = Date.now();
-  let prevBoot = null;
-  try { prevBoot = JSON.parse(fs.readFileSync(BOOT_FLAG_FILE, 'utf8')); } catch (err) { /* primer arranque: sin flag previo */ }
-  if (prevBoot?.ts) {
-    const sinceMs = now - prevBoot.ts;
-    // Boot inmediatamente anterior a <2min de este: kubelet ha reiniciado el
-    // pod (liveness fallo o crash). Si ademas se repite en <2min, es un
-    // crashloop real -> severidad error, no warning.
-    const isRestart = sinceMs < 5 * 60 * 1000; // ventana generosa: cubre CrashLoopBackOff con backoff creciente
-    if (isRestart) {
-      const isLoop = sinceMs < 2 * 60 * 1000 && prevBoot.restartCount > 0;
-      adminNotify({
-        origin: 'K8S', severity: isLoop ? 'error' : 'warning',
-        label: `Pod ${process.env.RACK_ID || process.env.HOSTNAME || 'elvira'} recuperado tras caida`,
-        detail: `reinicio detectado (boot anterior hace ${Math.round(sinceMs / 1000)}s)${isLoop ? ' — patron de crashloop, revisar logs del pod' : ''}`,
-      });
-      busEmit({
-        id: crypto.randomUUID(), ts: new Date().toISOString(),
-        origin: 'K8S', dest: 'SENTINEL', type: 'pod_restart',
-        state: 'DONE', label: 'Pod recuperado tras caida (kubelet)',
-        payload: { sinceMs, restartCount: (prevBoot.restartCount || 0) + 1 }, user: 'system',
-      });
-    }
+  const pod = process.env.HOSTNAME || process.env.RACK_ID || 'elvira';
+  let prev = null;
+  try { prev = JSON.parse(fs.readFileSync(BOOT_FLAG_FILE, 'utf8')); } catch (err) { /* primer arranque: sin marca previa */ }
+  // Marca del formato anterior ({ ts, restartCount }, sin cleanShutdown): no se sabe como murio, no se avisa.
+  const legacy = Boolean(prev) && prev.cleanShutdown === undefined;
+  const crashed = Boolean(prev) && !legacy && prev.cleanShutdown !== true;
+  const unexpectedRestarts = crashed ? (prev.unexpectedRestarts || 0) + 1 : 0;
+  if (crashed) {
+    const sinceMs = now - (prev.ts || now);
+    // segundo reinicio inesperado seguido con un boot previo de <2min: crashloop real, no un fallo aislado
+    const isLoop = unexpectedRestarts > 1 && sinceMs < 2 * 60 * 1000;
+    adminNotify({
+      origin: 'K8S', severity: isLoop ? 'error' : 'warning',
+      label: `Pod ${pod} recuperado tras caida`,
+      detail: `la instancia anterior (${prev.pod || 'desconocida'}, arrancada hace ${Math.round(sinceMs / 1000)}s) no se apago de forma limpia (OOMKilled, SIGKILL, crash o liveness colgada); reinicios inesperados consecutivos: ${unexpectedRestarts}${isLoop ? '; patron de crashloop, revisar logs del pod' : ''}`,
+    });
+    busEmit({
+      id: crypto.randomUUID(), ts: new Date().toISOString(),
+      origin: 'K8S', dest: 'SENTINEL', type: 'pod_restart',
+      state: 'DONE', label: 'Pod recuperado tras caida (kubelet)',
+      payload: { sinceMs, unexpectedRestarts, previousPod: prev.pod || null }, user: 'system',
+    });
   }
-  try {
-    fs.writeFileSync(BOOT_FLAG_FILE, JSON.stringify({ ts: now, restartCount: (prevBoot?.restartCount || 0) + 1 }));
-  } catch (err) { console.error('[k8s-boot-flag] no se pudo persistir:', err.message); }
+  writeBootFlag({ pod, ts: now, cleanShutdown: false, unexpectedRestarts });
 }
 
 /* ==========================================================================
@@ -744,7 +799,39 @@ bootVerification();
 
 const PORT = process.env.PORT || 5173;
 const HOST = process.env.HOST || '0.0.0.0';
-app.listen(PORT, HOST, () => console.log(`Elvi-Ra running → http://0.0.0.0:${PORT}`));
+const server = app.listen(PORT, HOST, () => console.log(`Elvi-Ra running → http://0.0.0.0:${PORT}`));
+// Detras de kube-proxy/Ingress/LB el keep-alive por defecto de Node (5s) es menor que el idle timeout
+// de esos proxies (~60s): reutilizan una conexion que Node ya cerro y devuelven 502 esporadicos.
+server.keepAliveTimeout = 65_000;
+server.headersTimeout = 66_000;
+
+/* Apagado ordenado. El kubelet manda SIGTERM en rollouts, drain de nodo y scale a 0 (y `docker stop`);
+   sin handler Node moria al instante: peticiones en vuelo cortadas, debounce del historial del bus
+   (500ms) perdido y marca de arranque siempre "sucia" (falso aviso de caida en cada despliegue).
+   Secuencia: readyz pasa a 503 -> se deja de aceptar conexiones -> se espera a las peticiones en
+   vuelo -> pasada la gracia se cortan los streams SSE (los clientes reconectan solos a la nueva
+   instancia) -> flush del bus -> cierre de Mongo -> marca limpia -> exit 0. Tope duro por debajo del
+   terminationGracePeriodSeconds del Deployment (40s). */
+const SHUTDOWN_GRACE_MS = Number(process.env.SHUTDOWN_GRACE_MS) || (IN_K8S ? 10_000 : 1_500);
+const SHUTDOWN_HARD_MS = Number(process.env.SHUTDOWN_HARD_MS) || 25_000;
+
+async function gracefulShutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`[shutdown] ${signal}: readyz->503, drenando conexiones (gracia ${SHUTDOWN_GRACE_MS}ms)`);
+  setTimeout(() => { console.error('[shutdown] tope duro alcanzado, salida forzada'); process.exit(1); }, SHUTDOWN_HARD_MS).unref();
+  const closed = new Promise((resolve) => server.close(resolve));
+  server.closeIdleConnections();
+  setTimeout(() => server.closeAllConnections(), SHUTDOWN_GRACE_MS).unref();
+  await closed;
+  try { flushBusHistory?.(); } catch (err) { console.error('[shutdown] flush bus:', err.message); }
+  try { await closeMongo(); } catch (err) { console.error('[shutdown] cierre Mongo:', err.message); }
+  if (IN_K8S) writeBootFlag({ cleanShutdown: true, stoppedAt: Date.now() });
+  console.log('[shutdown] limpio');
+  process.exit(0);
+}
+process.on('SIGTERM', () => { gracefulShutdown('SIGTERM'); });
+process.on('SIGINT', () => { gracefulShutdown('SIGINT'); });
 
 const TWIN_PORT = process.env.TWIN_PORT || 5174;
 const TWIN_TOKEN = process.env.TWIN_TOKEN;

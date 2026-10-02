@@ -58,7 +58,7 @@ Bearer en `localStorage`; cada página llama `requireAuth()` y `/api/me/permissi
 - Antes de dar algo por hecho: `node --check` del archivo tocado, `npm test`, typecheck de Rëff (`tsc --noEmit`) o arranque, según toque.
 - LLM: `llm.js` (`LLM_PROVIDER=anthropic|ollama`), con timeouts y limitador por usuario en las rutas que lo usan.
 - Secretos: `.env` ignorado; `.env.vault` (AES-256-GCM) SÍ se commitea y su clave de descifrado va en el gestor de la plataforma, nunca en el repo (`node scripts/env-vault.js encrypt|decrypt [dir]`; recifrar genera una clave nueva). Contraseñas dev en `.env` local (`SEED_*_PASSWORD`).
-- Despliegue: docker-compose sobre Coolify en Hetzner (transitorio; el repo solo tiene la rama `master`, confirmar cuál vigila Coolify); k8s local en `k8s/README.md` (sondas `/api/livez` y `/api/readyz`); Debian con `scripts/provision-debian.sh`. Persistencia en Mongo (volúmenes `mongo-data` y `elvira-data`).
+- Despliegue: docker-compose sobre Coolify en Hetzner (transitorio; el repo solo tiene la rama `master`, confirmar cuál vigila Coolify); k8s local en `k8s/README.md` (sondas `/api/livez`, `/api/readyz` y `/api/ophs/readyz`; apagado ordenado por `SIGTERM` con tope duro interno `SHUTDOWN_HARD_MS`); Debian con `scripts/provision-debian.sh`. Persistencia en Mongo (volúmenes `mongo-data` y `elvira-data`), imagen pineada a `mongo:7.0.43` (no `7.0` flotante). Node base de `app/Dockerfile`: `22-slim` (20 es EOL desde 2026-04-30).
 
 ## Convenciones
 
@@ -84,5 +84,5 @@ Bearer en `localStorage`; cada página llama `requireAuth()` y `/api/me/permissi
 - Volumen 3: cluster multi-rack (`RACK_PEERS`, `RACK_SHARED_KEY`), URLs live de TSO (`GRID_<CC>_URL`), claves CIBE a vault, `CIBE_MODE=strict` con racks reales. Rëff Meetings: SMTP real (`SMTP_HOST`, `SMTP_USER`, `SMTP_PASS` en `app/backend/.env`; reiniciar tras configurar).
 - Factory: redefinir alcance. S-EAGLE: métricas propias. Herzog Central: ampliar `pollBaseMetrics` si el jefe lo pide.
 - Tests por añadir: F&L (+ Expediente), M&A, Finance Empresas, S-EAGLE, Centro de Notificaciones, Rack, Grid y las rutas públicas de verificación y VDR.
-- Otros: confirmar el dominio de `aporquet@snficorp.com` (único distinto en `SEED_USERS`); LinkedIn API; logo de la Abogacía (descarga manual a `app/frontend/assets/`); `kubectl apply --dry-run=client -f k8s/` nunca ejecutado.
+- Otros: confirmar el dominio de `aporquet@snficorp.com` (único distinto en `SEED_USERS`); LinkedIn API; logo de la Abogacía (descarga manual a `app/frontend/assets/`); `kubectl apply --dry-run=client -f k8s/` nunca ejecutado contra un API server real (sí validado con `kubeconform -strict` en 1.34/1.37, ver `k8s/README.md`).
 - Git: hay mucho trabajo sin commitear de varias sesiones; mirar `git status` antes de asumir qué está en `master`.

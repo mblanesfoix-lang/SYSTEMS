@@ -1,15 +1,15 @@
-# Placeholder Fase 1: OPHS separado a Deployment propio para cuando llegue
+# Placeholder Fase 1: ØPHS separado a Deployment propio para cuando llegue
 # el hardware/Systems real (dias, segun jefe). replicas:0 = manifest valido
 # y probado en el cluster local, pero sin consumir recursos hasta activar.
 #
 # Al integrar hardware real:
 #   1. kubectl scale deployment/ophs -n elvira --replicas=2
-#   2. Confirmar que /api/ophs/readyz refleja el dominio real (hoy es
+#   2. Confirmar que /api/øphs/readyz refleja el dominio real (hoy es
 #      placeholder que solo hace ping a Mongo, ver server.js Fase 0) —
-#      cuando OPHS tenga su propio proceso, ese endpoint debe vivir ahi
+#      cuando ØPHS tenga su propio proceso, ese endpoint debe vivir ahi
 #      y comprobar conexion a Systems real (SYSTEMS_URL), no solo Mongo.
-#   3. Revisar si OPHS necesita imagen propia (hoy usa la misma elvira:local
-#      porque OPHS todavia vive en el mismo server.js monolito).
+#   3. Revisar si ØPHS necesita imagen propia (hoy usa la misma elvira:local
+#      porque ØPHS todavia vive en el mismo server.js monolito).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -30,6 +30,9 @@ spec:
       labels:
         app: ophs
     spec:
+      # mismo criterio que 04-elvira-core.yaml: margen sobre el tope duro de apagado
+      # ordenado de server.js (SHUTDOWN_HARD_MS, 25s por defecto).
+      terminationGracePeriodSeconds: 35
       securityContext:
         # mismo criterio que 04-elvira-core.yaml: misma imagen (elvira:local),
         # mismo USER elvira:elvira (uid/gid 10001) del Dockerfile.
@@ -39,7 +42,7 @@ spec:
         fsGroup: 10001
       containers:
         - name: ophs
-          image: elvira:local   # sustituir por imagen propia si OPHS se extrae a proceso separado
+          image: elvira:local   # sustituir por imagen propia si ØPHS se extrae a proceso separado
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

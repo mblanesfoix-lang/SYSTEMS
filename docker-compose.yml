@@ -23,7 +23,8 @@ version: "3.9"
 services:
 
   mongo:
-    image: mongo:7.0
+    # pin a version exacta (ver k8s/03-mongo.yaml): "7.0" es etiqueta flotante.
+    image: mongo:7.0.43
     restart: unless-stopped
     environment:
       MONGO_INITDB_DATABASE: elvira
@@ -114,6 +115,10 @@ services:
       - elvira-net
     healthcheck:
       test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:5173/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"" ]
+    # `docker stop`/Coolify redeploy mandan SIGTERM: mismo apagado ordenado que en k8s
+    # (readyz->503, drena conexiones/SSE, flush del bus, cierra Mongo, tope duro interno
+    # SHUTDOWN_HARD_MS=25s por defecto). Margen sobre ese tope para no cortar en seco.
+    stop_grace_period: 35s
 
 volumes:
   ollama-models:

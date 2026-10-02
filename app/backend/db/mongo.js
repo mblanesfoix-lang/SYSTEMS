@@ -104,13 +104,35 @@ export async function closeMongo() {
   }
 }
 
-export async function withTransaction(fn) {
-  const session = getMongoClient().startSession();
+// Mongo standalone (docker-compose, k8s/03-mongo.yaml con replicas:1 y sin --replSet) no soporta
+// transacciones. El driver las implementa sobre retryable writes y rechaza ANTES de tocar el server
+// si la URI no lleva retryWrites=false (verificado contra un mongod 7.0.43 standalone real: el error
+// es MongoServerError "This MongoDB deployment does not support retryable writes...", sin code/codeName
+// — no el IllegalOperation/code 20 que documenta MongoDB para cuando si llega al servidor). Con
+// retryWrites=false si llega al servidor y ese es el error que documenta MongoDB (code 20).
+export function isTransactionUnsupported(err) {
+  const msg = String(err?.message || '');
+  if (err?.code === 20 && /replica set member or mongos/i.test(msg)) return true; // llego al servidor (retryWrites=false)
+  if (/does not support retryable writes/i.test(msg)) return true; // rechazado por el driver antes de llegar al servidor
+  return false;
+}
+
+export async function withTransaction(fn, client = getMongoClient()) {
+  const session = client.startSession();
   try {
     let result;
-    await session.withTransaction(async () => {
-      result = await fn(session);
-    });
+    try {
+      await session.withTransaction(async () => {
+        result = await fn(session);
+      });
+    } catch (err) {
+      if (!isTransactionUnsupported(err)) throw err;
+      // Sin transaccion la operacion no es atomica entre documentos, pero sigue funcionando
+      // (unico uso actual: borrado en cascada hoja -> empresas). Como el servidor rechazo la
+      // primera operacion, no se habia escrito nada y repetir fn sin sesion es seguro.
+      console.warn('[mongo] Mongo standalone: transacciones no soportadas, se ejecuta sin transaccion');
+      result = await fn(undefined);
+    }
     return result;
   } finally {
     await session.endSession();

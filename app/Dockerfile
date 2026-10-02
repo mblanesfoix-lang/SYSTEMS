@@ -4,7 +4,10 @@
 #   -e ANTHROPIC_API_KEY=sk-... elvi-ra
 
 # ── Stage 1: backend principal — instala deps nativas en Linux ────────────────
-FROM node:20-slim AS builder
+# node:20 fuera de soporte desde 2026-04-30 (EOL, nodejs.org/en/about/previous-releases);
+# 22 es LTS activo (mantenimiento hasta 2027-10). engines.node del package.json (">=20")
+# sigue como piso minimo compatible, no como version objetivo de la imagen.
+FROM node:22-slim AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 make g++ \
@@ -15,7 +18,7 @@ COPY app/backend/package.json app/backend/package-lock.json* ./
 RUN npm ci
 
 # ── Stage 2: Rëff — build cliente (Vite) + servidor (tsc) ──────────────────────
-FROM node:20-slim AS reff-builder
+FROM node:22-slim AS reff-builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 make g++ \
@@ -28,7 +31,7 @@ COPY "Elvi-Ra/Mesas/Rëff/" ./
 RUN npm run build
 
 # ── Stage 3: runtime ────────────────────────────────────────────────────────
-FROM node:20-slim AS runner
+FROM node:22-slim AS runner
 
 WORKDIR /app
 
@@ -43,7 +46,7 @@ RUN mkdir -p /app/backend/data
 VOLUME ["/app/backend/data"]
 
 # FASE 6/7 (2026-09-20): sin USER, el proceso corria como root (default de
-# node:20-slim) — imagen no privilegiada, coherente con securityContext
+# node:slim) — imagen no privilegiada, coherente con securityContext
 # runAsNonRoot en k8s/04-elvira-core.yaml. uid/gid fijos (no "node" del
 # stage base, que puede no existir igual en runner tras el COPY --from)
 # para que el propietario del volumen de datos sea predecible entre

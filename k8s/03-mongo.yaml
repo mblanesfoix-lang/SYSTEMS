@@ -19,9 +19,17 @@ spec:
       labels:
         app: mongo
     spec:
+      # mongod necesita completar su checkpoint/journal al recibir SIGTERM antes de que
+      # kubelet mande SIGKILL; con datos reales (hash chains Sentinel/Rack/Grid/CIBE) un
+      # corte en seco es peor que una espera de unos segundos de mas.
+      terminationGracePeriodSeconds: 30
       containers:
         - name: mongo
-          image: mongo:7.0
+          # pin a la version exacta en uso (7.0.43, ver app/backend/package.json ^7.3.0
+          # del driver): "7.0" es una etiqueta flotante que Mongo Inc. reconstruye con
+          # cada patch — un redeploy sin cambios en este fichero podria traer una version
+          # de mongod distinta a la ya probada sin que nada en el repo lo refleje.
+          image: mongo:7.0.43
           ports:
             - containerPort: 27017
           env:

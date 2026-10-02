@@ -93,6 +93,15 @@ export function mountBus(app, { auth, requireAdmin, atomicWriteJson, BUS_HISTORY
     adminNotify({ origin, label, detail });
   }
 
+  /* Escritura inmediata del historial pendiente: el apagado ordenado (SIGTERM) no debe perder el
+     debounce de BUS_HISTORY_FLUSH_DEBOUNCE_MS. Sincrona a proposito: se llama justo antes de salir. */
+  function flushBusHistory() {
+    if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+    if (!flushPending) return;
+    flushPending = false;
+    atomicWriteJson(BUS_HISTORY_FILE, history);
+  }
+
   /* GET /api/bus/stream — SSE endpoint */
   app.get('/api/bus/stream', auth, (req, res) => {
     res.setHeader('Content-Type', 'text/event-stream');
@@ -221,5 +230,5 @@ export function mountBus(app, { auth, requireAdmin, atomicWriteJson, BUS_HISTORY
     });
   });
 
-  return { busEvents, sseClients, busEmit, busEmitAlert, MAX_BUS_EVENTS };
+  return { busEvents, sseClients, busEmit, busEmitAlert, flushBusHistory, MAX_BUS_EVENTS };
 }

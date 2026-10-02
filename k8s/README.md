@@ -2,7 +2,7 @@
 
 Manifests para probar el salto a k8s en local antes de tocar produccion (Coolify/Hetzner sigue siendo el despliegue real hoy, ver CLAUDE.md "Infraestructura de despliegue").
 
-**Estado de validacion**: sintaxis YAML comprobada a mano (sin tabs, docs bien separados). NO se ha ejecutado `kubectl apply --dry-run=client` contra un API server real — este entorno no tiene `kubectl`/`kind`/`docker` instalados. Validar con el comando de la Fase 1 abajo antes de dar por buenos los manifests.
+**Estado de validacion (2026-10-02)**: los 6 manifests (14 recursos) validan limpio contra el schema real de Kubernetes con `kubeconform -strict`, en 1.34 y 1.37, sin errores. `server.js` se arranco en caliente contra un `mongod` 7.0.43 real (con y sin auth) verificando: `/api/livez`/`/api/readyz`/`/api/ophs/readyz` responden lo esperado, las sondas no ensucian `forensic_log`, `readyz` falla en <3s si Mongo cae (antes: sin timeout acotado), el apagado ordenado (`SIGTERM`) drena conexiones/SSE y deja la marca de arranque limpia, un proceso que muere sin apagarse (`SIGKILL`/OOM) SI dispara el aviso de "recuperado tras caida" en el siguiente arranque y uno que se apago limpio NO, y `withTransaction` funciona en Mongo standalone (sin replica set, la topologia real de `k8s/03-mongo.yaml`) sin lanzar `IllegalOperation`. Suite completa de tests del repo (96/96) verde contra el codigo parcheado. Este entorno de desarrollo sigue sin `kubectl`/`kind`/`docker` instalados — los 14 recursos se dieron por buenos via kubeconform + arranque real del proceso, no contra un API server de Kubernetes real. Antes de desplegar: correr `kubectl apply --dry-run=client -f k8s/` con las herramientas instaladas (paso de la Fase 1 de abajo), que detecta ademas problemas especificos del cluster (admission webhooks, CRDs) que kubeconform no ve.
 
 ## Requisitos locales
 
@@ -77,13 +77,32 @@ kubectl -n elvira get pods -w
 # maxUnavailable:0 -> nunca deberia bajar de 2 pods Ready durante el rollout
 ```
 
-## Activar OPHS cuando llegue el hardware
+## Activar ØPHS cuando llegue el hardware
 
 ```bash
 kubectl -n elvira scale deployment/ophs --replicas=2
 ```
 
-Antes de escalar: revisar `05-ophs.yaml` para actualizar `SYSTEMS_URL` con el puerto real que de el jefe, y confirmar si OPHS sigue viviendo en el mismo `server.js` monolito o pasa a proceso propio (si pasa a proceso propio, `/api/ophs/readyz` en `server.js` debe moverse a ese proceso y comprobar conexion a Systems real, no solo Mongo — ver comentario en el propio manifest).
+Antes de escalar: revisar `05-ophs.yaml` para actualizar `SYSTEMS_URL` con el puerto real que de el jefe, y confirmar si ØPHS sigue viviendo en el mismo `server.js` monolito o pasa a proceso propio (si pasa a proceso propio, `/api/ophs/readyz` en `server.js` debe moverse a ese proceso y comprobar conexion a Systems real, no solo Mongo — ver comentario en el propio manifest).
+
+Nota: nombres de recurso Kubernetes (`deployment/ophs`, `Service`, labels `app: ophs`), rutas HTTP (`/api/ophs/readyz`) y nombre de archivo del manifest (`05-ophs.yaml`) son ASCII puro — los nombres de objeto de Kubernetes deben cumplir RFC 1123 (alfanumerico ASCII + guiones), Ø/ø no son validos ahi, y el resto del codigo (`server.js`, rutas HTTP) revirtio a ASCII el 2026-10-02 por decision explicita. Solo la marca ØPHS en prosa (este README, comentarios) sigue con la Ø.
+
+## Comprobar apagado ordenado (SIGTERM)
+
+```bash
+# Un rollout, un drain de nodo o `kubectl scale --replicas=0` mandan SIGTERM. server.js:
+# pasa readyz a 503 (sale del Service), drena conexiones HTTP/SSE en vuelo, hace flush
+# del historial del bus, cierra Mongo y sale con exit 0 — todo antes de
+# terminationGracePeriodSeconds (35s en 04-elvira-core.yaml / 05-ophs.yaml).
+kubectl -n elvira rollout restart deployment/elvira-core
+kubectl -n elvira get pods -w   # Terminating -> Running del pod nuevo, sin que readyz del viejo
+                                 # quede devolviendo 200 durante el drenado
+
+# Confirmar el aviso de caida SUCIA (kill -9, simula OOM/crash real) vs limpia (rollout normal):
+kubectl -n elvira exec deploy/elvira-core -- kill -9 1
+# el siguiente arranque de ESE pod debe generar una notificacion Admin "recuperado tras
+# caida" (ver /api/notif-center o admin_notifications.json); un rollout normal no la genera.
+```
 
 ## Limpieza
 

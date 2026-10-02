@@ -1,6 +1,6 @@
 # Monolito actual (Reff+Elvira+Pactvm+Finance+F&L+M&A+Factory+Sentinel+Rack+Grid)
-# tal cual corre hoy en server.js. OPHS vive aqui tambien mientras no se separe
-# (ver 05-ophs.yaml, replicas 0 hasta integracion hardware real).
+# tal cual corre hoy en server.js. ØPHS vive aqui tambien mientras no se separe
+# (ver 05-øphs.yaml, replicas 0 hasta integracion hardware real).
 #
 # Probes usan los endpoints de Fase 0 (server.js):
 #   /api/livez  -> liveness: SOLO proceso vivo, sin tocar Mongo. Si esto no
@@ -28,6 +28,12 @@ spec:
       labels:
         app: elvira-core
     spec:
+      # kubelet manda SIGTERM y espera esto antes de SIGKILL. El apagado ordenado de
+      # server.js (readyz->503, drena conexiones/SSE, flush del bus, cierra Mongo) tiene
+      # su propio tope duro interno (SHUTDOWN_HARD_MS, 25s por defecto) que fuerza la
+      # salida antes de este plazo — el margen evita que kubelet mate el proceso a mitad
+      # del apagado ordenado.
+      terminationGracePeriodSeconds: 35
       securityContext:
         # pod-level: coherente con el USER elvira:elvira (uid/gid 10001)
         # fijado en app/Dockerfile — cinturon y tirantes (Dockerfile ya evita
