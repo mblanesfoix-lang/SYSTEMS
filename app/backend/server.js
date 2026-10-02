@@ -49,6 +49,7 @@ import { mountElviraBridges } from './routes/elvira-bridges.routes.js';
 import { mountCnmc } from './routes/cnmc.routes.js';
 import { mountSentinelForensicRoutes } from './routes/sentinel-forensic.routes.js';
 import { mountU2Ree } from './routes/u2-ree.routes.js';
+import { mountReffGuestToken } from './routes/reff-guest.routes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -588,30 +589,9 @@ app.get('/', (req, res) => res.redirect('/pages/login.html'));
 
     const reffHealth = (_req, res) => res.json({ status: 'ok', service: 'reff', env: process.env.NODE_ENV || 'development' });
 
-    // Issues a short-lived JWT so el cliente React de Rëff autentica con la sesión de Elvi-Ra, sin login propio
-    const ELVIRA_TO_REFF_USERNAME = {
-      'mblanes@s-nficorp.com': 'marc',
-      'nzaroual@s-nfi.com': 'nour',
-      'ventures@s-nficorp.com': 'amir',
-      'gonzalosb@s-nficorp.com': 'gonzalo',
-    };
-    app.get('/reff/api/guest-token', async (req, res) => {
-      const elviraUser = req.headers['x-elvira-user'];
-      const normalized = (typeof elviraUser === 'string' && elviraUser.trim()) ? elviraUser.trim().toLowerCase() : '';
-      const username = ELVIRA_TO_REFF_USERNAME[normalized] || 'marc';
-      const userRow = (await getUserByUsername(username)) || (await getUserByUsername('marc'));
-      if (!userRow) return res.status(500).json({ error: 'usuario no encontrado en DB de Rëff' });
-      const token = signToken({ userId: userRow.id, username: userRow.username });
-      res.json({
-        token,
-        user: {
-          id: userRow.id,
-          username: userRow.username,
-          displayName: userRow.display_name,
-          avatarUrl: userRow.avatar_url ?? null,
-        },
-      });
-    });
+    // JWT de Rëff a partir de la sesión de Elvi-Ra, sin login propio. Exige sesión válida y
+    // acceso a la mesa reff; registra también el alias /api/guest-token (routes/reff-guest.routes.js).
+    mountReffGuestToken(app, { auth, requireMesa, signToken, getUserByUsername });
 
     app.get('/reff/api/health', reffHealth);
     app.use('/reff/api/auth', reffAuthRoutes);
@@ -624,7 +604,7 @@ app.get('/', (req, res) => res.redirect('/pages/login.html'));
     app.use('/reff/api/traffic', reffTrafficRoutes);
 
     // Aliases at root /api so Rëff React client (built with base path "/") resolves correctly
-    app.get('/api/guest-token', (_req, res) => res.redirect('/reff/api/guest-token'));
+    // (/api/guest-token ya lo registra mountReffGuestToken arriba)
     app.get('/api/health', (_req, res) => res.json({
       status: 'ok',
       service: 'elvira',
@@ -647,18 +627,19 @@ app.get('/', (req, res) => res.redirect('/pages/login.html'));
 
     // Serve Rëff React client — assets built with base "/" so /assets/* must be mirrored
     if (fs.existsSync(REFF_CLIENT)) {
-      // Wrapper: usa la sesión de Elvi-Ra (elvira_user) para obtener un token de Rëff, lo guarda
-      // bajo las claves que espera el cliente React (reff_token / reff_user) y entra al SPA.
+      // Wrapper: usa el token de sesión de Elvi-Ra (elvira_token) para obtener un token de Rëff, lo guarda
+      // bajo las claves que espera el cliente React (reff_token / reff_user) y entra al SPA. Sin sesión
+      // (o con la sesión caducada) manda al login de Elvi-Ra.
       app.get('/reff', (_req, res) => {
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.send(`<!doctype html><html><head><meta charset="UTF-8"><title>Rëff</title></head><body>
 <script>
 (async () => {
+  const elviraToken = localStorage.getItem('elvira_token') || '';
+  if (!elviraToken) { location.replace('/pages/login.html'); return; }
   try {
-    const elviraUser = localStorage.getItem('elvira_user') || '';
-    const headers = {};
-    if (elviraUser) headers['X-Elvira-User'] = elviraUser;
-    const r = await fetch('/reff/api/guest-token', { headers });
+    const r = await fetch('/reff/api/guest-token', { headers: { Authorization: 'Bearer ' + elviraToken } });
+    if (r.status === 401) { location.replace('/pages/login.html'); return; }
     if (!r.ok) throw new Error('guest-token HTTP ' + r.status);
     const { token, user } = await r.json();
     if (token) localStorage.setItem('reff_token', token);

@@ -12,7 +12,7 @@
     "dev": "node --env-file=.env --watch server.js",
     "kill-port": "node -e \"const p=process.env.PORT||5173;require('child_process').execSync(process.platform==='win32'?`powershell -Command \\\"Get-NetTCPConnection -LocalPort ${p} -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }\\\"`:`fuser -k ${p}/tcp || true`,{stdio:'inherit'})\"",
     "fresh": "npm run kill-port && npm run dev",
-    "test": "node --env-file=.env --test \"test/**/*.test.js\""
+    "test": "node --env-file=.env --import ./db/mongo.js --test \"test/**/*.test.js\""
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

@@ -14,6 +14,12 @@
 
 import crypto from 'node:crypto';
 import QRCode from 'qrcode';
+import { rateLimit, ipKeyGenerator } from 'express-rate-limit';
+
+// Codigos de acceso temporales de los desbloqueos publicos (verificacion de
+// certificados): en Mongo solo se guarda su sha256, nunca el codigo en claro
+// (mismo criterio que los enlaces VDR).
+const hashAccessCode = (code) => crypto.createHash('sha256').update(String(code)).digest('hex');
 
 const CIBE_STATUSES = ['pendiente', 'emitido', 'suspendido', 'revocado'];
 const POLICY_CATEGORIES = ['quimico', 'circularidad', 'energia', 'residuo', 'otro'];
@@ -173,6 +179,32 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getMo
   const guard = [auth, requireMesa('pactvm')];
   const adminGuard = [auth, requireMesa('pactvm'), requireAdmin];
   const herzogAudits = () => getMongoClient().db('reff').collection('herzog_audits');
+
+  // Desbloqueos publicos con codigo de 6 digitos (verificacion de certificados e
+  // invitados VDR): sin limite propio se podia recorrer el espacio de ~900k
+  // codigos dentro del TTL con solo el limitador global (120/min por IP). Dos
+  // capas que cuentan unicamente los intentos fallidos (skipSuccessfulRequests):
+  // por IP + objetivo (10 fallos cada 15 min) y por objetivo desde cualquier IP
+  // (30 fallos por hora), que frena el ataque distribuido.
+  const unlockTarget = (req) => String(req.params.token || req.params.packageId || '');
+  const unlockLimiterBase = {
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    skipSuccessfulRequests: true,
+    message: { error: 'Demasiados intentos fallidos. Espera unos minutos y pide un codigo nuevo si hace falta.' },
+  };
+  const unlockPerIp = rateLimit({
+    ...unlockLimiterBase,
+    windowMs: 15 * 60 * 1000,
+    limit: 10,
+    keyGenerator: (req) => `${req.ip ? ipKeyGenerator(req.ip) : 'anon'}|${unlockTarget(req)}`,
+  });
+  const unlockPerTarget = rateLimit({
+    ...unlockLimiterBase,
+    windowMs: 60 * 60 * 1000,
+    limit: 30,
+    keyGenerator: (req) => `target|${unlockTarget(req)}`,
+  });
 
   function nodesNeeded(wasteEstTDay) {
     if (!Number.isFinite(wasteEstTDay) || wasteEstTDay <= 0) return 0;
@@ -1126,19 +1158,23 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getMo
   // desde la consola, ver POST .../access-code). Sin sesion persistente
   // — el frontend usa esta respuesta directamente para renderizar los
   // datos client-side, nada queda guardado en el navegador del viewer.
-  app.post('/api/pactvm-verify/:packageId/unlock', async (req, res) => {
+  app.post('/api/pactvm-verify/:packageId/unlock', unlockPerIp, unlockPerTarget, async (req, res) => {
     const { packageId } = req.params;
     const email = String(req.body?.email || '').trim().toLowerCase();
     const code = String(req.body?.code || '').trim();
     if (!email || !code) return res.status(400).json({ error: 'email y codigo requeridos' });
     const allowlist = await mongo.collection('pactvm_verify_allowlist').findOne({ _id: packageId });
     if (!allowlist || !Array.isArray(allowlist.emails) || !allowlist.emails.includes(email)) {
+      await appendPactvmLog(mongo, { action: 'carbon.verify_denied', actorId: 'externo', detail: { packageId, email, reason: 'email_no_autorizado' } });
       return res.status(403).json({ error: 'correo no autorizado para este paquete' });
     }
     const accessCode = await mongo.collection('pactvm_verify_access_codes').findOne({
-      packageId, code, expiresAt: { $gt: new Date().toISOString() },
+      packageId, codeHash: hashAccessCode(code), expiresAt: { $gt: new Date().toISOString() },
     });
-    if (!accessCode) return res.status(403).json({ error: 'codigo invalido o caducado' });
+    if (!accessCode) {
+      await appendPactvmLog(mongo, { action: 'carbon.verify_denied', actorId: 'externo', detail: { packageId, email, reason: 'codigo_invalido_o_caducado' } });
+      return res.status(403).json({ error: 'codigo invalido o caducado' });
+    }
     const row = await mongo.collection('pactvm_carbon_verify').findOne({ _id: packageId });
     if (!row) return res.status(404).json({ error: 'paquete no encontrado' });
     await mongo.collection('pactvm_verify_access_codes').updateOne(
@@ -1187,7 +1223,7 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getMo
     const doc = {
       _id: crypto.randomUUID(),
       packageId: req.params.packageId,
-      code,
+      codeHash: hashAccessCode(code), // el codigo en claro solo se devuelve en esta respuesta
       expiresAt,
       createdBy: req.user,
       createdAt: new Date().toISOString(),
@@ -2209,7 +2245,7 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getMo
 
   // Desbloqueo: correo en la allowlist + codigo correcto. Devuelve el mismo
   // payload que el endpoint autenticado del globo. Sin sesion persistente.
-  app.post('/api/vdr-share/:token/unlock', async (req, res) => {
+  app.post('/api/vdr-share/:token/unlock', unlockPerIp, unlockPerTarget, async (req, res) => {
     const row = await mongo.collection('pactvm_vdr_shares').findOne({ _id: req.params.token });
     const state = shareState(row);
     if (!state.ok) return res.status(state.reason === 'NOT_FOUND' ? 404 : 410).json({ status: state.reason });

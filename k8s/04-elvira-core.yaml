@@ -52,7 +52,6 @@ spec:
             # romper el boot que beneficio de seguridad marginal.
           ports:
             - containerPort: 5173
-            - containerPort: 5175   # Foundry Ingress Gateway dedicado
           envFrom:
             - configMapRef:
                 name: elvira-config
@@ -129,9 +128,6 @@ spec:
     - name: http
       port: 5173
       targetPort: 5173
-    - name: foundry-ingress
-      port: 5175
-      targetPort: 5175
 ---
 # PodDisruptionBudget: garantiza que un drain/upgrade de nodo k8s nunca tumbe
 # las 2 replicas a la vez. Con replicas:2 y minAvailable:1, siempre queda 1 viva.

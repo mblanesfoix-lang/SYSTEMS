@@ -19,6 +19,4 @@ data:
   # RACK_PEERS se resuelve via Service headless (ver 04-elvira-core.yaml).
   # Vacio en Fase 1 = cada pod standalone (quorum 1); activar en Fase 4.
   RACK_PEERS: ""
-  FOUNDRY_INGRESS_PORT: "5175"
-  FOUNDRY_LATENCY_BUDGET_MS: "250"
   ENABLE_TWIN_PORT: "false"

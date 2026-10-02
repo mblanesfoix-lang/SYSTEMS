@@ -18,11 +18,6 @@ version: "3.9"
 #   LLM_PROVIDER        — "anthropic" | "ollama"  (default: anthropic)
 #   OLLAMA_MODEL        — "llama3:70b" | "mistral:7b" (solo si LLM_PROVIDER=ollama)
 #   ANTHROPIC_MODEL     — claude-haiku-4-5-20251001 (optional override)
-#   FOUNDRY_INGRESS_PORT      — puerto dedicado del Ingress Gateway Lab
-#                               (opcional; sin definir, ingesta embebida en /api/foundry/ingress)
-#   FOUNDRY_NODE_SECRET       — secreto HMAC global de nodos (opcional; sin definir,
-#                               solo aceptan nodos registrados con secreto propio)
-#   FOUNDRY_LATENCY_BUDGET_MS — presupuesto de latencia pipeline (default 250)
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
@@ -109,19 +104,12 @@ services:
       # — solo accesible dentro de elvira-net hasta que el Twin exista.
       ENABLE_TWIN_PORT: ${ENABLE_TWIN_PORT:-false}
       TWIN_PORT: 5174
-      # Lab · Ingress Gateway dedicado (endpoint privado, puerto cerrado).
-      # Se expone solo dentro de elvira-net; para hardware externo, mapear el
-      # puerto en "ports" y cerrarlo por UFW a la red del nodo.
-      FOUNDRY_INGRESS_PORT: ${FOUNDRY_INGRESS_PORT:-}
-      FOUNDRY_NODE_SECRET: ${FOUNDRY_NODE_SECRET:-}
-      FOUNDRY_LATENCY_BUDGET_MS: ${FOUNDRY_LATENCY_BUDGET_MS:-250}
     volumes:
       - elvira-data:/app/backend/data
     ports:
       - "5173:5173"
     expose:
       - "5174"
-      - "5175"   # FOUNDRY_INGRESS_PORT recomendado: 5175 (interno hasta autorizar hardware)
     networks:
       - elvira-net
     healthcheck:

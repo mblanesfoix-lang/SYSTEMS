@@ -30,12 +30,22 @@ export function clearSession(): void {
 
 // Pide un JWT de Rëff a partir de la sesión activa de Elvi-Ra (mismo origen,
 // mismo localStorage). Sin esto, App.tsx nunca tiene user/token y se queda
-// en el spinner o referencia un userId obsoleto.
+// en el spinner o referencia un userId obsoleto. El servidor solo lo emite con
+// el token de sesión de Elvi-Ra (Bearer) y deduce el usuario de Rëff de esa
+// sesión; sin sesión o con la sesión caducada se vuelve al login de Elvi-Ra.
 export async function fetchGuestToken(): Promise<{ token: string; user: User } | null> {
-  const elviraUser = localStorage.getItem('elvira_user') || '';
+  const elviraToken = localStorage.getItem('elvira_token') || '';
+  if (!elviraToken) {
+    window.location.href = '/pages/login.html';
+    return null;
+  }
   const res = await fetch(`${API_URL}/api/guest-token`, {
-    headers: elviraUser ? { 'x-elvira-user': elviraUser } : {},
+    headers: { Authorization: `Bearer ${elviraToken}` },
   });
+  if (res.status === 401) {
+    window.location.href = '/pages/login.html';
+    return null;
+  }
   if (!res.ok) return null;
   const data = await res.json().catch(() => null);
   if (!data?.token || !data?.user) return null;
