@@ -6,7 +6,7 @@
  *   PENDING | ROUTING | VALIDATING | BLOCKED | APPROVED | COMPLETED
  *
  * busEvents/sseClients/busEmit/busEmitAlert son dependencia compartida: casi
- * todos los demas modulos de mesa (finance, foundry, rack-state, grid-interlink,
+ * todos los demas modulos de mesa (finance, rack-state, grid-interlink,
  * elvira-central, cnmc, u2-ree, ...) reciben busEmit/busEmitAlert por referencia
  * en su objeto de deps y los llaman como funciones simples. Por eso este modulo
  * crea el ring-buffer y las funciones aqui mismo y las devuelve al bootstrap
@@ -17,7 +17,7 @@ import fs from 'node:fs';
 import crypto from 'node:crypto';
 
 /* FASE 3 (proteccion event-loop, 2026-09-20): busEmit lo llama SINCRONO
- * cualquier mesa (Resilience/Herzog/Pactvm/Finance/Foundry/...) en cada
+ * cualquier mesa (Resilience/Herzog/Pactvm/Finance/...) en cada
  * mutacion — es el hot path mas compartido de todo el backend. Version
  * anterior hacia fs.readFileSync + JSON.parse del historial completo +
  * fs.writeFileSync+renameSync (JSON.stringify pretty de hasta 20000
@@ -51,8 +51,7 @@ export function mountBus(app, { auth, requireAdmin, atomicWriteJson, BUS_HISTORY
       // atomicWriteJson sigue siendo sync (writeFileSync+renameSync), pero
       // ahora corre fuera del ciclo de request/response que disparo el emit,
       // y como mucho una vez cada BUS_HISTORY_FLUSH_DEBOUNCE_MS en vez de
-      // una vez por evento — coalesce de rafagas (ej. Foundry en modo
-      // simulador emitiendo decenas/seg).
+      // una vez por evento — coalesce de rafagas de busEmit seguidos.
       try { atomicWriteJson(BUS_HISTORY_FILE, history); }
       catch (err) { console.error('[bus] Error persistiendo historial:', err); }
     }, BUS_HISTORY_FLUSH_DEBOUNCE_MS);

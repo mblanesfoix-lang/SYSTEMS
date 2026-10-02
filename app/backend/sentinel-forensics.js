@@ -52,7 +52,6 @@ const MESA_LABELS = {
   snfiu2: 'S-NFI U-2 (datos científicos)',
   sentinel: 'Sentinel (seguridad)',
   twin: 'Twin (enlace S-NFI Systems)',
-  foundry: 'Lab (ingesta pipeline)',
 };
 
 function humanizePath(path) {

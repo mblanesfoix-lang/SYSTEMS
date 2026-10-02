@@ -19,13 +19,13 @@
  *
  * Claves: par Ed25519 generado una vez y persistido en Mongo (cibe_keys).
  * Override prod: env CIBE_PRIVATE_KEY_PEM + CIBE_PUBLIC_KEY_PEM (vault/env,
- * misma nota de produccion que los secretos de nodo Foundry).
+ * misma nota de produccion que el resto de secretos de nodo).
  */
 
 import crypto from 'node:crypto';
 
 const TOKEN_RE = /^v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
-const KEY_SCOPES = ['ophs.command', 'grid.command', 'rack.command', 'foundry.command', 'fl.expediente.read', '*'];
+const KEY_SCOPES = ['ophs.command', 'grid.command', 'rack.command', 'fl.expediente.read', '*'];
 const CLOCK_SKEW_S = 60;
 const EXTERNAL_TS_WINDOW_MS = 30000;
 

@@ -94,14 +94,6 @@ async function ensureIndexes() {
   await elviraDb.collection('finance_companies').createIndex({ relation: 1, status: 1 });
   await elviraDb.collection('finance_company_notes').createIndex({ companyId: 1, createdAt: -1 });
   await elviraDb.collection('finance_company_docs.files').createIndex({ 'metadata.company_id': 1, 'metadata.folder': 1 });
-
-  // Lab · pipeline de ingesta asincrona (gateway HMAC + salas limpias)
-  await elviraDb.collection('foundry_nodes').createIndex({ nodeId: 1 }, { unique: true });
-  await elviraDb.collection('foundry_log').createIndex({ seq: 1 }, { unique: true });
-  await elviraDb.collection('foundry_herzog_records').createIndex({ seq: 1 }, { unique: true });
-  await elviraDb.collection('foundry_herzog_records').createIndex({ nodeId: 1, recordedAt: -1 });
-  await elviraDb.collection('paia_stream_stats').createIndex({ nodeId: 1 }, { unique: true });
-  // u2_timeseries: indices creados por el worker U-2 (hilo independiente)
 }
 
 export async function closeMongo() {

@@ -64,11 +64,6 @@
           <p class="mono" style="margin-top:10px;">acceso directo →</p>
         </a>
 
-        <a class="tile reveal delay-4" href="/pages/foundry.html" data-mesa="foundry" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
-          <h3>Lab</h3>
-          <p>Mesa doctrinal: litografía de datos ASML + fundición TSMC. Ingesta asíncrona en salas limpias (OPS, PAIA, Herzog, U-2), circuit breakers y métricas de pipeline. Solo Admin.</p>
-          <p class="mono" style="margin-top:10px;">acceso directo →</p>
-        </a>
       </div>
     </section>
 
@@ -110,7 +105,7 @@
         headers: { Authorization: `Bearer ${getToken()}` }
       }).then(r => r.json());
       const allowed = new Set(perms.mesas || []);
-      const domainMesas = ['elvira', 'foundry'];
+      const domainMesas = ['elvira'];
       if (!domainMesas.some(m => allowed.has(m))) {
         location.href = '/pages/dashboard.html';
       }

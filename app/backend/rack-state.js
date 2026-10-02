@@ -24,8 +24,8 @@
  *   Sin RACK_PEERS => modo standalone: lider unico con quorum 1 (primer rack).
  *
  * Transporte v1: HTTP JSON firmado HMAC-SHA256 (+ ventana temporal 30s).
- * Punto de sustitucion prod: mismo patron que FoundryBus — cambiar transporte
- * por los tuneles dedicados de S-NFI Teleco sin tocar la logica Raft.
+ * Punto de sustitucion prod: cambiar transporte por los tuneles dedicados
+ * de S-NFI Teleco sin tocar la logica Raft.
  */
 
 import crypto from 'node:crypto';
@@ -39,7 +39,6 @@ const PROPOSE_COMMIT_TIMEOUT_MS = 3000;
 
 const DEFAULT_STATE = {
   'ports.main': Number(process.env.PORT) || 5173,
-  'ports.foundry_ingress': Number(process.env.FOUNDRY_INGRESS_PORT) || null,
   'security.posture': 'nominal',
   'security.lockdown': false,
 };

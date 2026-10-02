@@ -6,7 +6,7 @@
  * adminSseClients set) y la función adminNotify() se crean en este módulo y se
  * devuelven al bootstrap porque adminNotify es dependencia compartida: otros
  * módulos (bus, u2-ree, elvira-bridges, cnmc, y las mesas ya modulares como
- * foundry/rack-state/grid-interlink) la reciben en su objeto de deps.
+ * rack-state/grid-interlink) la reciben en su objeto de deps.
  */
 
 import fs from 'node:fs';

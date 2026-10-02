@@ -4,7 +4,7 @@
  * Unifica en una sola vista admin-only las dos fuentes de notificación que
  * existían por separado:
  *  - admin_notifications (JSON, notifications.routes.js): alertas de sistema
- *    (FOUNDRY/RESILIENCE/RACK/SENTINEL/K8S/SYSTEM/...), ya solo-admin.
+ *    (RESILIENCE/RACK/SENTINEL/K8S/SYSTEM/...), ya solo-admin.
  *  - traffic_requests (Mongo db 'reff', Consola Maestra de Rëff): solicitudes
  *    de interconexión de usuarios con acciones 1-clic
  *    APROBAR_Y_EMITIR / DENEGAR_PETICIÓN / REQUERIR_JUSTIFICACIÓN.

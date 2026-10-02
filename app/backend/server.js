@@ -35,7 +35,6 @@ import { mountNotificationCenter, ensureNotificationCenterIndexes } from './noti
 import { mountOps } from './ops.js';
 import { mountPaia } from './paia.js';
 import { mountOphsCockpit } from './ophs-cockpit.js';
-import { mountFoundry } from './foundry.js';
 import { createCibeBunker, mountCibeBunker } from './cibe-bunker.js';
 import { mountRackState } from './rack-state.js';
 import { mountGridInterlink } from './grid-interlink.js';
@@ -118,7 +117,7 @@ await ensureUsersSeed(mongo);
 // los tenga admin — separa el permiso para el dia que 'fl' se abra a mas roles
 // sin arrastrar automaticamente el expediente confidencial.
 const ROLE_MESAS = {
-  admin:   ['elvira', 'reff', 'snfiu2', 'ophs', 'sentinel', 'factory', 'finance', 'mna', 'fl', 'fl_expediente', 'pactvm', 'foundry', 'gateway', 'seagle', 'herzog', 'resilience', 'notificaciones'],
+  admin:   ['elvira', 'reff', 'snfiu2', 'ophs', 'sentinel', 'factory', 'finance', 'mna', 'fl', 'fl_expediente', 'pactvm', 'gateway', 'seagle', 'herzog', 'resilience', 'notificaciones'],
   ray:     ['snfiu2', 'pactvm'],
   amir:    ['reff'],
   gonzalo: ['reff', 'snfiu2', 'pactvm', 'gateway'],
@@ -140,7 +139,6 @@ const MESA_ROUTES = {
   fl:       ['/api/fl'],
   pactvm:   ['/api/pactvm'],
   ophs:     ['/api/ops', '/api/paia', '/api/ophs-cockpit', '/api/grid'],
-  foundry:  ['/api/foundry'],
   gateway:  ['/api/gateway'],
   seagle:   ['/api/seagle'],
   herzog:   ['/api/herzog-central'],
@@ -443,14 +441,6 @@ mountPaia(app, { auth, requireMesa, mongo, llmLimiter });
 mountOphsCockpit(app, { auth, requireMesa, mongo, getMongoClient });
 
 /* ==========================================================================
-   Lab · pipeline de ingesta asincrona (doctrina Instrucciones.txt)
-   Ingress Gateway HMAC (puerto embebido o dedicado via FOUNDRY_INGRESS_PORT),
-   bus no bloqueante, salas OPS/PAIA/Herzog/U-2 con circuit breaker propio,
-   sifon U-2 en worker thread, metricas travel-time vigiladas por Sentinel.
-========================================================================== */
-mountFoundry(app, { auth, requireMesa, mongo, busEmit, adminNotify, cibe });
-
-/* ==========================================================================
    Rack State · estado distribuido entre racks fisicos (Instrucciones.txt §1)
    Consenso Raft (eleccion + replicacion + commit por mayoria) para puertos
    parametrizados y estados de seguridad. Sin quorum: escrituras bloqueadas,
@@ -732,8 +722,6 @@ function bootVerification() {
     process.env.CIBE_PRIVATE_KEY_PEM ? 'clave privada en env' : 'sin env — cibe-bunker.js genera/persiste par en Mongo (cibe_keys)');
   check('Rack State (RAFT)', true,
     process.env.RACK_PEERS ? `cluster: ${process.env.RACK_PEERS}` : 'standalone (quorum 1, sin RACK_PEERS)');
-  check('Foundry ingress dedicado', !!process.env.FOUNDRY_INGRESS_PORT,
-    process.env.FOUNDRY_INGRESS_PORT ? `puerto ${process.env.FOUNDRY_INGRESS_PORT}` : 'sin puerto dedicado — solo gateway embebido /api/foundry/ingress');
   check('JWT_SECRET', !!process.env.JWT_SECRET, process.env.JWT_SECRET ? 'presente' : 'AUSENTE — revisar si algun modulo lo exige antes de produccion');
 
   const critical = checks.filter((c) => !c.ok && c.name === 'Mongo');

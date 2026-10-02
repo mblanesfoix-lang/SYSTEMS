@@ -111,7 +111,7 @@
 
         <a class="tile reveal delay-3" href="/pages/elvira-dashboard.html" data-domain="elvira" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
           <h3>Elvi-Ra</h3>
-          <p>Palanca de acción. Mesas: Elvi-Ra (Central), Lab (doctrina de ingesta) y Sentinel (seguridad y telemetría forense).</p>
+          <p>Palanca de acción. Mesas: Elvi-Ra (Central) y Sentinel (seguridad y telemetría forense).</p>
           <p class="mono" style="margin-top:10px;">entrar al dominio →</p>
         </a>
 
@@ -278,7 +278,7 @@
         headers: { Authorization: `Bearer ${getToken()}` }
       }).then(r => r.json());
       const allowed = new Set(perms.mesas || []);
-      const domainMesas = { ophs: ['ophs'], reff: ['reff', 'snfiu2'], elvira: ['elvira', 'sentinel', 'foundry'], pactvm: ['pactvm'] };
+      const domainMesas = { ophs: ['ophs'], reff: ['reff', 'snfiu2'], elvira: ['elvira', 'sentinel'], pactvm: ['pactvm'] };
       // Domain tiles: visible if at least one mesa of the domain is allowed
       document.querySelectorAll('.tile[data-domain]').forEach(el => {
         const mesas = domainMesas[el.dataset.domain] || [];
