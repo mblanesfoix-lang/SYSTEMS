@@ -647,7 +647,7 @@
       <button class="glass-pill danger" id="tableBtn" data-i18n="btn.table">TABLA · 200 NODOS</button>
       <button class="glass-pill" id="shareBtn">COMPARTIR · NDA</button>
       <button class="glass-pill primary" id="exportPdfBtn" data-i18n="btn.pdf">EXPORTAR PDF</button>
-      <button class="glass-pill" id="focusSpainBtn" data-i18n="btn.spain">IR A ESPAÑA</button>
+      <button class="glass-pill" id="focusSpainBtn">IR AL PAÍS</button>
       <button class="glass-pill" id="focusStarBtn" data-i18n="btn.hq">IR A SEDE</button>
       <button class="glass-pill" id="resetViewBtn" data-i18n="btn.reset">REENCUADRAR</button>
     </div>
@@ -797,7 +797,7 @@
           <div class="vdr-table__brand">
             <img class="vdr-table__brand-logo" src="/assets/logo-snfi.png" alt="S-NFI Systems">
             <div>
-              <div class="vdr-table__kicker" data-i18n="table.kicker">Cuantificación de despliegue · España</div>
+              <div class="vdr-table__kicker" id="tableKicker">Cuantificación de despliegue</div>
               <h2 class="vdr-table__title" id="tableTitle">200</h2>
             </div>
           </div>
@@ -930,7 +930,7 @@
         subtitle: 'Interfaz geoespacial · VDR',
         'btn.table': 'TABLA · 200 NODOS',
         'btn.pdf': 'EXPORTAR PDF',
-        'btn.spain': 'IR A ESPAÑA',
+        'btn.spain': 'IR A {country}',
         'btn.hq': 'IR A SEDE',
         'btn.reset': 'REENCUADRAR',
         'btn.installAll': 'SIMULAR TODOS INSTALADOS',
@@ -940,7 +940,7 @@
         'legend.green': 'Nodo verde · instalado (simulado)',
         hint: 'arrastra: rotar 360° · shift o botón derecho: desplazar · rueda o pellizco: zoom · doble clic: reencuadrar · clic en nodo: conmutar',
         'loss.label': 'Coste anual de no adoptar BioHybrid',
-        'table.kicker': 'Cuantificación de despliegue · España',
+        'table.kicker': 'Cuantificación de despliegue · {country}',
         'table.byRegion': 'Reparto por comunidad autónoma',
         'table.total': 'TOTAL · nodos',
         'th.node': 'Nodo', 'th.region': 'Comunidad', 'th.state': 'Estado', 'th.nodes': 'Nodos',
@@ -967,11 +967,11 @@
         'pdf.generating': 'GENERANDO…',
         loading: 'Cargando interfaz geoespacial…',
         'unit.gwhYear': 'GWh/año', 'unit.tYear': 'T/año', 'unit.year': 'año',
-        'pdf.legend': 'Estrella = sede de la empresa · cilindro = curtailment España pendiente de desplegar',
+        'pdf.legend': 'Estrella = sede de la empresa · cilindro = curtailment {country} pendiente de desplegar',
         'pdf.lossTitle': 'COSTE ANUAL DE NO ADOPTAR BIOHYBRID',
         'pdf.pendingOf': '{a} de {b} nodos sin desplegar',
         'pdf.row.location': 'Ubicación geográfica',
-        'pdf.row.pending': 'Nodos curtailment ES pendientes',
+        'pdf.row.pending': 'Nodos curtailment {country} pendientes',
         'pdf.row.absorbNode': 'Absorción por nodo (GWh/año)',
         'pdf.row.absorbFleet': 'Absorción total flota (GWh/año)',
         'pdf.row.target': 'Objetivo curtailment (GW)',
@@ -1005,7 +1005,7 @@
         subtitle: 'Geospatial interface · VDR',
         'btn.table': 'TABLE · 200 NODES',
         'btn.pdf': 'EXPORT PDF',
-        'btn.spain': 'GO TO SPAIN',
+        'btn.spain': 'GO TO {country}',
         'btn.hq': 'GO TO HQ',
         'btn.reset': 'RESET VIEW',
         'btn.installAll': 'SIMULATE ALL INSTALLED',
@@ -1015,7 +1015,7 @@
         'legend.green': 'Green node · installed (simulated)',
         hint: 'drag: rotate 360° · shift or right button: pan · wheel or pinch: zoom · double click: reset view · click a node: toggle',
         'loss.label': 'Annual cost of not adopting BioHybrid',
-        'table.kicker': 'Deployment quantification · Spain',
+        'table.kicker': 'Deployment quantification · {country}',
         'table.byRegion': 'Breakdown by autonomous community',
         'table.total': 'TOTAL · nodes',
         'th.node': 'Node', 'th.region': 'Community', 'th.state': 'Status', 'th.nodes': 'Nodes',
@@ -1042,11 +1042,11 @@
         'pdf.generating': 'GENERATING…',
         loading: 'Loading geospatial interface…',
         'unit.gwhYear': 'GWh/year', 'unit.tYear': 't/year', 'unit.year': 'year',
-        'pdf.legend': 'Star = company HQ · cylinder = Spanish curtailment pending deployment',
+        'pdf.legend': 'Star = company HQ · cylinder = {country} curtailment pending deployment',
         'pdf.lossTitle': 'ANNUAL COST OF NOT ADOPTING BIOHYBRID',
         'pdf.pendingOf': '{a} of {b} nodes not deployed',
         'pdf.row.location': 'Geographic location',
-        'pdf.row.pending': 'Pending ES curtailment nodes',
+        'pdf.row.pending': 'Pending {country} curtailment nodes',
         'pdf.row.absorbNode': 'Absorption per node (GWh/year)',
         'pdf.row.absorbFleet': 'Total fleet absorption (GWh/year)',
         'pdf.row.target': 'Curtailment target (GW)',
@@ -1080,7 +1080,7 @@
         subtitle: 'Interfaccia geospaziale · VDR',
         'btn.table': 'TABELLA · 200 NODI',
         'btn.pdf': 'ESPORTA PDF',
-        'btn.spain': 'VAI IN SPAGNA',
+        'btn.spain': 'VAI IN {country}',
         'btn.hq': 'VAI ALLA SEDE',
         'btn.reset': 'REIMPOSTA VISTA',
         'btn.installAll': 'SIMULA TUTTI INSTALLATI',
@@ -1090,7 +1090,7 @@
         'legend.green': 'Nodo verde · installato (simulato)',
         hint: 'trascina: ruota 360° · shift o tasto destro: sposta · rotella o pizzico: zoom · doppio clic: reimposta · clic su un nodo: commuta',
         'loss.label': 'Costo annuo del non adottare BioHybrid',
-        'table.kicker': 'Quantificazione del dispiegamento · Spagna',
+        'table.kicker': 'Quantificazione del dispiegamento · {country}',
         'table.byRegion': 'Ripartizione per comunità autonoma',
         'table.total': 'TOTALE · nodi',
         'th.node': 'Nodo', 'th.region': 'Comunità', 'th.state': 'Stato', 'th.nodes': 'Nodi',
@@ -1117,11 +1117,11 @@
         'pdf.generating': 'GENERAZIONE…',
         loading: 'Caricamento interfaccia geospaziale…',
         'unit.gwhYear': 'GWh/anno', 'unit.tYear': 't/anno', 'unit.year': 'anno',
-        'pdf.legend': 'Stella = sede aziendale · cilindro = curtailment Spagna in attesa di installazione',
+        'pdf.legend': 'Stella = sede aziendale · cilindro = curtailment {country} in attesa di installazione',
         'pdf.lossTitle': 'COSTO ANNUO DEL NON ADOTTARE BIOHYBRID',
         'pdf.pendingOf': '{a} di {b} nodi non installati',
         'pdf.row.location': 'Ubicazione geografica',
-        'pdf.row.pending': 'Nodi curtailment ES in attesa',
+        'pdf.row.pending': 'Nodi curtailment {country} in attesa',
         'pdf.row.absorbNode': 'Assorbimento per nodo (GWh/anno)',
         'pdf.row.absorbFleet': 'Assorbimento totale flotta (GWh/anno)',
         'pdf.row.target': 'Obiettivo curtailment (GW)',
@@ -1156,7 +1156,7 @@
         subtitle: 'Interface géospatiale · VDR',
         'btn.table': 'TABLEAU · 200 NŒUDS',
         'btn.pdf': 'EXPORTER PDF',
-        'btn.spain': 'ALLER EN ESPAGNE',
+        'btn.spain': 'ALLER EN {country}',
         'btn.hq': 'ALLER AU SIÈGE',
         'btn.reset': 'RÉINITIALISER LA VUE',
         'btn.installAll': 'SIMULER TOUS INSTALLÉS',
@@ -1166,7 +1166,7 @@
         'legend.green': 'Nœud vert · installé (simulé)',
         hint: 'glisser : rotation 360° · maj ou clic droit : déplacer · molette ou pincement : zoom · double clic : réinitialiser · clic sur un nœud : commuter',
         'loss.label': 'Coût annuel de la non-adoption de BioHybrid',
-        'table.kicker': 'Quantification du déploiement · Espagne',
+        'table.kicker': 'Quantification du déploiement · {country}',
         'table.byRegion': 'Répartition par communauté autonome',
         'table.total': 'TOTAL · nœuds',
         'th.node': 'Nœud', 'th.region': 'Communauté', 'th.state': 'Statut', 'th.nodes': 'Nœuds',
@@ -1193,11 +1193,11 @@
         'pdf.generating': 'GÉNÉRATION…',
         loading: 'Chargement de l’interface géospatiale…',
         'unit.gwhYear': 'GWh/an', 'unit.tYear': 't/an', 'unit.year': 'an',
-        'pdf.legend': 'Étoile = siège de l’entreprise · cylindre = curtailment Espagne en attente de déploiement',
+        'pdf.legend': 'Étoile = siège de l’entreprise · cylindre = curtailment {country} en attente de déploiement',
         'pdf.lossTitle': 'COÛT ANNUEL DE LA NON-ADOPTION DE BIOHYBRID',
         'pdf.pendingOf': '{a} sur {b} nœuds non déployés',
         'pdf.row.location': 'Localisation géographique',
-        'pdf.row.pending': 'Nœuds curtailment ES en attente',
+        'pdf.row.pending': 'Nœuds curtailment {country} en attente',
         'pdf.row.absorbNode': 'Absorption par nœud (GWh/an)',
         'pdf.row.absorbFleet': 'Absorption totale de la flotte (GWh/an)',
         'pdf.row.target': 'Objectif curtailment (GW)',
@@ -1246,11 +1246,15 @@
       document.querySelectorAll('[data-i18n-html]').forEach((el) => {
         el.innerHTML = t(el.dataset.i18nHtml);
       });
-      // el numero del boton de tabla depende de los datos reales
+      // el numero del boton de tabla y el pais del cluster dependen de los
+      // datos reales de la empresa (antes "España" fijo en las 4 traducciones)
       const total = currentGlobeData?.esCurtailment?.nodesTargetTotal;
       if (total) {
         document.getElementById('tableBtn').textContent = t('btn.table').replace('200', fmtInt(total));
       }
+      const countryLabel = currentGlobeData?.esCurtailment?.countryLabel || '—';
+      document.getElementById('focusSpainBtn').textContent = t('btn.spain').replace('{country}', countryLabel);
+      document.getElementById('tableKicker').textContent = t('table.kicker').replace('{country}', countryLabel);
       // refrescar lo que se pinta desde JS
       if (currentGlobeData) {
         buildTable();
@@ -1729,7 +1733,8 @@
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(9);
         doc.setTextColor(110, 110, 115);
-        doc.text(t('pdf.legend'), MARGIN, MARGIN + 38);
+        const pdfCountryLabel = globeData?.esCurtailment?.countryLabel || '—';
+        doc.text(t('pdf.legend').replace('{country}', pdfCountryLabel), MARGIN, MARGIN + 38);
         doc.setTextColor(20, 20, 20);
 
         const imgY = MARGIN + 54;
@@ -1762,7 +1767,7 @@
         const rows = [
           [t('pdf.row.location'), globeData.star?.countryLabel || '—'],
           [t('star.city'), globeData.star?.city || '—'],
-          [t('pdf.row.pending'), `${fmtInt(pending)} / ${fmtInt(es.nodesTargetTotal)}`],
+          [t('pdf.row.pending').replace('{country}', pdfCountryLabel), `${fmtInt(pending)} / ${fmtInt(es.nodesTargetTotal)}`],
           [t('pdf.row.target'), `${es.curtailmentGwTargetMin ?? '—'}–${es.curtailmentGwTargetMax ?? '—'}`],
           [t('pdf.row.absorbNode'), fmtDec(es.nodeAnnualEnergyGwh, 2)],
           [t('pdf.row.absorbFleet'), fmtDec(es.totalAnnualEnergyGwh, 2)],

@@ -1752,55 +1752,93 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getMo
     GB: { label: 'Reino Unido', lat: 55.3781, lng: -3.4360 },
     IT: { label: 'Italia', lat: 41.8719, lng: 12.5674 },
     BR: { label: 'Brasil', lat: -14.2350, lng: -51.9253 },
+    DZ: { label: 'Argelia', lat: 28.0339, lng: 1.6596 },
   };
   const SPAIN_COORDS = VDR_COUNTRY_COORDS.ES;
 
-  /* ---- Comunidades autonomas: centroide aproximado + reparto de nodos ----
-   * Los 200 nodos de curtailment se distribuyen por comunidad en proporcion
+  /* ---- Regiones internas por pais: centroide aproximado + reparto de nodos ----
+   * Los nodos de curtailment se distribuyen por region interna en proporcion
    * a su poblacion (proxy de generacion de residuo organico y de demanda
    * electrica; no hay dataset de curtailment por region en el repo). El
-   * campo weight es poblacion en millones (INE, orden de magnitud) y sirve
-   * SOLO como criterio de reparto — declarado como PLACEHOLDER igual que el
-   * resto de cifras de VDR. radiusDeg acota la dispersion de los nodos
-   * dentro de cada comunidad para que caigan sobre su territorio y no
-   * formen un circulo uniforme encima de la peninsula. */
-  const SPAIN_REGIONS = [
-    { code: 'AN', name: 'Andalucía',            lat: 37.55, lng: -4.75, weight: 8.58, radiusDeg: 1.45 },
-    { code: 'CT', name: 'Cataluña',             lat: 41.75, lng:  1.60, weight: 7.90, radiusDeg: 0.90 },
-    { code: 'MD', name: 'Comunidad de Madrid',  lat: 40.42, lng: -3.70, weight: 6.87, radiusDeg: 0.45 },
-    { code: 'VC', name: 'Comunidad Valenciana', lat: 39.40, lng: -0.60, weight: 5.22, radiusDeg: 1.05 },
-    { code: 'GA', name: 'Galicia',              lat: 42.75, lng: -7.90, weight: 2.70, radiusDeg: 0.85 },
-    { code: 'CL', name: 'Castilla y León',      lat: 41.70, lng: -4.80, weight: 2.38, radiusDeg: 1.55 },
-    { code: 'PV', name: 'País Vasco',           lat: 43.00, lng: -2.60, weight: 2.23, radiusDeg: 0.45 },
-    { code: 'CN', name: 'Canarias',             lat: 28.35, lng: -15.85, weight: 2.24, radiusDeg: 1.20 },
-    { code: 'CM', name: 'Castilla-La Mancha',   lat: 39.50, lng: -3.00, weight: 2.09, radiusDeg: 1.40 },
-    { code: 'MC', name: 'Región de Murcia',     lat: 38.00, lng: -1.50, weight: 1.55, radiusDeg: 0.55 },
-    { code: 'AR', name: 'Aragón',               lat: 41.50, lng: -0.70, weight: 1.34, radiusDeg: 1.15 },
-    { code: 'IB', name: 'Illes Balears',        lat: 39.60, lng:  2.95, weight: 1.20, radiusDeg: 0.55 },
-    { code: 'EX', name: 'Extremadura',          lat: 39.20, lng: -6.10, weight: 1.06, radiusDeg: 1.05 },
-    { code: 'AS', name: 'Asturias',             lat: 43.30, lng: -5.95, weight: 1.01, radiusDeg: 0.45 },
-    { code: 'NC', name: 'Navarra',              lat: 42.70, lng: -1.65, weight: 0.67, radiusDeg: 0.45 },
-    { code: 'CB', name: 'Cantabria',            lat: 43.20, lng: -4.03, weight: 0.59, radiusDeg: 0.40 },
-    { code: 'RI', name: 'La Rioja',             lat: 42.28, lng: -2.50, weight: 0.32, radiusDeg: 0.30 },
-  ];
+   * campo weight es poblacion en millones (orden de magnitud) y sirve SOLO
+   * como criterio de reparto — declarado como PLACEHOLDER igual que el resto
+   * de cifras de VDR. radiusDeg acota la dispersion de los nodos dentro de
+   * cada region para que caigan sobre su territorio y no formen un circulo
+   * uniforme encima del pais.
+   *
+   * Solo ES y DZ tienen tabla de regiones propia hoy (DZ: 10 wilayas
+   * mayores por poblacion, INE-style orden de magnitud, fuente Wikipedia
+   * "List of Algerian provinces by population" + censo 2008 donde no hay
+   * cifra 2023 oficial — mismo placeholder que ES). Un pais sin tabla usa
+   * COUNTRY_REGIONS_FALLBACK (dispersion alrededor del centroide del pais en
+   * VDR_COUNTRY_COORDS, sin reparto por region). Ampliar aqui si se añade un
+   * pais nuevo y se quiere reparto por region en vez de dispersion generica. */
+  const COUNTRY_REGIONS = {
+    ES: [
+      { code: 'AN', name: 'Andalucía',            lat: 37.55, lng: -4.75, weight: 8.58, radiusDeg: 1.45 },
+      { code: 'CT', name: 'Cataluña',             lat: 41.75, lng:  1.60, weight: 7.90, radiusDeg: 0.90 },
+      { code: 'MD', name: 'Comunidad de Madrid',  lat: 40.42, lng: -3.70, weight: 6.87, radiusDeg: 0.45 },
+      { code: 'VC', name: 'Comunidad Valenciana', lat: 39.40, lng: -0.60, weight: 5.22, radiusDeg: 1.05 },
+      { code: 'GA', name: 'Galicia',              lat: 42.75, lng: -7.90, weight: 2.70, radiusDeg: 0.85 },
+      { code: 'CL', name: 'Castilla y León',      lat: 41.70, lng: -4.80, weight: 2.38, radiusDeg: 1.55 },
+      { code: 'PV', name: 'País Vasco',           lat: 43.00, lng: -2.60, weight: 2.23, radiusDeg: 0.45 },
+      { code: 'CN', name: 'Canarias',             lat: 28.35, lng: -15.85, weight: 2.24, radiusDeg: 1.20 },
+      { code: 'CM', name: 'Castilla-La Mancha',   lat: 39.50, lng: -3.00, weight: 2.09, radiusDeg: 1.40 },
+      { code: 'MC', name: 'Región de Murcia',     lat: 38.00, lng: -1.50, weight: 1.55, radiusDeg: 0.55 },
+      { code: 'AR', name: 'Aragón',               lat: 41.50, lng: -0.70, weight: 1.34, radiusDeg: 1.15 },
+      { code: 'IB', name: 'Illes Balears',        lat: 39.60, lng:  2.95, weight: 1.20, radiusDeg: 0.55 },
+      { code: 'EX', name: 'Extremadura',          lat: 39.20, lng: -6.10, weight: 1.06, radiusDeg: 1.05 },
+      { code: 'AS', name: 'Asturias',             lat: 43.30, lng: -5.95, weight: 1.01, radiusDeg: 0.45 },
+      { code: 'NC', name: 'Navarra',              lat: 42.70, lng: -1.65, weight: 0.67, radiusDeg: 0.45 },
+      { code: 'CB', name: 'Cantabria',            lat: 43.20, lng: -4.03, weight: 0.59, radiusDeg: 0.40 },
+      { code: 'RI', name: 'La Rioja',             lat: 42.28, lng: -2.50, weight: 0.32, radiusDeg: 0.30 },
+    ],
+    DZ: [
+      { code: 'ALG', name: 'Argel',       lat: 36.732,  lng:  3.087, weight: 7.80, radiusDeg: 0.70 },
+      { code: 'ORA', name: 'Orán',        lat: 35.699,  lng: -0.636, weight: 1.58, radiusDeg: 0.65 },
+      { code: 'SET', name: 'Setif',       lat: 36.191,  lng:  5.414, weight: 1.50, radiusDeg: 0.95 },
+      { code: 'DJE', name: 'Djelfa',      lat: 34.673,  lng:  3.263, weight: 1.22, radiusDeg: 1.60 },
+      { code: 'BAT', name: 'Batna',       lat: 35.556,  lng:  6.174, weight: 1.13, radiusDeg: 1.10 },
+      { code: 'TIZ', name: 'Tizi Ouzou',  lat: 36.712,  lng:  4.046, weight: 1.13, radiusDeg: 0.55 },
+      { code: 'BLI', name: 'Blida',       lat: 36.470,  lng:  2.830, weight: 1.01, radiusDeg: 0.45 },
+      { code: 'CON', name: 'Constantina', lat: 36.365,  lng:  6.615, weight: 0.94, radiusDeg: 0.50 },
+      { code: 'ANN', name: 'Annaba',      lat: 36.900,  lng:  7.767, weight: 0.64, radiusDeg: 0.45 },
+      { code: 'CHL', name: 'Chlef',       lat: 36.170,  lng:  1.330, weight: 0.62, radiusDeg: 0.60 },
+    ],
+  };
 
-  /* Reparto de N nodos entre comunidades por el metodo de los restos mayores
-   * (Hare): cada comunidad recibe la parte entera de su cuota y los nodos
+  /* Pais sin tabla propia en COUNTRY_REGIONS: una sola "region" ficticia
+   * centrada en el centroide del pais (VDR_COUNTRY_COORDS), con radio fijo
+   * en grados para que el cluster disperso no se salga del territorio en
+   * paises pequeños ni se quede minusculo en paises grandes. */
+  const COUNTRY_REGIONS_FALLBACK_RADIUS_DEG = 2.2;
+  function fallbackRegionsFor(countryCode) {
+    const geo = VDR_COUNTRY_COORDS[countryCode];
+    if (!geo) return [];
+    return [{ code: countryCode, name: geo.label, lat: geo.lat, lng: geo.lng, weight: 1, radiusDeg: COUNTRY_REGIONS_FALLBACK_RADIUS_DEG }];
+  }
+  function regionsForCountry(countryCode) {
+    return COUNTRY_REGIONS[countryCode] || fallbackRegionsFor(countryCode);
+  }
+
+  /* Reparto de N nodos entre regiones por el metodo de los restos mayores
+   * (Hare): cada region recibe la parte entera de su cuota y los nodos
    * sobrantes van a los mayores restos. Garantiza que la suma sea EXACTAMENTE
-   * N y que ninguna comunidad con peso se quede en cero. */
-  function distributeNodesByRegion(total) {
-    const sumW = SPAIN_REGIONS.reduce((s, r) => s + r.weight, 0);
-    const rows = SPAIN_REGIONS.map((r) => {
+   * N y que ninguna region con peso se quede en cero. */
+  function distributeNodesByRegion(total, regions) {
+    if (regions.length === 0) return [];
+    const sumW = regions.reduce((s, r) => s + r.weight, 0);
+    const rows = regions.map((r) => {
       const exact = (r.weight / sumW) * total;
       return { region: r, base: Math.floor(exact), rem: exact - Math.floor(exact) };
     });
     let assigned = rows.reduce((s, r) => s + r.base, 0);
-    // minimo 1 nodo por comunidad mientras queden nodos por repartir
+    // minimo 1 nodo por region mientras queden nodos por repartir
     rows.forEach((r) => { if (r.base === 0 && assigned < total) { r.base = 1; assigned++; } });
     rows.sort((a, b) => b.rem - a.rem);
     for (let i = 0; assigned < total; i = (i + 1) % rows.length) { rows[i].base++; assigned++; }
     const byCode = new Map(rows.map((r) => [r.region.code, r.base]));
-    return SPAIN_REGIONS.map((r) => ({ region: r, count: byCode.get(r.code) || 0 }));
+    return regions.map((r) => ({ region: r, count: byCode.get(r.code) || 0 }));
   }
 
   /* Posiciona los nodos de una comunidad dentro de su radio mediante espiral
@@ -2039,19 +2077,28 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getMo
   // Payload del globo de una empresa. Compartido por la ruta autenticada y
   // por el enlace temporal de presentacion (sin auth): una sola
   // implementacion, para que la vista del invitado no derive de la real.
+  //
+  // El cluster de curtailment (spainDot/esCurtailment, nombres de campo
+  // historicos que se mantienen por compatibilidad con el frontend y el PDF)
+  // se posiciona SIEMPRE en el pais de la empresa (row.geoCountry), con
+  // reparto por region interna si existe tabla en COUNTRY_REGIONS o
+  // dispersion generica alrededor del centroide si no (ver regionsForCountry).
+  // Antes quedaba fijo en España para cualquier empresa — ver docs/ESTADO-HISTORICO.md.
   function buildGlobePayload(row, esConfigDoc) {
     const geo = VDR_COUNTRY_COORDS[row.geoCountry];
+    const clusterCoords = geo || SPAIN_COORDS;
     const nodesTotal = esConfigDoc.nodesTargetTotal || 0;
     const biopelletTonsPerNodeYear = esConfigDoc.biopelletTonsPerNodeYear || 0;
     const biopelletPriceEurPerTon = esConfigDoc.biopelletPriceEurPerTon || 0;
     const co2ch4AvoidedTonsPerNodeYear = esConfigDoc.co2ch4AvoidedTonsPerNodeYear || 0;
     const revenueEurPerNodeYear = Number((biopelletTonsPerNodeYear * biopelletPriceEurPerTon).toFixed(2));
 
-    // Reparto geografico: los nodos se asignan a comunidades autonomas en
-    // proporcion a su peso y se posicionan dentro del territorio de cada una
-    // (ver SPAIN_REGIONS / distributeNodesByRegion), en vez de formar un
-    // circulo uniforme sobre el centro de la peninsula.
-    const distribution = distributeNodesByRegion(nodesTotal);
+    // Reparto geografico: los nodos se asignan a regiones internas del pais
+    // de la empresa en proporcion a su peso y se posicionan dentro del
+    // territorio de cada una (ver COUNTRY_REGIONS / distributeNodesByRegion),
+    // en vez de formar un circulo uniforme sobre el centro del pais.
+    const regions = regionsForCountry(row.geoCountry);
+    const distribution = distributeNodesByRegion(nodesTotal, regions);
     const nodes = [];
     const regionsSummary = [];
     let running = 0;
@@ -2099,10 +2146,12 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getMo
           weight: row.geoWeight,
         };
       })() : null,
-      spainDot: { lat: SPAIN_COORDS.lat, lng: SPAIN_COORDS.lng, intensity: row.spainActivity },
+      spainDot: { lat: clusterCoords.lat, lng: clusterCoords.lng, intensity: row.spainActivity },
       esCurtailment: {
-        lat: SPAIN_COORDS.lat,
-        lng: SPAIN_COORDS.lng,
+        countryCode: row.geoCountry,
+        countryLabel: clusterCoords.label,
+        lat: clusterCoords.lat,
+        lng: clusterCoords.lng,
         nodesTargetTotal: nodesTotal,
         curtailmentGwTargetMin: esConfigDoc.curtailmentGwTargetMin,
         curtailmentGwTargetMax: esConfigDoc.curtailmentGwTargetMax,

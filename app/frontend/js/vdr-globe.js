@@ -90,6 +90,7 @@ function starSprite(size) {
 const VDR_ISO_A2_TO_NUMERIC = {
   ES: '724', PT: '620', FR: '250', MA: '504', MX: '484',
   DE: '276', US: '840', GB: '826', IT: '380', BR: '076',
+  DZ: '012',
 };
 
 async function buildEarthTexture(renderer, highlightCountryCode) {
@@ -205,14 +206,15 @@ async function buildEarthTexture(renderer, highlightCountryCode) {
     ctx.lineWidth = 0.8 * k;
     paths.forEach(({ path }) => ctx.stroke(path));
 
-    // 6) realce de pais en juego: España (siempre, el cluster de 200 nodos
-    //    vive ahi) + el pais de la sede de la empresa si es distinto.
+    // 6) realce de pais en juego: el pais de la sede de la empresa, que es
+    //    donde vive el cluster de nodos (antes España fija siempre, ver
+    //    docs/ESTADO-HISTORICO.md — el cluster ahora sigue a la empresa).
     const highlightNumeric = VDR_ISO_A2_TO_NUMERIC[highlightCountryCode];
-    const HIGHLIGHT = { '724': 'rgba(255,91,82,0.30)' };
-    const HIGHLIGHT_EDGE = { '724': 'rgba(255,120,110,0.95)' };
-    if (highlightNumeric && highlightNumeric !== '724') {
-      HIGHLIGHT[highlightNumeric] = 'rgba(255,216,115,0.26)';
-      HIGHLIGHT_EDGE[highlightNumeric] = 'rgba(255,216,115,0.95)';
+    const HIGHLIGHT = {};
+    const HIGHLIGHT_EDGE = {};
+    if (highlightNumeric) {
+      HIGHLIGHT[highlightNumeric] = 'rgba(255,91,82,0.30)';
+      HIGHLIGHT_EDGE[highlightNumeric] = 'rgba(255,120,110,0.95)';
     }
     paths.forEach(({ id, path }) => {
       if (!HIGHLIGHT[id]) return;
@@ -420,12 +422,12 @@ async function initGlobe(data, opts = {}) {
     markerGroup.add(starMesh);
   }
 
-  // ---- nodos por comunidad autonoma ----
+  // ---- nodos por region del pais de la empresa ----
   // Cada nodo se coloca en SU coordenada real (lat/lng calculada en el
-  // backend por comunidad, ver SPAIN_REGIONS) y se orienta segun la
-  // normal de la superficie en ese punto. Nada de circulo uniforme
-  // sobre el centro de la peninsula: la silueta del despliegue reproduce
-  // la forma del pais, con Canarias y Baleares separadas.
+  // backend por region, ver COUNTRY_REGIONS en pactum-viridi.js) y se
+  // orienta segun la normal de la superficie en ese punto. Nada de circulo
+  // uniforme sobre el centro del pais: la silueta del despliegue reproduce
+  // el territorio real (ES: Canarias y Baleares separadas; DZ: wilayas).
   const esData = data.esCurtailment || {};
   const nodesTotal = esData.nodesTargetTotal || 0;
   const nodeDefs = Array.isArray(esData.nodes) ? esData.nodes : [];
@@ -695,7 +697,7 @@ async function initGlobe(data, opts = {}) {
 
     // ---- nivel de detalle por distancia ----
     // Lejos (>6.5): los nodos casi se apagan y manda el halo del
-    // territorio — España se lee como una brasa tenue, sin tapar el mapa.
+    // territorio — el pais se lee como una brasa tenue, sin tapar el mapa.
     // Cerca (<3.6): los nodos brillan con destello intermitente fuerte y
     // el halo se retira para no velar la silueta.
     const near = clamp((6.5 - camDistance) / (6.5 - 3.6), 0, 1); // 0 lejos, 1 cerca
@@ -755,7 +757,7 @@ async function initGlobe(data, opts = {}) {
   function resetView() {
     // Antes solo reponia la distancia: el globo se quedaba girado en la
     // rotacion que tuviera, asi que "REENCUADRAR" no reencuadraba nada.
-    // Vuelve al encuadre inicial (España de frente) y para la inercia.
+    // Vuelve al encuadre inicial (pais de la empresa de frente) y para la inercia.
     velAz = 0; velPol = 0;
     aimAt(outward, 5.2);
     orbitTarget.set(0, 0, 0);
@@ -798,7 +800,7 @@ async function initGlobe(data, opts = {}) {
     return dataUrl;
   }
 
-  // vista inicial: España de frente, lo bastante cerca para leer el cluster
+  // vista inicial: pais de la empresa de frente, lo bastante cerca para leer el cluster
   aimAt(outward, 5.2);
   applyCamera();
 

@@ -392,7 +392,7 @@
 
     <div class="vdr-controls-dock">
       <button class="glass-pill danger" id="tableBtn" data-i18n="btn.table">TABLA · 200 NODOS</button>
-      <button class="glass-pill" id="focusSpainBtn" data-i18n="btn.spain">IR A ESPAÑA</button>
+      <button class="glass-pill" id="focusSpainBtn">IR AL PAÍS</button>
       <button class="glass-pill" id="focusStarBtn" data-i18n="btn.hq">IR A SEDE</button>
       <button class="glass-pill" id="resetViewBtn" data-i18n="btn.reset">REENCUADRAR</button>
     </div>
@@ -477,7 +477,7 @@
             <div class="vdr-table__brand">
               <img class="vdr-table__brand-logo" src="/assets/logo-snfi.png" alt="S-NFI Systems">
               <div>
-                <div class="vdr-table__kicker" data-i18n="table.kicker">Cuantificación de despliegue · España</div>
+                <div class="vdr-table__kicker" id="tableKicker">Cuantificación de despliegue</div>
                 <h2 class="vdr-table__title" id="tableTitle">200</h2>
               </div>
             </div>
@@ -567,12 +567,12 @@
     const I18N = {
       es: {
         subtitle: 'Interfaz geoespacial · VDR',
-        'btn.table': 'TABLA · 200 NODOS', 'btn.spain': 'IR A ESPAÑA', 'btn.hq': 'IR A SEDE', 'btn.reset': 'REENCUADRAR',
+        'btn.table': 'TABLA · 200 NODOS', 'btn.spain': 'IR A {country}', 'btn.hq': 'IR A SEDE', 'btn.reset': 'REENCUADRAR',
         'btn.installAll': 'SIMULAR TODOS INSTALADOS', 'btn.resetAll': 'RESET',
         'legend.star': 'Estrella · sede empresa', 'legend.red': 'Nodo rojo · sin desplegar', 'legend.green': 'Nodo verde · instalado (simulado)',
         hint: 'arrastra: rotar 360° · shift o botón derecho: desplazar · rueda o pellizco: zoom · doble clic: reencuadrar · clic en nodo: conmutar',
         'loss.label': 'Coste anual de no adoptar BioHybrid',
-        'table.kicker': 'Cuantificación de despliegue · España', 'table.byRegion': 'Reparto por comunidad autónoma', 'table.total': 'TOTAL · nodos',
+        'table.kicker': 'Cuantificación de despliegue · {country}', 'table.byRegion': 'Reparto por comunidad autónoma', 'table.total': 'TOTAL · nodos',
         'th.node': 'Nodo', 'th.region': 'Comunidad', 'th.state': 'Estado', 'th.nodes': 'Nodos',
         'th.absorbs': 'Absorbe<br><span>GWh/año</span>', 'th.pellet': 'Biopellet<br><span>T/año</span>',
         'th.value': 'Valor biopellet<br><span>€/año · 350 €/T</span>', 'th.co2': 'CO₂+CH₄ evitado<br><span>T/año</span>', 'th.sim': 'Simular',
@@ -606,12 +606,12 @@
       },
       en: {
         subtitle: 'Geospatial interface · VDR',
-        'btn.table': 'TABLE · 200 NODES', 'btn.spain': 'GO TO SPAIN', 'btn.hq': 'GO TO HQ', 'btn.reset': 'RESET VIEW',
+        'btn.table': 'TABLE · 200 NODES', 'btn.spain': 'GO TO {country}', 'btn.hq': 'GO TO HQ', 'btn.reset': 'RESET VIEW',
         'btn.installAll': 'SIMULATE ALL INSTALLED', 'btn.resetAll': 'RESET',
         'legend.star': 'Star · company HQ', 'legend.red': 'Red node · not deployed', 'legend.green': 'Green node · installed (simulated)',
         hint: 'drag: rotate 360° · shift or right button: pan · wheel or pinch: zoom · double click: reset view · click a node: toggle',
         'loss.label': 'Annual cost of not adopting BioHybrid',
-        'table.kicker': 'Deployment quantification · Spain', 'table.byRegion': 'Breakdown by autonomous community', 'table.total': 'TOTAL · nodes',
+        'table.kicker': 'Deployment quantification · {country}', 'table.byRegion': 'Breakdown by autonomous community', 'table.total': 'TOTAL · nodes',
         'th.node': 'Node', 'th.region': 'Community', 'th.state': 'Status', 'th.nodes': 'Nodes',
         'th.absorbs': 'Absorbs<br><span>GWh/year</span>', 'th.pellet': 'Biopellet<br><span>t/year</span>',
         'th.value': 'Biopellet value<br><span>€/year · €350/t</span>', 'th.co2': 'CO₂+CH₄ avoided<br><span>t/year</span>', 'th.sim': 'Simulate',
@@ -645,12 +645,12 @@
       },
       it: {
         subtitle: 'Interfaccia geospaziale · VDR',
-        'btn.table': 'TABELLA · 200 NODI', 'btn.spain': 'VAI IN SPAGNA', 'btn.hq': 'VAI ALLA SEDE', 'btn.reset': 'REIMPOSTA VISTA',
+        'btn.table': 'TABELLA · 200 NODI', 'btn.spain': 'VAI IN {country}', 'btn.hq': 'VAI ALLA SEDE', 'btn.reset': 'REIMPOSTA VISTA',
         'btn.installAll': 'SIMULA TUTTI INSTALLATI', 'btn.resetAll': 'RESET',
         'legend.star': 'Stella · sede aziendale', 'legend.red': 'Nodo rosso · non installato', 'legend.green': 'Nodo verde · installato (simulato)',
         hint: 'trascina: ruota 360° · shift o tasto destro: sposta · rotella o pizzico: zoom · doppio clic: reimposta · clic su un nodo: commuta',
         'loss.label': 'Costo annuo del non adottare BioHybrid',
-        'table.kicker': 'Quantificazione del dispiegamento · Spagna', 'table.byRegion': 'Ripartizione per comunità autonoma', 'table.total': 'TOTALE · nodi',
+        'table.kicker': 'Quantificazione del dispiegamento · {country}', 'table.byRegion': 'Ripartizione per comunità autonoma', 'table.total': 'TOTALE · nodi',
         'th.node': 'Nodo', 'th.region': 'Comunità', 'th.state': 'Stato', 'th.nodes': 'Nodi',
         'th.absorbs': 'Assorbe<br><span>GWh/anno</span>', 'th.pellet': 'Biopellet<br><span>t/anno</span>',
         'th.value': 'Valore biopellet<br><span>€/anno · 350 €/t</span>', 'th.co2': 'CO₂+CH₄ evitate<br><span>t/anno</span>', 'th.sim': 'Simula',
@@ -685,12 +685,12 @@
       /* Francais: registre corporatif international (TotalEnergies). */
       fr: {
         subtitle: 'Interface géospatiale · VDR',
-        'btn.table': 'TABLEAU · 200 NŒUDS', 'btn.spain': 'ALLER EN ESPAGNE', 'btn.hq': 'ALLER AU SIÈGE', 'btn.reset': 'RÉINITIALISER LA VUE',
+        'btn.table': 'TABLEAU · 200 NŒUDS', 'btn.spain': 'ALLER EN {country}', 'btn.hq': 'ALLER AU SIÈGE', 'btn.reset': 'RÉINITIALISER LA VUE',
         'btn.installAll': 'SIMULER TOUS INSTALLÉS', 'btn.resetAll': 'RESET',
         'legend.star': 'Étoile · siège de l’entreprise', 'legend.red': 'Nœud rouge · non déployé', 'legend.green': 'Nœud vert · installé (simulé)',
         hint: 'glisser : rotation 360° · maj ou clic droit : déplacer · molette ou pincement : zoom · double clic : réinitialiser · clic sur un nœud : commuter',
         'loss.label': 'Coût annuel de la non-adoption de BioHybrid',
-        'table.kicker': 'Quantification du déploiement · Espagne', 'table.byRegion': 'Répartition par communauté autonome', 'table.total': 'TOTAL · nœuds',
+        'table.kicker': 'Quantification du déploiement · {country}', 'table.byRegion': 'Répartition par communauté autonome', 'table.total': 'TOTAL · nœuds',
         'th.node': 'Nœud', 'th.region': 'Communauté', 'th.state': 'Statut', 'th.nodes': 'Nœuds',
         'th.absorbs': 'Absorbe<br><span>GWh/an</span>', 'th.pellet': 'Biopellet<br><span>t/an</span>',
         'th.value': 'Valeur biopellet<br><span>€/an · 350 €/t</span>', 'th.co2': 'CO₂+CH₄ évité<br><span>t/an</span>', 'th.sim': 'Simuler',
@@ -754,6 +754,9 @@
       $('confidentialNote').textContent = t('confidential');
       const total = globeData?.esCurtailment?.nodesTargetTotal;
       if (total) $('tableBtn').textContent = t('btn.table').replace('200', fmtInt(total));
+      const countryLabel = globeData?.esCurtailment?.countryLabel || '—';
+      $('focusSpainBtn').textContent = t('btn.spain').replace('{country}', countryLabel);
+      $('tableKicker').textContent = t('table.kicker').replace('{country}', countryLabel);
       if (globeData) {
         buildTable(); renderAggregates();
         installed.forEach((i) => syncTableRow(i));

@@ -172,6 +172,35 @@ describe('pactum-viridi.js: 6 sub-mesas sobre Mongo', { skip: skip && 'MONGO_URI
     assert.equal(globe.status, 200);
     assert.equal(typeof globe.body.star.lat, 'number');
     assert.equal(globe.body.star.countryCode, 'DE');
+    // DE no tiene tabla de regiones propia: cae al fallback generico
+    // (una sola region ficticia centrada en el pais), no en España.
+    assert.equal(globe.body.esCurtailment.countryCode, 'DE');
+    assert.ok(globe.body.esCurtailment.nodes.every((n) => n.regionName === globe.body.esCurtailment.countryLabel));
+  });
+
+  test('6b. VDR: el cluster de nodos sigue al pais de la empresa, no queda fijo en España', async () => {
+    const dz = await fetchJson('/api/pactvm/vdr/companies', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Empresa Argelia VDR', geoCountry: 'dz', geoWeight: 3, spainActivity: 1 }),
+    });
+    assert.equal(dz.status, 201);
+
+    const globe = await fetchJson(`/api/pactvm/vdr/companies/${dz.body.id}/globe`);
+    assert.equal(globe.status, 200);
+    assert.equal(globe.body.star.countryCode, 'DZ');
+    // Argelia SI tiene tabla de wilayas propia (COUNTRY_REGIONS.DZ): el
+    // cluster debe repartirse entre ellas, no caer en el fallback generico
+    // ni (el bug original) quedarse fijo sobre comunidades españolas.
+    assert.equal(globe.body.esCurtailment.countryCode, 'DZ');
+    assert.ok(globe.body.esCurtailment.regions.length > 1, 'DZ debe repartir en varias wilayas, no una sola region ficticia');
+    const regionNames = new Set(globe.body.esCurtailment.regions.map((r) => r.name));
+    assert.ok(regionNames.has('Argel'));
+    assert.ok(!regionNames.has('Andalucía') && !regionNames.has('Cataluña'), 'ningun nodo debe caer en comunidades españolas');
+    // coordenadas del cluster dentro del territorio argelino (lat ~19-37N, lng ~-9 a 12E)
+    globe.body.esCurtailment.nodes.forEach((n) => {
+      assert.ok(n.lat > 15 && n.lat < 40, `nodo ${n.code} fuera de latitud argelina: ${n.lat}`);
+      assert.ok(n.lng > -10 && n.lng < 15, `nodo ${n.code} fuera de longitud argelina: ${n.lng}`);
+    });
   });
 
   test('GET /api/pactvm/summary agrega las sub-mesas sin romper', async () => {
