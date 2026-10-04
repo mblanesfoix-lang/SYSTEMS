@@ -1524,9 +1524,15 @@
       const lossNow = (es.annualLossEur || 0) * ratioPending;
       const recovered = (es.annualLossEur || 0) - lossNow;
 
+      const isMitigated = on > 0 && pending === 0;
       const heroEl = document.getElementById('lossHero');
-      heroEl.classList.toggle('mitigated', on > 0 && pending === 0);
-      document.getElementById('lossFigure').textContent = `− ${fmtEur(lossNow)}`;
+      heroEl.classList.toggle('mitigated', isMitigated);
+      // Con 0 nodos pendientes "- 0 €" no comunica nada: la cifra grande
+      // pasa a mostrar lo recuperado (positivo), que es lo que de verdad
+      // cambio al instalar el ultimo nodo. Bug visual reportado 2026-10-04.
+      document.getElementById('lossFigure').textContent = isMitigated
+        ? `+ ${fmtEur(recovered)}`
+        : `− ${fmtEur(lossNow)}`;
       document.getElementById('lossBarFill').style.width = `${ratioPending * 100}%`;
       document.getElementById('lossBreakdown').innerHTML = pending === 0
         ? `<span><b>${fmtInt(total)}</b> ${escapeHtml(t('loss.neutralised'))} · <b>${fmtEur(recovered)}</b> ${escapeHtml(t('loss.recoveredYear'))}</span>`

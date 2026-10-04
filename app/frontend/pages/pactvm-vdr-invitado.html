@@ -1030,8 +1030,9 @@
       const lossNow = (es.annualLossEur || 0) * ratioPending;
       const recovered = (es.annualLossEur || 0) - lossNow;
 
-      $('lossHero').classList.toggle('mitigated', on > 0 && pending === 0);
-      $('lossFigure').textContent = `− ${fmtEur(lossNow)}`;
+      const isMitigated = on > 0 && pending === 0;
+      $('lossHero').classList.toggle('mitigated', isMitigated);
+      $('lossFigure').textContent = isMitigated ? `+ ${fmtEur(recovered)}` : `− ${fmtEur(lossNow)}`;
       $('lossBarFill').style.width = `${ratioPending * 100}%`;
       $('lossBreakdown').innerHTML = pending === 0
         ? `<span><b>${fmtInt(total)}</b> ${escapeHtml(t('loss.neutralised'))} · <b>${fmtEur(recovered)}</b> ${escapeHtml(t('loss.recoveredYear'))}</span>`
