@@ -134,10 +134,13 @@ const SEED_PLANETARY_COUNTRIES = [
  * resto de Pactvm). annualLossEur (70M€/año) es la cifra titular fija de
  * "coste de no adoptar BioHybrid" que Enel/el cliente pierde hoy — dato de
  * entrada independiente, no se fuerza a que la suma de los otros campos
- * cuadre matematicamente con ella. */
-const VDR_ES_CONFIG_ID = 'default';
+ * cuadre matematicamente con ella.
+ *
+ * Config por pais, no un unico doc compartido (cambio 2026-10-04: no todos
+ * los paises necesitan el mismo numero de nodos). El _id de cada doc en
+ * Mongo es el codigo ISO-2 del pais; esta plantilla es el default en
+ * memoria para el pais que aun no tiene doc propio. */
 const DEFAULT_VDR_ES_CONFIG = {
-  _id: VDR_ES_CONFIG_ID,
   nodesTargetTotal: 200,
   curtailmentGwTargetMin: 500,
   curtailmentGwTargetMax: 600,
@@ -240,10 +243,8 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getMo
     await mongo.collection('pactvm_planetary_config').insertOne(DEFAULT_PLANETARY_CONFIG);
   }).catch(() => {});
 
-  mongo.collection('pactvm_vdr_es_config').countDocuments({ _id: VDR_ES_CONFIG_ID }).then(async (count) => {
-    if (count > 0) return;
-    await mongo.collection('pactvm_vdr_es_config').insertOne(DEFAULT_VDR_ES_CONFIG);
-  }).catch(() => {});
+  // sin seed: cada pais usa DEFAULT_VDR_ES_CONFIG en memoria (esConfigResolved)
+  // hasta que se edite explicitamente desde el panel, ver el PATCH mas abajo.
 
   mongo.collection('pactvm_planetary_countries').countDocuments({}).then(async (count) => {
     if (count > 0) return;
@@ -1915,12 +1916,35 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getMo
     res.json(Object.entries(VDR_COUNTRY_COORDS).map(([code, v]) => ({ code, label: v.label })));
   });
 
-  router.get('/api/pactvm/vdr/es-config', ...guard, async (req, res) => {
-    const doc = await mongo.collection('pactvm_vdr_es_config').findOne({ _id: VDR_ES_CONFIG_ID });
-    res.json(withId({ ...DEFAULT_VDR_ES_CONFIG, ...(doc || {}) }));
+  // Config por pais (antes un unico doc 'default' compartido por todos:
+  // ver docs/ESTADO-HISTORICO.md 2026-10-04, no todos los paises necesitan
+  // el mismo numero de nodos). _id del doc = codigo ISO-2 del pais. Un pais
+  // sin doc propio usa DEFAULT_VDR_ES_CONFIG en memoria, sin persistir hasta
+  // que se edite explicitamente.
+  router.get('/api/pactvm/vdr/es-config/:country', ...guard, async (req, res) => {
+    const country = String(req.params.country || '').trim().toUpperCase();
+    if (!VDR_COUNTRY_COORDS[country]) return res.status(400).json({ error: 'pais invalido' });
+    const doc = await mongo.collection('pactvm_vdr_es_config').findOne({ _id: country });
+    res.json(withId({ ...DEFAULT_VDR_ES_CONFIG, ...(doc || {}), _id: country }));
   });
 
-  router.patch('/api/pactvm/vdr/es-config', ...guard, async (req, res) => {
+  // Config de TODOS los paises conocidos en una sola llamada (tabla del
+  // panel de edicion): paises sin doc propio salen con el default, sin
+  // crearlo en Mongo hasta que se guarde un cambio real.
+  router.get('/api/pactvm/vdr/es-config', ...guard, async (req, res) => {
+    const docs = await mongo.collection('pactvm_vdr_es_config').find({}).toArray();
+    const byCountry = new Map(docs.map((d) => [d._id, d]));
+    const rows = Object.keys(VDR_COUNTRY_COORDS).map((code) => withId({
+      ...DEFAULT_VDR_ES_CONFIG,
+      ...(byCountry.get(code) || {}),
+      _id: code,
+    }));
+    res.json(rows);
+  });
+
+  router.patch('/api/pactvm/vdr/es-config/:country', ...guard, async (req, res) => {
+    const country = String(req.params.country || '').trim().toUpperCase();
+    if (!VDR_COUNTRY_COORDS[country]) return res.status(400).json({ error: 'pais invalido' });
     const b = req.body || {};
     const $set = { updatedAt: new Date().toISOString(), updatedBy: req.user };
     if (b.nodesTargetTotal !== undefined) {
@@ -1965,9 +1989,9 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getMo
     }
     if (b.ppaClause !== undefined) $set.ppaClause = String(b.ppaClause).trim().slice(0, 1000);
     if (b.source !== undefined) $set.source = String(b.source).trim().slice(0, 300);
-    await mongo.collection('pactvm_vdr_es_config').updateOne({ _id: VDR_ES_CONFIG_ID }, { $set }, { upsert: true });
-    await appendPactvmLog(mongo, { action: 'vdr.es_config_update', actorId: req.user, detail: { $set } });
-    const updated = await mongo.collection('pactvm_vdr_es_config').findOne({ _id: VDR_ES_CONFIG_ID });
+    await mongo.collection('pactvm_vdr_es_config').updateOne({ _id: country }, { $set }, { upsert: true });
+    await appendPactvmLog(mongo, { action: 'vdr.es_config_update', actorId: req.user, detail: { country, $set } });
+    const updated = await mongo.collection('pactvm_vdr_es_config').findOne({ _id: country });
     res.json(withId(updated));
   });
 
@@ -2060,17 +2084,20 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getMo
   });
 
   // Datos ya resueltos para renderizar el globo 3D individual de una empresa:
-  // estrella en su pais (lat/lng + geoWeight -> tamano) y punto rojo fijo
-  // sobre Espana (spainActivity -> tamano/intensidad), mas el bloque de
-  // curtailment ES (roster de nodos #001.. pendientes de desplegar, ver
-  // DEFAULT_VDR_ES_CONFIG). El roster se genera en cada request (no se
-  // persisten 200 documentos por nodo — no hay estado individual por nodo
-  // hoy, solo el contador agregado editable en pactvm_vdr_es_config).
-  // Merge sobre los defaults: un doc sembrado antes de que existieran los
-  // campos economicos (biopellet/CO2/perdida anual) sigue siendo valido y
-  // hereda los valores por defecto en vez de devolver ceros.
-  async function esConfigResolved() {
-    const stored = await mongo.collection('pactvm_vdr_es_config').findOne({ _id: VDR_ES_CONFIG_ID });
+  // estrella en su pais (lat/lng + geoWeight -> tamano) y punto rojo
+  // (spainActivity -> tamano/intensidad), mas el bloque de curtailment
+  // (roster de nodos #001.. pendientes de desplegar) con la config DE ESE
+  // PAIS (cada pais tiene su propio nodesTargetTotal/precio/etc, ver
+  // DEFAULT_VDR_ES_CONFIG — antes un unico doc 'default' para todos, ver
+  // docs/ESTADO-HISTORICO.md 2026-10-04). El roster se genera en cada
+  // request (no se persisten N documentos por nodo — no hay estado
+  // individual por nodo hoy, solo el contador agregado por pais en
+  // pactvm_vdr_es_config). Merge sobre los defaults: un doc sembrado antes
+  // de que existieran los campos economicos (biopellet/CO2/perdida anual)
+  // sigue siendo valido y hereda los valores por defecto en vez de
+  // devolver ceros.
+  async function esConfigResolved(countryCode) {
+    const stored = await mongo.collection('pactvm_vdr_es_config').findOne({ _id: countryCode });
     return { ...DEFAULT_VDR_ES_CONFIG, ...(stored || {}) };
   }
 
@@ -2175,7 +2202,7 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getMo
   router.get('/api/pactvm/vdr/companies/:id/globe', ...guard, async (req, res) => {
     const row = await mongo.collection('pactvm_vdr_companies').findOne({ _id: req.params.id });
     if (!row) return res.status(404).json({ error: 'empresa no encontrada' });
-    res.json(buildGlobePayload(row, await esConfigResolved()));
+    res.json(buildGlobePayload(row, await esConfigResolved(row.geoCountry)));
   });
 
   /* ---- VDR: enlace temporal para presentacion a cliente bajo NDA ----
@@ -2326,7 +2353,7 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getMo
 
     // El reparto territorial va bajo SPV LEVEL 2: no basta con ocultarlo en
     // la interfaz, se retira del payload para que tampoco viaje al cliente.
-    const full = buildGlobePayload(company, await esConfigResolved());
+    const full = buildGlobePayload(company, await esConfigResolved(company.geoCountry));
     const globe = {
       ...full,
       esCurtailment: {

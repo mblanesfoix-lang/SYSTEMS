@@ -124,23 +124,21 @@
     </div>
 
     <div class="card reveal" style="padding:20px; margin-bottom:24px;">
-      <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:4px;">
-        <span class="kicker">Modelo de despliegue · parámetros globales</span>
-        <button class="btn ghost btn--sm" id="esConfigToggle">Editar</button>
-      </div>
+      <span class="kicker">Modelo de despliegue · un juego de cifras por país</span>
       <p class="pactvm-hero__sub" style="margin:4px 0 14px;">
-        Un solo juego de cifras compartido por todas las empresas: nodos totales del cluster, energía/ingresos por
-        nodo y la pérdida anual titular. Cambiar aquí afecta al globo 3D de cada empresa.
+        Cada país tiene su propio número de nodos, energía/ingresos por nodo y pérdida anual titular — no todos
+        necesitan el mismo cluster. Editar un país solo afecta al globo 3D de las empresas ubicadas ahí.
       </p>
-      <div id="esConfigView" class="kpi-grid" style="margin-bottom:0;">
-        <div class="kpi-cell"><div class="kpi-label">Nodos totales</div><div class="kpi-val" id="ecvNodes" style="font-size:1.3rem;">—</div></div>
-        <div class="kpi-cell"><div class="kpi-label">GWh/nodo/año</div><div class="kpi-val" id="ecvGwh" style="font-size:1.3rem;">—</div></div>
-        <div class="kpi-cell"><div class="kpi-label">Biopellet T/nodo/año</div><div class="kpi-val" id="ecvPellet" style="font-size:1.3rem;">—</div></div>
-        <div class="kpi-cell"><div class="kpi-label">Precio biopellet €/T</div><div class="kpi-val" id="ecvPrice" style="font-size:1.3rem;">—</div></div>
-        <div class="kpi-cell"><div class="kpi-label">CO₂+CH₄ evitado T/nodo/año</div><div class="kpi-val" id="ecvCo2" style="font-size:1.3rem;">—</div></div>
-        <div class="kpi-cell"><div class="kpi-label">Pérdida anual titular (€)</div><div class="kpi-val" id="ecvLoss" style="font-size:1.3rem;">—</div></div>
+      <div style="overflow-x:auto;">
+        <table class="tbl" id="esConfigTable">
+          <thead><tr><th>País</th><th>Nodos</th><th>GWh/nodo</th><th>Biopellet T/nodo</th><th>Precio €/T</th><th>CO₂ T/nodo</th><th>Pérdida anual</th><th></th></tr></thead>
+          <tbody id="esConfigBody"><tr class="empty-row"><td colspan="8">Cargando…</td></tr></tbody>
+        </table>
       </div>
-      <div id="esConfigForm" hidden style="margin-top:14px;">
+      <div id="esConfigForm" hidden style="margin-top:14px; padding-top:14px; border-top:1px solid var(--border);">
+        <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <span class="kicker">Editando · <span id="ecCountryLabel">—</span></span>
+        </div>
         <div class="add-row">
           <div class="sf"><label>Nodos totales</label><input class="input" id="ecNodes" style="width:120px;" placeholder="200"></div>
           <div class="sf"><label>Curtailment GW min</label><input class="input" id="ecGwMin" style="width:120px;" placeholder="500"></div>
@@ -264,48 +262,58 @@
       } catch (ex) { showError(ex.message || 'Error al cargar resumen'); }
     }
 
-    // ---- Modelo de despliegue (es-config): un solo juego de cifras
-    // compartido por todas las empresas, ver pactum-viridi.js DEFAULT_VDR_ES_CONFIG ----
-    let esConfigCache = null;
+    // ---- Modelo de despliegue (es-config): un juego de cifras POR PAIS,
+    // ver pactum-viridi.js DEFAULT_VDR_ES_CONFIG. No todos los paises
+    // necesitan el mismo numero de nodos (antes un unico doc compartido). ----
+    let esConfigRows = [];
+    let editingCountry = null;
     const fmtEurPlain = (n) => Number(n || 0).toLocaleString('es-ES', { maximumFractionDigits: 0 });
 
     async function loadEsConfig() {
+      const body = document.getElementById('esConfigBody');
       try {
-        esConfigCache = await api.pactvmVdrEsConfig();
-        document.getElementById('ecvNodes').textContent = esConfigCache.nodesTargetTotal ?? '—';
-        document.getElementById('ecvGwh').textContent = esConfigCache.nodeAnnualEnergyGwh ?? '—';
-        document.getElementById('ecvPellet').textContent = esConfigCache.biopelletTonsPerNodeYear ?? '—';
-        document.getElementById('ecvPrice').textContent = `${fmtEurPlain(esConfigCache.biopelletPriceEurPerTon)} €`;
-        document.getElementById('ecvCo2').textContent = esConfigCache.co2ch4AvoidedTonsPerNodeYear ?? '—';
-        document.getElementById('ecvLoss').textContent = `${fmtEurPlain(esConfigCache.annualLossEur)} €`;
+        esConfigRows = await api.pactvmVdrEsConfigAll();
+        body.innerHTML = esConfigRows.map(c => `<tr data-country="${c.id}">
+          <td>${escapeHtml(countryLabel(c.id))}</td>
+          <td class="mono">${c.nodesTargetTotal}</td>
+          <td class="mono">${c.nodeAnnualEnergyGwh}</td>
+          <td class="mono">${c.biopelletTonsPerNodeYear}</td>
+          <td class="mono">${fmtEurPlain(c.biopelletPriceEurPerTon)} €</td>
+          <td class="mono">${c.co2ch4AvoidedTonsPerNodeYear}</td>
+          <td class="mono">${fmtEurPlain(c.annualLossEur)} €</td>
+          <td><button class="btn ghost btn--sm es-edit" data-country="${c.id}">Editar</button></td>
+        </tr>`).join('');
+        body.querySelectorAll('.es-edit').forEach(btn => {
+          btn.addEventListener('click', () => openEsConfigForm(btn.dataset.country));
+        });
       } catch (ex) { showError(ex.message || 'Error al cargar el modelo de despliegue'); }
     }
 
-    function fillEsConfigForm() {
-      if (!esConfigCache) return;
-      document.getElementById('ecNodes').value = esConfigCache.nodesTargetTotal ?? '';
-      document.getElementById('ecGwMin').value = esConfigCache.curtailmentGwTargetMin ?? '';
-      document.getElementById('ecGwMax').value = esConfigCache.curtailmentGwTargetMax ?? '';
-      document.getElementById('ecGwh').value = esConfigCache.nodeAnnualEnergyGwh ?? '';
-      document.getElementById('ecPellet').value = esConfigCache.biopelletTonsPerNodeYear ?? '';
-      document.getElementById('ecPrice').value = esConfigCache.biopelletPriceEurPerTon ?? '';
-      document.getElementById('ecCo2').value = esConfigCache.co2ch4AvoidedTonsPerNodeYear ?? '';
-      document.getElementById('ecLoss').value = esConfigCache.annualLossEur ?? '';
-      document.getElementById('ecPpa').value = esConfigCache.ppaClause ?? '';
+    function openEsConfigForm(country) {
+      const row = esConfigRows.find(c => c.id === country);
+      if (!row) return;
+      editingCountry = country;
+      document.getElementById('ecCountryLabel').textContent = countryLabel(country);
+      document.getElementById('ecNodes').value = row.nodesTargetTotal ?? '';
+      document.getElementById('ecGwMin').value = row.curtailmentGwTargetMin ?? '';
+      document.getElementById('ecGwMax').value = row.curtailmentGwTargetMax ?? '';
+      document.getElementById('ecGwh').value = row.nodeAnnualEnergyGwh ?? '';
+      document.getElementById('ecPellet').value = row.biopelletTonsPerNodeYear ?? '';
+      document.getElementById('ecPrice').value = row.biopelletPriceEurPerTon ?? '';
+      document.getElementById('ecCo2').value = row.co2ch4AvoidedTonsPerNodeYear ?? '';
+      document.getElementById('ecLoss').value = row.annualLossEur ?? '';
+      document.getElementById('ecPpa').value = row.ppaClause ?? '';
+      document.getElementById('esConfigForm').hidden = false;
     }
 
-    document.getElementById('esConfigToggle').addEventListener('click', () => {
-      fillEsConfigForm();
-      document.getElementById('esConfigForm').hidden = false;
-      document.getElementById('esConfigToggle').hidden = true;
-    });
     document.getElementById('esConfigCancel').addEventListener('click', () => {
+      editingCountry = null;
       document.getElementById('esConfigForm').hidden = true;
-      document.getElementById('esConfigToggle').hidden = false;
     });
 
     document.getElementById('esConfigSave').addEventListener('click', async () => {
       showError('');
+      if (!editingCountry) return;
       const nums = {
         nodesTargetTotal: document.getElementById('ecNodes').value.trim(),
         curtailmentGwTargetMin: document.getElementById('ecGwMin').value.trim(),
@@ -327,10 +335,10 @@
       const ppa = document.getElementById('ecPpa').value.trim();
       if (ppa) payload.ppaClause = ppa;
       try {
-        await api.pactvmVdrEsConfigPatch(payload);
-        toast('Modelo de despliegue actualizado');
+        await api.pactvmVdrEsConfigPatch(editingCountry, payload);
+        toast(`Modelo de despliegue de ${countryLabel(editingCountry)} actualizado`);
+        editingCountry = null;
         document.getElementById('esConfigForm').hidden = true;
-        document.getElementById('esConfigToggle').hidden = false;
         await loadEsConfig();
       } catch (ex) { showError(ex.message || 'Error al guardar el modelo de despliegue'); }
     });

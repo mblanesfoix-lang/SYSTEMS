@@ -246,6 +246,7 @@ Object.assign(api, {
   flExpedienteDocAdd:      (payload) => req('POST', '/api/fl/expediente/documentos', payload),
   flExpedienteDocPatch:    (id, payload) => req('PATCH', `/api/fl/expediente/documentos/${id}`, payload),
   flExpedienteDocDelete:   (id) => req('DELETE', `/api/fl/expediente/documentos/${id}`),
+  flExpedienteDocRestore:  (id) => req('POST', `/api/fl/expediente/documentos/${id}/restore`, {}),
   flExpedienteArchivoDel:  (docId) => req('DELETE', `/api/fl/expediente/documentos/${docId}/archivo`),
 
   // Pactvm Viridi · cumplimiento bio-ambiental (CIBE, politicas, accesos, Herzog)
@@ -337,8 +338,9 @@ Object.assign(api, {
   pactvmVdrCompanyDelete: (id) => req('DELETE', `/api/pactvm/vdr/companies/${id}`),
   pactvmVdrSummary:       () => req('GET', '/api/pactvm/vdr/summary'),
   pactvmVdrCompanyGlobe:  (id) => req('GET', `/api/pactvm/vdr/companies/${id}/globe`),
-  pactvmVdrEsConfig:      () => req('GET', '/api/pactvm/vdr/es-config'),
-  pactvmVdrEsConfigPatch: (payload) => req('PATCH', '/api/pactvm/vdr/es-config', payload),
+  pactvmVdrEsConfigAll:   () => req('GET', '/api/pactvm/vdr/es-config'),
+  pactvmVdrEsConfig:      (country) => req('GET', `/api/pactvm/vdr/es-config/${country}`),
+  pactvmVdrEsConfigPatch: (country, payload) => req('PATCH', `/api/pactvm/vdr/es-config/${country}`, payload),
   // enlaces temporales de presentacion bajo NDA
   pactvmVdrSharesList:    () => req('GET', '/api/pactvm/vdr/shares'),
   pactvmVdrShareCreate:   (payload) => req('POST', '/api/pactvm/vdr/shares', payload),

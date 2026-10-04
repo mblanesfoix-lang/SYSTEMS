@@ -203,6 +203,47 @@ describe('pactum-viridi.js: 6 sub-mesas sobre Mongo', { skip: skip && 'MONGO_URI
     });
   });
 
+  test('6c. VDR: es-config es por pais, no un unico valor compartido', async () => {
+    // pais invalido -> 400 en GET y PATCH
+    const badGet = await fetchJson('/api/pactvm/vdr/es-config/ZZ');
+    assert.equal(badGet.status, 400);
+    const badPatch = await fetchJson('/api/pactvm/vdr/es-config/ZZ', { method: 'PATCH', body: JSON.stringify({ nodesTargetTotal: 10 }) });
+    assert.equal(badPatch.status, 400);
+
+    // sin editar, cualquier pais valido sale con el default (200 nodos)
+    const esDefault = await fetchJson('/api/pactvm/vdr/es-config/ES');
+    assert.equal(esDefault.status, 200);
+    assert.equal(esDefault.body.nodesTargetTotal, 200);
+    const dzDefault = await fetchJson('/api/pactvm/vdr/es-config/dz');
+    assert.equal(dzDefault.status, 200);
+    assert.equal(dzDefault.body.nodesTargetTotal, 200);
+
+    // editar DZ a 50 nodos no debe tocar ES
+    const patchDz = await fetchJson('/api/pactvm/vdr/es-config/dz', { method: 'PATCH', body: JSON.stringify({ nodesTargetTotal: 50 }) });
+    assert.equal(patchDz.status, 200);
+    assert.equal(patchDz.body.nodesTargetTotal, 50);
+
+    const esAfter = await fetchJson('/api/pactvm/vdr/es-config/ES');
+    assert.equal(esAfter.body.nodesTargetTotal, 200, 'editar DZ no debe afectar a ES');
+
+    // el listado de todos los paises refleja el cambio solo en DZ
+    const all = await fetchJson('/api/pactvm/vdr/es-config');
+    assert.equal(all.status, 200);
+    const allDz = all.body.find((c) => c.id === 'DZ');
+    const allEs = all.body.find((c) => c.id === 'ES');
+    assert.equal(allDz.nodesTargetTotal, 50);
+    assert.equal(allEs.nodesTargetTotal, 200);
+
+    // el globo de una empresa en DZ refleja los 50 nodos de su pais
+    const company = await fetchJson('/api/pactvm/vdr/companies', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Empresa DZ 50 nodos', geoCountry: 'dz', geoWeight: 1, spainActivity: 0 }),
+    });
+    const globe = await fetchJson(`/api/pactvm/vdr/companies/${company.body.id}/globe`);
+    assert.equal(globe.body.esCurtailment.nodesTargetTotal, 50);
+    assert.equal(globe.body.esCurtailment.nodes.length, 50);
+  });
+
   test('GET /api/pactvm/summary agrega las sub-mesas sin romper', async () => {
     const { status, body } = await fetchJson('/api/pactvm/summary');
     assert.equal(status, 200);
