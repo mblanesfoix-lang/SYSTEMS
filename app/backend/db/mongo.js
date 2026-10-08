@@ -35,65 +35,87 @@ export function getElviraDb() {
   return elviraDb;
 }
 
-async function ensureIndexes() {
+// Parametrizada por `db` para que un tenant nuevo (ver tenant-registry.js) corra
+// exactamente los mismos indices que el tenant por defecto, sin duplicar la lista.
+export async function ensureTenantIndexes(db) {
   // Auth: sesiones expiran solas via TTL index (Mongo purga tras exp, sin filtrar en memoria)
-  await elviraDb.collection('sessions').createIndex({ exp: 1 }, { expireAfterSeconds: 0 });
-  await elviraDb.collection('users').createIndex({ role: 1 });
+  await db.collection('sessions').createIndex({ exp: 1 }, { expireAfterSeconds: 0 });
+  await db.collection('users').createIndex({ role: 1 });
 
-  await elviraDb.collection('sheets').createIndex({ user: 1 });
-  await elviraDb.collection('companies').createIndex({ sheetId: 1 });
-  await elviraDb.collection('companies').createIndex({ cnmc: 1 });
-  await elviraDb.collection('u2_calculos').createIndex({ creadoAt: -1 });
-  await elviraDb.collection('bus_history').createIndex({ ts: -1 });
-  await elviraDb.collection('bus_history').createIndex({ origin: 1, state: 1, type: 1 });
+  await db.collection('sheets').createIndex({ user: 1 });
+  await db.collection('companies').createIndex({ sheetId: 1 });
+  await db.collection('companies').createIndex({ cnmc: 1 });
+  await db.collection('u2_calculos').createIndex({ creadoAt: -1 });
+  await db.collection('bus_history').createIndex({ ts: -1 });
+  await db.collection('bus_history').createIndex({ origin: 1, state: 1, type: 1 });
 
   // Sentinel · trazabilidad forense IP
-  await elviraDb.collection('forensic_log').createIndex({ seq: 1 }, { unique: true });
-  await elviraDb.collection('forensic_log').createIndex({ ip: 1 });
-  await elviraDb.collection('forensic_log').createIndex({ mesa: 1, sensitive: 1, blocked: 1 });
-  await elviraDb.collection('rate_limits').createIndex({ key: 1, ts: -1 });
-  await elviraDb.collection('rate_limits').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
-  await elviraDb.collection('ip_excess_log').createIndex({ ip: 1, path: 1, ts: -1 });
-  await elviraDb.collection('ip_review_queue').createIndex({ ip: 1 }, { unique: true });
+  await db.collection('forensic_log').createIndex({ seq: 1 }, { unique: true });
+  await db.collection('forensic_log').createIndex({ ip: 1 });
+  await db.collection('forensic_log').createIndex({ mesa: 1, sensitive: 1, blocked: 1 });
+  await db.collection('rate_limits').createIndex({ key: 1, ts: -1 });
+  await db.collection('rate_limits').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+  await db.collection('ip_excess_log').createIndex({ ip: 1, path: 1, ts: -1 });
+  await db.collection('ip_review_queue').createIndex({ ip: 1 }, { unique: true });
 
   // Sentinel · Behavioral Analytics (profiling de comportamiento por usuario)
-  await elviraDb.collection('user_review_queue').createIndex({ user: 1 }, { unique: true });
-  await elviraDb.collection('behavior_alerts').createIndex({ ts: -1 });
-  await elviraDb.collection('behavior_alerts').createIndex({ user: 1, type: 1 });
+  await db.collection('user_review_queue').createIndex({ user: 1 }, { unique: true });
+  await db.collection('behavior_alerts').createIndex({ ts: -1 });
+  await db.collection('behavior_alerts').createIndex({ user: 1, type: 1 });
 
   // Pactvm Viridi · cumplimiento bio-ambiental (certificado CIBE, politicas, accesos)
-  await elviraDb.collection('pactvm_cibe').createIndex({ status: 1 });
-  await elviraDb.collection('pactvm_policies').createIndex({ category: 1, active: 1 });
-  await elviraDb.collection('pactvm_access_rules').createIndex({ status: 1, scope: 1 });
+  await db.collection('pactvm_cibe').createIndex({ status: 1 });
+  await db.collection('pactvm_policies').createIndex({ category: 1, active: 1 });
+  await db.collection('pactvm_access_rules').createIndex({ status: 1, scope: 1 });
 
   // S-NFI F&L · Audit Legal (licencias multi-planta + matriz de responsabilidad + poderes)
-  await elviraDb.collection('fl_licencias').createIndex({ id_instalacion: 1 });
-  await elviraDb.collection('fl_licencias').createIndex({ fecha_vencimiento: 1 });
-  await elviraDb.collection('fl_licencias').createIndex({ dependencia: 1, estado_tramite: 1 });
-  await elviraDb.collection('fl_metricas').createIndex({ id_licencia: 1, tipo_parametro: 1 });
-  await elviraDb.collection('fl_condicionantes').createIndex({ id_licencia: 1, estado_cumplimiento: 1 });
-  await elviraDb.collection('fl_evidencias').createIndex({ id_condicionante: 1 });
-  await elviraDb.collection('fl_inspecciones').createIndex({ id_instalacion: 1, estatus_resolucion: 1 });
-  await elviraDb.collection('fl_hitos').createIndex({ project_id: 1 });
-  await elviraDb.collection('fl_matriz_riesgo').createIndex({ project_id: 1, status: 1 });
-  await elviraDb.collection('fl_matriz_riesgo').createIndex({ milestone_id: 1 });
-  await elviraDb.collection('fl_poderes').createIndex({ fecha_caducidad: 1 });
-  await elviraDb.collection('fl_poderes').createIndex({ estado: 1 });
-  await elviraDb.collection('fl_log').createIndex({ seq: 1 }, { unique: true });
+  await db.collection('fl_licencias').createIndex({ id_instalacion: 1 });
+  await db.collection('fl_licencias').createIndex({ fecha_vencimiento: 1 });
+  await db.collection('fl_licencias').createIndex({ dependencia: 1, estado_tramite: 1 });
+  await db.collection('fl_metricas').createIndex({ id_licencia: 1, tipo_parametro: 1 });
+  await db.collection('fl_condicionantes').createIndex({ id_licencia: 1, estado_cumplimiento: 1 });
+  await db.collection('fl_evidencias').createIndex({ id_condicionante: 1 });
+  await db.collection('fl_inspecciones').createIndex({ id_instalacion: 1, estatus_resolucion: 1 });
+  await db.collection('fl_hitos').createIndex({ project_id: 1 });
+  await db.collection('fl_matriz_riesgo').createIndex({ project_id: 1, status: 1 });
+  await db.collection('fl_matriz_riesgo').createIndex({ milestone_id: 1 });
+  await db.collection('fl_poderes').createIndex({ fecha_caducidad: 1 });
+  await db.collection('fl_poderes').createIndex({ estado: 1 });
+  await db.collection('fl_log').createIndex({ seq: 1 }, { unique: true });
   // Expediente Fiscal y Juridico Impecable (CRM documental + adjuntos GridFS)
-  await elviraDb.collection('fl_expediente_docs').createIndex({ bloque: 1, orden: 1 });
-  await elviraDb.collection('fl_expediente_docs').createIndex({ fecha_caducidad: 1 });
-  await elviraDb.collection('fl_expediente_docs').createIndex({ estado: 1 });
-  await elviraDb.collection('fl_expediente_docs').createIndex({ confidencial: 1 });
-  await elviraDb.collection('fl_expediente_files.files').createIndex({ 'metadata.doc_id': 1 });
+  await db.collection('fl_expediente_docs').createIndex({ bloque: 1, orden: 1 });
+  await db.collection('fl_expediente_docs').createIndex({ fecha_caducidad: 1 });
+  await db.collection('fl_expediente_docs').createIndex({ estado: 1 });
+  await db.collection('fl_expediente_docs').createIndex({ confidencial: 1 });
+  await db.collection('fl_expediente_files.files').createIndex({ 'metadata.doc_id': 1 });
   // Clave de cifrado del expediente: SOLO env FL_EXPEDIENTE_ENC_KEY (retirado
   // el fallback fl_expediente_keys en Mongo, 2026-09-20) — sin coleccion propia.
 
   // S-NFI Finance · CRM de empresas + archivo documental
-  await elviraDb.collection('finance_companies').createIndex({ name: 1 });
-  await elviraDb.collection('finance_companies').createIndex({ relation: 1, status: 1 });
-  await elviraDb.collection('finance_company_notes').createIndex({ companyId: 1, createdAt: -1 });
-  await elviraDb.collection('finance_company_docs.files').createIndex({ 'metadata.company_id': 1, 'metadata.folder': 1 });
+  await db.collection('finance_companies').createIndex({ name: 1 });
+  await db.collection('finance_companies').createIndex({ relation: 1, status: 1 });
+  await db.collection('finance_company_notes').createIndex({ companyId: 1, createdAt: -1 });
+  await db.collection('finance_company_docs.files').createIndex({ 'metadata.company_id': 1, 'metadata.folder': 1 });
+
+  // Herzog Central · bunker receptor (summary del dashboard hacia COLLSCAN sin estos)
+  await db.collection('herzog_metrics').createIndex({ createdAt: -1 });
+  await db.collection('herzog_metrics').createIndex({ source: 1 });
+  await db.collection('herzog_metrics').createIndex({ department: 1 });
+  await db.collection('herzog_notes').createIndex({ createdAt: -1 });
+  await db.collection('herzog_notes').createIndex({ department: 1 });
+
+  // OPHS Framework · OPS (telemetria) y PAIA (analitica), leidos por el Cockpit
+  await db.collection('ops_nodes').createIndex({ circuitState: 1 });
+  await db.collection('ops_readings').createIndex({ ts: -1 });
+  await db.collection('paia_analyses').createIndex({ createdAt: -1 });
+}
+
+async function ensureIndexes() {
+  await ensureTenantIndexes(elviraDb);
+
+  // Herzog Central (auditoria OPHS) vive en db 'reff', no 'elvira' — mismo
+  // cliente, otra db (ver ophs-cockpit.js y pactum-viridi.js).
+  await client.db('reff').collection('herzog_audits').createIndex({ created_at: -1 });
 }
 
 export async function closeMongo() {
