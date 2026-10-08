@@ -39,7 +39,8 @@ import { createCibeBunker, mountCibeBunker } from './cibe-bunker.js';
 import { mountRackState } from './rack-state.js';
 import { mountGridInterlink } from './grid-interlink.js';
 
-import { ensureUsersSeed, mountAuth } from './routes/auth.routes.js';
+import { ensureUsersSeed, seedDefaultTenant, mountAuth } from './routes/auth.routes.js';
+import { getControlDb } from './db/tenant-registry.js';
 import { mountBus } from './routes/bus.routes.js';
 import { mountNotifications } from './routes/notifications.routes.js';
 import { createElviraStore } from './routes/elvira-store.js';
@@ -107,6 +108,11 @@ if (!fs.existsSync(ELVIRA_FILE)) atomicWriteJson(ELVIRA_FILE, {
 const { readElvira, writeElvira } = createElviraStore(ELVIRA_FILE, atomicWriteJson);
 
 // LLM provider configured in llm.js via LLM_PROVIDER env var (.env ya cargado arriba)
+
+// Multi-tenancy Fase 1: siembra el tenant 'equipo-interno' (apunta a las dbs
+// 'elvira'/'reff' de siempre, cero migracion) antes de sembrar usuarios, que
+// ya se crean con ese tenantId. Idempotente, no toca nada si ya existe.
+await seedDefaultTenant(getControlDb());
 
 // Credenciales: usuarios/sesiones en Mongo (colecciones 'users'/'sessions').
 // Seed inicial solo si 'users' esta vacia, desde variables de entorno SEED_*_PASSWORD.
