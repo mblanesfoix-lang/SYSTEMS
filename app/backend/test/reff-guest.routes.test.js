@@ -1,19 +1,32 @@
 /**
  * Puente de sesion Elvi-Ra -> Rëff (routes/reff-guest.routes.js): el JWT de Rëff
  * solo se emite con sesion valida y acceso a la mesa reff, y el usuario sale de
- * la sesion, nunca de una cabecera del cliente. Express real, sin Mongo.
+ * la sesion, nunca de una cabecera del cliente. Express real, sin Mongo real
+ * (stub de `mongo.collection('users').findOne()` en memoria).
+ *
+ * Multi-tenancy Fase 1: el mapa fijo ELVIRA_TO_REFF_USERNAME se sustituyo por
+ * el campo `reffUsername` en el documento de `users` — este test stub lo
+ * refleja con un Map en memoria en vez de un objeto congelado.
  */
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
-import { mountReffGuestToken, ELVIRA_TO_REFF_USERNAME } from '../routes/reff-guest.routes.js';
+import { mountReffGuestToken } from '../routes/reff-guest.routes.js';
 
-// Sesiones simuladas: el token Bearer elige usuario y rol, como el middleware real.
+// Sesiones simuladas: el token Bearer elige usuario, rol y tenant, como el middleware real.
 const SESSIONS = {
-  't-marc': { user: 'mblanes@s-nficorp.com', role: 'admin' },
-  't-amir': { user: 'ventures@s-nficorp.com', role: 'amir' },
-  't-ray': { user: 'ray@s-nficorp.com', role: 'ray' }, // sin mesa reff
-  't-otro-admin': { user: 'otro.admin@s-nficorp.com', role: 'admin' }, // acceso a reff, sin correspondencia
+  't-marc': { user: 'mblanes@s-nficorp.com', role: 'admin', tenantId: 'equipo-interno' },
+  't-amir': { user: 'ventures@s-nficorp.com', role: 'amir', tenantId: 'equipo-interno' },
+  't-ray': { user: 'ray@s-nficorp.com', role: 'ray', tenantId: 'equipo-interno' }, // sin mesa reff
+  't-otro-admin': { user: 'otro.admin@s-nficorp.com', role: 'admin', tenantId: 'equipo-interno' }, // acceso a reff, sin correspondencia
+};
+
+// users stub: equivalente al documento real de Mongo, solo con reffUsername.
+const USERS = {
+  'mblanes@s-nficorp.com': { reffUsername: 'marc' },
+  'ventures@s-nficorp.com': { reffUsername: 'amir' },
+  'ray@s-nficorp.com': {}, // sin reffUsername: nunca tuvo acceso a Rëff
+  'otro.admin@s-nficorp.com': {}, // admin sin correspondencia
 };
 
 function authStub(req, res, next) {
@@ -22,6 +35,7 @@ function authStub(req, res, next) {
   if (!s) return res.status(401).json({ error: 'No autenticado' });
   req.user = s.user;
   req.role = s.role;
+  req.tenantId = s.tenantId;
   next();
 }
 
@@ -37,7 +51,17 @@ const REFF_USERS = {
   gonzalo: { id: 4, username: 'gonzalo', display_name: 'Gonzalo', avatar_url: null },
 };
 
-const signToken = ({ userId, username }) => `jwt:${userId}:${username}`;
+const signToken = ({ userId, username, tenantId }) => `jwt:${userId}:${username}:${tenantId}`;
+
+// mongo stub: solo el metodo que reff-guest.routes.js realmente usa.
+const mongoStub = {
+  collection(name) {
+    if (name !== 'users') throw new Error(`stub inesperado: ${name}`);
+    return {
+      findOne: async ({ _id }) => (USERS[_id] ? { _id, ...USERS[_id] } : null),
+    };
+  },
+};
 
 let server;
 let baseUrl;
@@ -56,6 +80,7 @@ describe('reff-guest.routes.js: JWT de Rëff solo con sesion de Elvi-Ra', () => 
       requireMesa: requireMesaStub,
       signToken,
       getUserByUsername: (u) => lookup(u),
+      mongo: mongoStub,
     });
     server = app.listen(0);
     baseUrl = `http://127.0.0.1:${server.address().port}`;
@@ -89,7 +114,7 @@ describe('reff-guest.routes.js: JWT de Rëff solo con sesion de Elvi-Ra', () => 
       test('sesion con correspondencia -> 200 y token del usuario de Rëff de ESA sesion', async () => {
         const { status, body } = await get(path, { Authorization: 'Bearer t-marc' });
         assert.equal(status, 200);
-        assert.equal(body.token, 'jwt:1:marc');
+        assert.equal(body.token, 'jwt:1:marc:equipo-interno');
         assert.deepEqual(body.user, { id: 1, username: 'marc', displayName: 'Marc', avatarUrl: null });
       });
 
@@ -100,7 +125,7 @@ describe('reff-guest.routes.js: JWT de Rëff solo con sesion de Elvi-Ra', () => 
         });
         assert.equal(status, 200);
         assert.equal(body.user.username, 'amir');
-        assert.equal(body.token, 'jwt:3:amir');
+        assert.equal(body.token, 'jwt:3:amir:equipo-interno');
       });
 
       test('admin de Elvi-Ra sin correspondencia en Rëff -> 403, no cae en marc', async () => {
@@ -134,8 +159,9 @@ describe('reff-guest.routes.js: JWT de Rëff solo con sesion de Elvi-Ra', () => 
     }
   });
 
-  test('el mapa de correspondencias es de solo lectura y cubre los 4 usuarios de Rëff', () => {
-    assert.ok(Object.isFrozen(ELVIRA_TO_REFF_USERNAME));
-    assert.deepEqual(Object.values(ELVIRA_TO_REFF_USERNAME).sort(), ['amir', 'gonzalo', 'marc', 'nour']);
+  test('reffUsername vive en el documento de users, no en un mapa fijo en codigo', async () => {
+    assert.equal(USERS['mblanes@s-nficorp.com'].reffUsername, 'marc');
+    assert.equal(USERS['ventures@s-nficorp.com'].reffUsername, 'amir');
+    assert.equal(USERS['ray@s-nficorp.com'].reffUsername, undefined);
   });
 });

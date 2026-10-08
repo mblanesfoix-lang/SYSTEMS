@@ -25,6 +25,21 @@
  *   fl_expediente_docs        ficha de cada documento
  *   fl_expediente_files.*     GridFS (contenido SIEMPRE cifrado, ver SEGURIDAD)
  *
+ * ------------------------------ RETENCION (2026-09-28) ------------------------------
+ * Incidente: los 12 documentos originales (seed "A1".."D2") se perdieron sin
+ * dejar rastro en fl_log — un DELETE real (documento + archivo GridFS en el
+ * mismo acto, sin papelera) borrado de forma irreversible en una sesion de
+ * mantenimiento que asumio erroneamente que estaban vacios. Directriz
+ * explicita del jefe: "esos documentos de ahi no se pueden eliminar".
+ *
+ * DELETE deja de borrar de verdad. Tanto el documento (fl_expediente_docs)
+ * como su archivo (GridFS) usan SOFT-DELETE: se marcan deleted/deletedAt/
+ * deletedBy y se ocultan de las vistas normales, pero el registro y el
+ * fichero cifrado permanecen en Mongo. Restaurable via POST .../restore.
+ * Purga real (irreversible) NO existe como endpoint HTTP — si algun dia hace
+ * falta, es una operacion manual de base de datos, nunca un click de la UI.
+ * ---------------------------------------------------------------------------------------
+ *
  * Clave de cifrado: SOLO env FL_EXPEDIENTE_ENC_KEY, sin fallback Mongo
  * (retirado 2026-09-20) — ver getEncKey() mas abajo.
  *
@@ -84,6 +99,8 @@
 import crypto from 'node:crypto';
 import express from 'express';
 import { GridFSBucket, ObjectId } from 'mongodb';
+import { runAsTenant } from './db/tenant-context.js';
+import { DEFAULT_TENANT_ID } from './db/tenant-registry.js';
 
 const ENC_ALGO = 'aes-256-gcm';
 const ENC_IV_LEN = 12;
@@ -417,9 +434,10 @@ export function mountFlExpediente(app, { auth, requireMesa, mongo, busEmit, admi
   });
 
   // Vista completa: carpetas con sus documentos. Filtros opcionales por
-  // bloque, estado y texto libre (nombre/emisor/referencia).
+  // bloque, estado y texto libre (nombre/emisor/referencia). Soft-deleted
+  // fuera por defecto (ver RETENCION); ?includeDeleted=1 para la papelera.
   router.get('/api/fl/expediente', ...guard, async (req, res) => {
-    const filter = {};
+    const filter = req.query.includeDeleted === '1' ? {} : { deleted: { $ne: true } };
     if (req.query.bloque && BLOQUE_KEYS.includes(String(req.query.bloque))) filter.bloque = String(req.query.bloque);
     if (req.query.estado && ESTADOS_DOC.includes(String(req.query.estado))) filter.estado = String(req.query.estado);
     const q = str(req.query.q, 120);
@@ -553,16 +571,32 @@ export function mountFlExpediente(app, { auth, requireMesa, mongo, busEmit, admi
     res.json(serializeDoc(updated));
   });
 
+  // Soft-delete: NUNCA borra el documento ni purga su archivo de GridFS (ver
+  // RETENCION). Oculta de las vistas normales; recuperable via /restore.
   router.delete('/api/fl/expediente/documentos/:id', ...guard, async (req, res) => {
     const row = await col().findOne({ _id: String(req.params.id) });
     if (!row) return res.status(404).json({ error: 'documento no encontrado' });
-    // Purga el archivo adjunto para no dejar huerfanos en GridFS.
-    if (row.file_id) {
-      try { await filesBucket(mongo).delete(new ObjectId(String(row.file_id))); } catch {}
-    }
-    await col().deleteOne({ _id: row._id });
-    await appendFlLog(mongo, { action: 'expediente.doc.delete', actorId: req.user, detail: { docId: row._id, nombre: row.nombre } });
-    res.json({ id: row._id });
+    if (row.deleted) return res.status(409).json({ error: 'documento ya estaba en papelera' });
+    await col().updateOne({ _id: row._id }, {
+      $set: { deleted: true, deletedAt: new Date().toISOString(), deletedBy: req.user },
+    });
+    await appendFlLog(mongo, { action: 'expediente.doc.soft_delete', actorId: req.user, detail: { docId: row._id, nombre: row.nombre, teniaArchivo: !!row.file_id } });
+    res.json({ id: row._id, deleted: true });
+  });
+
+  // Restaura un documento en papelera. No requiere que el archivo siga
+  // adjunto (el archivo, si lo tenia, nunca se toco al borrar).
+  router.post('/api/fl/expediente/documentos/:id/restore', ...guard, async (req, res) => {
+    const row = await col().findOne({ _id: String(req.params.id) });
+    if (!row) return res.status(404).json({ error: 'documento no encontrado' });
+    if (!row.deleted) return res.status(409).json({ error: 'documento no esta en papelera' });
+    await col().updateOne({ _id: row._id }, {
+      $set: { updatedAt: new Date().toISOString(), updatedBy: req.user },
+      $unset: { deleted: '', deletedAt: '', deletedBy: '' },
+    });
+    await appendFlLog(mongo, { action: 'expediente.doc.restore', actorId: req.user, detail: { docId: row._id, nombre: row.nombre } });
+    const updated = await col().findOne({ _id: row._id });
+    res.json(serializeDoc(updated));
   });
 
   /* --------------------------------------------------------------------------
@@ -623,11 +657,11 @@ export function mountFlExpediente(app, { auth, requireMesa, mongo, busEmit, admi
         if (!res.headersSent) res.status(500).json({ error: 'Error al guardar el archivo' });
       });
       upload.on('finish', async () => {
-        // Un archivo por documento: el anterior se borra solo tras confirmar
-        // que el nuevo quedo escrito.
-        if (prevFileId) {
-          try { await filesBucket(mongo).delete(new ObjectId(String(prevFileId))); } catch {}
-        }
+        // Un archivo activo por documento: el anterior queda DESVINCULADO de
+        // la ficha pero NUNCA se purga de GridFS (ver RETENCION) — sigue en
+        // el bucket, cifrado, huerfano pero recuperable a mano si hiciera
+        // falta. Antes se borraba aqui mismo; ese borrado automatico en el
+        // mismo acto que una subida es justo el patron que causo la perdida.
         const $set = {
           file_id: upload.id.toString(),
           file_name: filename,
@@ -648,7 +682,7 @@ export function mountFlExpediente(app, { auth, requireMesa, mongo, busEmit, admi
         await appendFlLog(mongo, {
           action: prevFileId ? 'expediente.archivo.replace' : 'expediente.archivo.upload',
           actorId: req.user,
-          detail: { docId: row._id, fileId: upload.id.toString(), filename, sha256, confidencial: row.confidencial === true },
+          detail: { docId: row._id, fileId: upload.id.toString(), fileIdAnterior: prevFileId || null, filename, sha256, confidencial: row.confidencial === true },
         });
         const updated = await col().findOne({ _id: row._id });
         res.status(201).json(serializeDoc(updated));
@@ -721,11 +755,14 @@ export function mountFlExpediente(app, { auth, requireMesa, mongo, busEmit, admi
     });
   });
 
+  // Desvincula el archivo de la ficha SIN purgarlo de GridFS (ver RETENCION):
+  // el binario cifrado queda huerfano pero recuperable a mano por admin, en
+  // vez de perderse en el mismo acto que un click. file_id anterior se
+  // conserva en fl_log para poder rastrearlo si hiciera falta.
   router.delete('/api/fl/expediente/documentos/:id/archivo', ...guard, async (req, res) => {
     const row = await col().findOne({ _id: String(req.params.id) });
     if (!row) return res.status(404).json({ error: 'documento no encontrado' });
     if (!row.file_id) return res.status(404).json({ error: 'el documento no tiene archivo adjunto' });
-    try { await filesBucket(mongo).delete(new ObjectId(String(row.file_id))); } catch {}
     await col().updateOne({ _id: row._id }, {
       $set: {
         file_id: null, file_name: null, file_size: null, file_type: null,
@@ -733,7 +770,7 @@ export function mountFlExpediente(app, { auth, requireMesa, mongo, busEmit, admi
         updatedAt: new Date().toISOString(), updatedBy: req.user,
       },
     });
-    await appendFlLog(mongo, { action: 'expediente.archivo.delete', actorId: req.user, detail: { docId: row._id, fileId: row.file_id } });
+    await appendFlLog(mongo, { action: 'expediente.archivo.unlink', actorId: req.user, detail: { docId: row._id, fileIdAnterior: row.file_id } });
     const updated = await col().findOne({ _id: row._id });
     res.json(serializeDoc(updated));
   });
@@ -855,8 +892,12 @@ export function mountFlExpediente(app, { auth, requireMesa, mongo, busEmit, admi
     res.json({ ok: true, alertas, total: alertas.length });
   });
 
-  // Seed antes del primer barrido, para que los documentos precargados ya
-  // entren en la revision inicial.
-  seedDocumentos().then(checkAlarmasExpediente);
-  setInterval(checkAlarmasExpediente, 24 * 60 * 60 * 1000);
+  // Seed + cron de boot, fuera de cualquier request: corren explicitamente
+  // contra el tenant por defecto (runAsTenant), nunca contra el mongo
+  // tenant-aware recibido arriba, que exige un request con resolveTenant ya
+  // corrido. La llamada dentro del handler POST /alertas/revisar (arriba) NO
+  // se envuelve: ahi si hay un request real con tenant ya resuelto.
+  const runCheckAlarmasExpediente = () => runAsTenant(DEFAULT_TENANT_ID, checkAlarmasExpediente);
+  runAsTenant(DEFAULT_TENANT_ID, seedDocumentos).then(runCheckAlarmasExpediente);
+  setInterval(runCheckAlarmasExpediente, 24 * 60 * 60 * 1000);
 }

@@ -73,7 +73,7 @@ describe('pactvm: desbloqueos publicos endurecidos', { skip: skip && 'MONGO_URI 
       requireMesa: requireMesaStub,
       requireAdmin: requireAdminStub,
       mongo: db,
-      getMongoClient: () => client,
+      getReffDb: () => client.db('reff'),
       getU2Snapshot: () => null,
     });
     server = app.listen(0);

@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { connectMongo, closeMongo, getElviraDb, getMongoClient, withTransaction } from './db/mongo.js';
+import { createTenantAwareDb, createTenantAwareReffDb } from './db/tenant-context.js';
 import { createSentinelForensics } from './sentinel-forensics.js';
 import { callLLM } from './llm.js';
 
@@ -40,7 +41,7 @@ import { mountRackState } from './rack-state.js';
 import { mountGridInterlink } from './grid-interlink.js';
 
 import { ensureUsersSeed, seedDefaultTenant, mountAuth } from './routes/auth.routes.js';
-import { getControlDb } from './db/tenant-registry.js';
+import { getControlDb, getTenantDb, getTenantReffDb, DEFAULT_TENANT_ID } from './db/tenant-registry.js';
 import { mountBus } from './routes/bus.routes.js';
 import { mountNotifications } from './routes/notifications.routes.js';
 import { createElviraStore } from './routes/elvira-store.js';
@@ -79,7 +80,19 @@ if (!fs.existsSync(BUS_HISTORY_FILE)) atomicWriteJson(BUS_HISTORY_FILE, []);
 
 /* ---------- MongoDB Initialization ---------- */
 await connectMongo();
-const mongo = getElviraDb();
+// rawMongo: SIEMPRE la db del tenant por defecto, nunca el Proxy — login
+// resuelve el tenant DESDE users/sessions (mountAuth), asi que no puede
+// depender de un tenant ya resuelto. mongo (mas abajo) es el Proxy
+// tenant-aware que reciben los mounts de negocio: cada request llega con el
+// tenant ya fijado por createAuthMiddleware (routes/auth.routes.js), que
+// hace tenantContext.run() el mismo dentro de auth, antes de requireMesa.
+const rawMongo = getElviraDb();
+const mongo = createTenantAwareDb();
+// getReffDb como funcion-getter (no el Proxy directo): pactum-viridi.js,
+// ophs-cockpit.js, elvira-central.js, notification-center.js y sus tests ya
+// llaman getReffDb() con parentesis, igual que getMongoClient/getElviraDb.
+const reffDbProxy = createTenantAwareReffDb();
+const getReffDb = () => reffDbProxy;
 
 if (!fs.existsSync(ELVIRA_FILE)) atomicWriteJson(ELVIRA_FILE, {
   systems: {
@@ -114,9 +127,21 @@ const { readElvira, writeElvira } = createElviraStore(ELVIRA_FILE, atomicWriteJs
 // ya se crean con ese tenantId. Idempotente, no toca nada si ya existe.
 await seedDefaultTenant(getControlDb());
 
+// Calienta el cache de tenant-registry.js para 'equipo-interno' ANTES de
+// montar ningun modulo: varios mounts disparan seeds/crons de boot via
+// runAsTenant(DEFAULT_TENANT_ID, ...) de forma sincronica al montarse (ver
+// pactum-viridi.js, fl.js, fl-expediente.js, resilience.js, elvira-central.js,
+// herzog.js, rack-state.js, grid-interlink.js) — esos usan la variante *Sync
+// del registro, que exige que la variante async ya se haya resuelto una vez.
+// Sin este warm-up, el primer mount que dispare un seed lanzaria
+// TenantNotFoundError (cache en frio), no solo tenant_context_missing.
+await getTenantDb(DEFAULT_TENANT_ID);
+await getTenantReffDb(DEFAULT_TENANT_ID);
+
 // Credenciales: usuarios/sesiones en Mongo (colecciones 'users'/'sessions').
 // Seed inicial solo si 'users' esta vacia, desde variables de entorno SEED_*_PASSWORD.
-await ensureUsersSeed(mongo);
+// rawMongo (no el Proxy): boot, sin request/tenant todavia.
+await ensureUsersSeed(rawMongo);
 
 // Mesas accesibles por rol. 'admin' = todo. Others = whitelist.
 // fl_expediente: scope propio del Expediente Fiscal y Juridico (NDA-B bilaterales
@@ -208,10 +233,11 @@ let shuttingDown = false;  // true desde SIGTERM: readyz pasa a 503 y el kubelet
 
 const READYZ_MONGO_TIMEOUT_MS = 2000;
 async function pingMongo() {
+  // rawMongo (no el Proxy): sonda de k8s, sin request/tenant.
   let timer;
   try {
     await Promise.race([
-      mongo.command({ ping: 1 }),
+      rawMongo.command({ ping: 1 }),
       new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`ping Mongo > ${READYZ_MONGO_TIMEOUT_MS}ms`)), READYZ_MONGO_TIMEOUT_MS); }),
     ]);
   } finally { clearTimeout(timer); }
@@ -343,7 +369,14 @@ function sentinelLogger(req, res, next) {
 }
 app.use(sentinelLogger);
 
-const sentinelForensics = createSentinelForensics({ mongo, busEmit: (...args) => busEmit(...args), ROLE_MESAS });
+// rawMongo (no el Proxy): Sentinel se monta antes de auth/resolveTenant en la
+// cadena de middleware (ve TODOS los requests, incluido /api/login sin sesion
+// todavia) — no puede depender de un tenant que aun no existe. Limitacion
+// conocida de esta fase: la cadena forense de Sentinel sigue siendo la del
+// tenant por defecto para TODOS los tenants (no peor que hoy, que ya es
+// global sin tenant) — aislar su hash chain por tenant es trabajo pendiente,
+// no resuelto en este commit.
+const sentinelForensics = createSentinelForensics({ mongo: rawMongo, busEmit: (...args) => busEmit(...args), ROLE_MESAS });
 app.use(sentinelForensics.middleware(mesaForPath));
 
 /* ---- Notificaciones Admin (mount temprano: adminNotify es dependencia de sentinelLogger/uncaughtException arriba) ---- */
@@ -356,7 +389,16 @@ app.use(sentinelForensics.middleware(mesaForPath));
 }));
 
 /* ---------- auth (usuarios/sesiones en Mongo, ver routes/auth.routes.js) ---------- */
-({ auth } = mountAuth(app, { mongo, requireAdmin, ROLE_MESAS, authLimiter, sentinelForensics, busEmit }));
+// rawMongo (no el Proxy): login resuelve el tenant DESDE users/sessions, no puede
+// depender de un tenant ya resuelto (ver comentario en MongoDB Initialization).
+// createAuthMiddleware (routes/auth.routes.js) ya fija req.tenantId Y el
+// AsyncLocalStorage de tenant-context.js dentro de si mismo (envolviendo
+// next()) — no hace falta un middleware resolveTenant aparte: un
+// app.use(resolveTenant) aqui correria antes de que cada
+// app.use(path, auth, requireMesa(...)) ejecute SU auth, por orden de
+// registro de Express, y el contexto nunca llegaria a tiempo para esas
+// rutas de negocio (bug real, detectado en pruebas manuales).
+({ auth } = mountAuth(app, { mongo: rawMongo, requireAdmin, ROLE_MESAS, authLimiter, sentinelForensics, busEmit }));
 
 /* ---------- mesa guards ---------- */
 app.use('/api/sheets',    auth, requireMesa('reff'));
@@ -429,7 +471,12 @@ mountMna(app, { auth, requireMesa, mongo });
    en la descarga de documentos NDA-B. mountCibeBunker (rutas /api/cibe/*)
    sigue montandose en su sitio original; aqui solo se crea la instancia.
 ========================================================================== */
-const cibe = createCibeBunker({ mongo, busEmit, adminNotify });
+// rawMongo (no el Proxy): cibe.ready() se llama aqui mismo en boot (linea
+// siguiente), fuera de cualquier request/tenant — y el mismo bunker se reusa
+// despues dentro de handlers de ruta via closure. Aislar las claves CIBE por
+// tenant (cada tenant su propio par Ed25519) es trabajo pendiente, no
+// resuelto en este commit — limitacion conocida, igual que Sentinel arriba.
+const cibe = createCibeBunker({ mongo: rawMongo, busEmit, adminNotify });
 cibe.ready().catch((err) => console.error('[CIBE] Error de arranque (creacion temprana para F&L):', err.message));
 
 /* ==========================================================================
@@ -454,7 +501,7 @@ mountFlExpediente(app, { auth, requireMesa, mongo, busEmit, adminNotify, cibe })
    de auditorias Herzog (db 'reff', sin escritura).
 ========================================================================== */
 mountPactvm(app, {
-  auth, requireMesa, requireAdmin, mongo, getMongoClient,
+  auth, requireMesa, requireAdmin, mongo, getReffDb,
   getU2Snapshot: () => u2Ree.getU2SnapshotToday(),
 });
 
@@ -496,7 +543,7 @@ mountMasterGateway(app, { auth, requireMesa, requireAdmin, mongo });
    Consola Maestra) en una sola vista, con acciones 1-clic sobre traffic
    detrás de requireAdmin real. Ver notification-center.js.
 ========================================================================== */
-mountNotificationCenter(app, { auth, requireMesa, requireAdmin, listAdminNotifications });
+mountNotificationCenter(app, { auth, requireMesa, requireAdmin, listAdminNotifications, getReffDb });
 await ensureNotificationCenterIndexes();
 
 /* ==========================================================================
@@ -515,7 +562,7 @@ mountCibeBunker(app, { auth, requireMesa, mongo, bunker: cibe, busEmit });
 ========================================================================== */
 mountOps(app, { auth, requireMesa, mongo, cibe });
 mountPaia(app, { auth, requireMesa, mongo, llmLimiter });
-mountOphsCockpit(app, { auth, requireMesa, mongo, getMongoClient });
+mountOphsCockpit(app, { auth, requireMesa, mongo, getReffDb });
 
 /* ==========================================================================
    Rack State · estado distribuido entre racks fisicos (Instrucciones.txt §1)
@@ -562,7 +609,7 @@ mountSentinelForensicRoutes(app, { auth, sentinelForensics, busEmit, busEvents }
    + mock del puerto OPHS/Systems (/api/ophs/*)
    ============================================================ */
 mountElviraCentral(app, {
-  auth, requireMesa, mongo, getMongoClient,
+  auth, requireMesa, mongo, getReffDb,
   callLLM, trackTokens: reffCrm.trackTokens, busEmit, adminNotify,
   readElvira, cibe, llmLimiter,
   getU2Snapshot: () => u2Ree.getU2SnapshotToday(),
@@ -621,7 +668,7 @@ app.get('/', (req, res) => res.redirect('/pages/login.html'));
 
     // JWT de Rëff a partir de la sesión de Elvi-Ra, sin login propio. Exige sesión válida y
     // acceso a la mesa reff; registra también el alias /api/guest-token (routes/reff-guest.routes.js).
-    mountReffGuestToken(app, { auth, requireMesa, signToken, getUserByUsername });
+    mountReffGuestToken(app, { auth, requireMesa, signToken, getUserByUsername, mongo });
 
     app.get('/reff/api/health', reffHealth);
     app.use('/reff/api/auth', reffAuthRoutes);

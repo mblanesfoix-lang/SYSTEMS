@@ -10,6 +10,7 @@ import { MongoClient } from 'mongodb';
 import express from 'express';
 import bcrypt from 'bcrypt';
 import { mountAuth, ensureUsersSeed } from '../routes/auth.routes.js';
+import { connectMongo, closeMongo } from '../db/mongo.js';
 
 const MONGO_URI = process.env.MONGO_URI;
 const skip = !MONGO_URI;
@@ -31,6 +32,13 @@ async function fetchJson(path, opts = {}) {
 
 describe('auth.routes: login/logout/sesiones sobre Mongo', { skip: skip && 'MONGO_URI no configurada' }, () => {
   before(async () => {
+    // createAuthMiddleware calienta tenant-registry.js, que resuelve sobre
+    // el MongoClient GLOBAL (getMongoClient() en db/mongo.js), no sobre el
+    // `client` local de este test — sin esto, 'Mongo no conectado. Llama
+    // connectMongo() primero.'. No-op si otro archivo de test ya lo conecto
+    // en este mismo proceso (ver db/mongo.js: if (client) return client).
+    await connectMongo();
+
     client = new MongoClient(MONGO_URI);
     await client.connect();
     db = client.db('elvira_test');
@@ -39,11 +47,29 @@ describe('auth.routes: login/logout/sesiones sobre Mongo', { skip: skip && 'MONG
       db.collection('sessions').deleteMany({}),
     ]);
 
+    // Multi-tenancy Fase 1: createAuthMiddleware calienta el cache de
+    // tenant-registry.js (getTenantDb/getTenantReffDb) antes de propagar el
+    // contexto — el tenant de prueba debe existir en elvira_control.tenants,
+    // igual que 'equipo-interno' en produccion real.
+    await client.db('elvira_control').collection('tenants').updateOne(
+      { _id: 'tenant_auth_test' },
+      { $set: {
+        _id: 'tenant_auth_test',
+        kind: 'internal',
+        displayName: 'Auth test',
+        status: 'active',
+        mongo: { mode: 'shared-cluster', uri: null, dbName: 'elvira_test', reffDbName: 'elvira_test' },
+        createdAt: new Date().toISOString(),
+      } },
+      { upsert: true },
+    );
+
     // usuario de prueba directo (sin depender de SEED_* env vars)
     await db.collection('users').insertOne({
       _id: 'test@snficorp.com',
       passwordHash: bcrypt.hashSync('correcta123', 12),
       role: 'admin',
+      tenantId: 'tenant_auth_test',
       createdAt: new Date().toISOString(),
     });
 
@@ -68,9 +94,17 @@ describe('auth.routes: login/logout/sesiones sobre Mongo', { skip: skip && 'MONG
     await Promise.all([
       db.collection('users').deleteMany({}),
       db.collection('sessions').deleteMany({}),
+      client.db('elvira_control').collection('tenants').deleteOne({ _id: 'tenant_auth_test' }),
     ]);
     await client.close();
     await new Promise((resolve) => server.close(resolve));
+    // Cada archivo de test corre en su propio proceso worker aislado (ver
+    // "node --test" con multiples archivos en package.json) — cerrar el
+    // MongoClient GLOBAL aqui no afecta a otros archivos de la suite, cada
+    // uno tiene su propia instancia de db/mongo.js. Sin esto, el handle de
+    // conexion abierto por connectMongo() (arriba) deja el event loop vivo
+    // y el proceso nunca termina solo al correr este archivo aislado.
+    await closeMongo();
   });
 
   test('login con usuario inexistente devuelve 401 (login normal, sin restriccion de dominio)', async () => {
@@ -107,7 +141,7 @@ describe('auth.routes: login/logout/sesiones sobre Mongo', { skip: skip && 'MONG
     assert.ok(session.exp > new Date());
   });
 
-  test('/api/me con token valido devuelve el usuario', async () => {
+  test('/api/me con token valido devuelve el usuario y su tenantId', async () => {
     const login = await fetchJson('/api/login', {
       method: 'POST',
       body: JSON.stringify({ username: 'test@snficorp.com', password: 'correcta123' }),
@@ -117,6 +151,7 @@ describe('auth.routes: login/logout/sesiones sobre Mongo', { skip: skip && 'MONG
     });
     assert.equal(status, 200);
     assert.equal(body.user, 'test@snficorp.com');
+    assert.equal(body.tenantId, 'tenant_auth_test');
   });
 
   test('/api/me sin token devuelve 401', async () => {

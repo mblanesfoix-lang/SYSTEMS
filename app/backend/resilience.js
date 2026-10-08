@@ -25,6 +25,8 @@
  */
 
 import crypto from 'node:crypto';
+import { runAsTenant } from './db/tenant-context.js';
+import { DEFAULT_TENANT_ID } from './db/tenant-registry.js';
 
 const SUPPLY_STATUSES = ['activo', 'bloqueado', 'alterno'];
 const BACKUP_STATUSES = ['ok', 'degradado', 'critico'];
@@ -90,7 +92,10 @@ export function mountResilience(app, { auth, requireMesa, mongo, busEmit, adminN
   const router = app;
   const guard = [auth, requireMesa('resilience')];
 
-  mongo.collection('resilience_bss_readings').countDocuments({}).then(async (count) => {
+  // Seeds de boot, fuera de cualquier request: corren explicitamente contra
+  // el tenant por defecto (runAsTenant), nunca contra el mongo tenant-aware
+  // recibido arriba, que exige un request con resolveTenant ya corrido.
+  runAsTenant(DEFAULT_TENANT_ID, () => mongo.collection('resilience_bss_readings').countDocuments({}).then(async (count) => {
     if (count > 0) return;
     await mongo.collection('resilience_bss_readings').insertOne({
       _id: crypto.randomUUID(),
@@ -98,9 +103,9 @@ export function mountResilience(app, { auth, requireMesa, mongo, busEmit, adminN
       createdBy: 'system',
       createdAt: new Date().toISOString(),
     });
-  }).catch(() => {});
+  }).catch(() => {}));
 
-  mongo.collection('resilience_suppliers').countDocuments({}).then(async (count) => {
+  runAsTenant(DEFAULT_TENANT_ID, () => mongo.collection('resilience_suppliers').countDocuments({}).then(async (count) => {
     if (count > 0) return;
     const now = new Date().toISOString();
     await mongo.collection('resilience_suppliers').insertMany(SEED_SUPPLIERS.map((s) => ({
@@ -110,17 +115,17 @@ export function mountResilience(app, { auth, requireMesa, mongo, busEmit, adminN
       createdAt: now,
       updatedAt: now,
     })));
-  }).catch(() => {});
+  }).catch(() => {}));
 
-  mongo.collection('resilience_backup_status').countDocuments({ _id: ISOLATED_MODE_ID }).then(async (count) => {
+  runAsTenant(DEFAULT_TENANT_ID, () => mongo.collection('resilience_backup_status').countDocuments({ _id: ISOLATED_MODE_ID }).then(async (count) => {
     if (count > 0) return;
     await mongo.collection('resilience_backup_status').insertOne(DEFAULT_BACKUP_STATUS);
-  }).catch(() => {});
+  }).catch(() => {}));
 
-  mongo.collection('resilience_isolated_mode').countDocuments({ _id: ISOLATED_MODE_ID }).then(async (count) => {
+  runAsTenant(DEFAULT_TENANT_ID, () => mongo.collection('resilience_isolated_mode').countDocuments({ _id: ISOLATED_MODE_ID }).then(async (count) => {
     if (count > 0) return;
     await mongo.collection('resilience_isolated_mode').insertOne(DEFAULT_ISOLATED_MODE_STATE);
-  }).catch(() => {});
+  }).catch(() => {}));
 
   /* ---- bloque 1: continuidad operativa (autonomia BSS / SoC / ICO) ---- */
 

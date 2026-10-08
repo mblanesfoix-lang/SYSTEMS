@@ -13,6 +13,8 @@
  */
 
 import crypto from 'node:crypto';
+import { runAsTenant } from './db/tenant-context.js';
+import { DEFAULT_TENANT_ID } from './db/tenant-registry.js';
 import QRCode from 'qrcode';
 import { rateLimit, ipKeyGenerator } from 'express-rate-limit';
 
@@ -177,11 +179,11 @@ async function appendPactvmLog(mongo, entry) {
   return doc;
 }
 
-export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getMongoClient, getU2Snapshot }) {
+export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getReffDb, getU2Snapshot }) {
   const router = app;
   const guard = [auth, requireMesa('pactvm')];
   const adminGuard = [auth, requireMesa('pactvm'), requireAdmin];
-  const herzogAudits = () => getMongoClient().db('reff').collection('herzog_audits');
+  const herzogAudits = () => getReffDb().collection('herzog_audits');
 
   // Desbloqueos publicos con codigo de 6 digitos (verificacion de certificados e
   // invitados VDR): sin limite propio se podia recorrer el espacio de ~900k
@@ -214,7 +216,10 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getMo
     return Math.ceil(wasteEstTDay / PILOT_NODE_CAPACITY_T_DAY);
   }
 
-  mongo.collection('pactvm_country_nodes').countDocuments({}).then(async (count) => {
+  // Seed de boot, fuera de cualquier request: corre explicitamente contra el
+  // tenant por defecto (runAsTenant), nunca contra el mongo tenant-aware
+  // recibido arriba, que exige un request con resolveTenant ya corrido.
+  runAsTenant(DEFAULT_TENANT_ID, () => mongo.collection('pactvm_country_nodes').countDocuments({}).then(async (count) => {
     if (count > 0) return;
     const now = new Date().toISOString();
     await mongo.collection('pactvm_country_nodes').insertMany(SEED_COUNTRY_NODES.map((c) => ({
@@ -226,27 +231,27 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getMo
       createdAt: now,
       updatedAt: now,
     })));
-  }).catch(() => {});
+  }).catch(() => {}));
 
-  mongo.collection('pactvm_carbon_ratio').countDocuments({ _id: CARBON_RATIO_ID }).then(async (count) => {
+  runAsTenant(DEFAULT_TENANT_ID, () => mongo.collection('pactvm_carbon_ratio').countDocuments({ _id: CARBON_RATIO_ID }).then(async (count) => {
     if (count > 0) return;
     await mongo.collection('pactvm_carbon_ratio').insertOne(DEFAULT_CARBON_RATIO);
-  }).catch(() => {});
+  }).catch(() => {}));
 
-  mongo.collection('pactvm_cert_config').countDocuments({ _id: CERT_CONFIG_ID }).then(async (count) => {
+  runAsTenant(DEFAULT_TENANT_ID, () => mongo.collection('pactvm_cert_config').countDocuments({ _id: CERT_CONFIG_ID }).then(async (count) => {
     if (count > 0) return;
     await mongo.collection('pactvm_cert_config').insertOne(DEFAULT_CERT_CONFIG);
-  }).catch(() => {});
+  }).catch(() => {}));
 
-  mongo.collection('pactvm_planetary_config').countDocuments({ _id: PLANETARY_CONFIG_ID }).then(async (count) => {
+  runAsTenant(DEFAULT_TENANT_ID, () => mongo.collection('pactvm_planetary_config').countDocuments({ _id: PLANETARY_CONFIG_ID }).then(async (count) => {
     if (count > 0) return;
     await mongo.collection('pactvm_planetary_config').insertOne(DEFAULT_PLANETARY_CONFIG);
-  }).catch(() => {});
+  }).catch(() => {}));
 
   // sin seed: cada pais usa DEFAULT_VDR_ES_CONFIG en memoria (esConfigResolved)
   // hasta que se edite explicitamente desde el panel, ver el PATCH mas abajo.
 
-  mongo.collection('pactvm_planetary_countries').countDocuments({}).then(async (count) => {
+  runAsTenant(DEFAULT_TENANT_ID, () => mongo.collection('pactvm_planetary_countries').countDocuments({}).then(async (count) => {
     if (count > 0) return;
     const now = new Date().toISOString();
     await mongo.collection('pactvm_planetary_countries').insertMany(SEED_PLANETARY_COUNTRIES.map((c) => ({
@@ -257,7 +262,7 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getMo
       createdAt: now,
       updatedAt: now,
     })));
-  }).catch(() => {});
+  }).catch(() => {}));
 
   /* ---- certificados CIBE ---- */
 

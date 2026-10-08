@@ -20,6 +20,8 @@
 import crypto from 'node:crypto';
 import express from 'express';
 import { GridFSBucket, ObjectId } from 'mongodb';
+import { runAsTenant } from './db/tenant-context.js';
+import { DEFAULT_TENANT_ID } from './db/tenant-registry.js';
 
 const DOCUMENT_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'text/csv',
   'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
@@ -129,11 +131,14 @@ export function mountHerzog(app, { auth, requireMesa, mongo, busEmit, adminNotif
   const router = app;
   const guard = [auth, requireMesa('herzog')];
 
-  pollBaseMetrics(mongo, { getU2Snapshot }).catch(() => {});
+  // Cron de boot, fuera de cualquier request: corre explicitamente contra el
+  // tenant por defecto (runAsTenant), nunca contra el mongo tenant-aware
+  // recibido arriba, que exige un request con resolveTenant ya corrido.
+  runAsTenant(DEFAULT_TENANT_ID, () => pollBaseMetrics(mongo, { getU2Snapshot }).catch(() => {}));
   // unref: no bloquea salida de proceso en tests/scripts aislados que montan
   // este router sin app.listen() de por vida; en server.js real no cambia
   // nada, el proceso ya lo mantiene vivo el propio listen().
-  setInterval(() => { pollBaseMetrics(mongo, { getU2Snapshot }).catch(() => {}); }, BASE_POLL_INTERVAL_MS).unref();
+  setInterval(() => runAsTenant(DEFAULT_TENANT_ID, () => pollBaseMetrics(mongo, { getU2Snapshot }).catch(() => {})), BASE_POLL_INTERVAL_MS).unref();
 
   /* ---- bloque 1: metricas (numero/estado puntual reportado por una mesa) ---- */
 
@@ -270,23 +275,30 @@ export function mountHerzog(app, { auth, requireMesa, mongo, busEmit, adminNotif
   /* ---- resumen KPI (health-check dashboard) ---- */
 
   router.get('/api/herzog-central/summary', ...guard, async (req, res) => {
-    const [metricsCount, autoMetricsCount, manualMetricsCount, documentsCount, notesCount, departments, lastMetric] = await Promise.all([
-      mongo.collection('herzog_metrics').countDocuments({}),
-      mongo.collection('herzog_metrics').countDocuments({ source: 'auto' }),
-      mongo.collection('herzog_metrics').countDocuments({ source: 'manual' }),
+    const [metricsFacet, documentsCount, notesCount] = await Promise.all([
+      mongo.collection('herzog_metrics').aggregate([
+        {
+          $facet: {
+            bySource: [{ $group: { _id: '$source', count: { $sum: 1 } } }],
+            departments: [{ $group: { _id: '$department' } }],
+            last: [{ $sort: { createdAt: -1 } }, { $limit: 1 }, { $project: { createdAt: 1 } }],
+          },
+        },
+      ]).toArray(),
       mongo.collection('herzog_documents.files').countDocuments({}),
       mongo.collection('herzog_notes').countDocuments({}),
-      mongo.collection('herzog_metrics').distinct('department'),
-      mongo.collection('herzog_metrics').find().sort({ createdAt: -1 }).limit(1).next(),
     ]);
+    const [{ bySource, departments, last }] = metricsFacet;
+    const autoMetricsCount = bySource.find((s) => s._id === 'auto')?.count ?? 0;
+    const manualMetricsCount = bySource.find((s) => s._id === 'manual')?.count ?? 0;
     res.json({
-      metricsCount,
+      metricsCount: autoMetricsCount + manualMetricsCount,
       autoMetricsCount,
       manualMetricsCount,
       documentsCount,
       notesCount,
       departmentsTracked: departments.length,
-      lastMetricAt: lastMetric?.createdAt ?? null,
+      lastMetricAt: last[0]?.createdAt ?? null,
     });
   });
 

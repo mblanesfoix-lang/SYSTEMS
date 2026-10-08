@@ -28,8 +28,16 @@ import { getMongoClient } from './db/mongo.js';
 
 const RETENTION_MS = 1000 * 60 * 60 * 24 * 30 * 6;
 
+// getReffDb: inyectado por mountNotificationCenter (parametro de mount), resuelve
+// la db 'reff' del tenant de la sesion activa — ver db/tenant-context.js.
+// ensureNotificationCenterIndexes() corre en boot sin sesion/tenant todavia,
+// por eso sigue usando el tenant por defecto via getMongoClient().db('reff')
+// directo (Fase 1: 'equipo-interno' ES esa db).
+let _getReffDb = null;
+
 function trafficCol() {
-  return getMongoClient().db('reff').collection('traffic_requests');
+  if (!_getReffDb) throw new Error('trafficCol() llamado antes de mountNotificationCenter');
+  return _getReffDb().collection('traffic_requests');
 }
 
 function serializeTraffic(doc) {
@@ -65,7 +73,8 @@ function serializeSystem(n) {
   };
 }
 
-export function mountNotificationCenter(app, { auth, requireMesa, requireAdmin, listAdminNotifications }) {
+export function mountNotificationCenter(app, { auth, requireMesa, requireAdmin, listAdminNotifications, getReffDb }) {
+  _getReffDb = getReffDb;
   const guard = [auth, requireMesa('notificaciones'), requireAdmin];
 
   /* GET /api/notif-center/summary — KPIs agregados de las dos fuentes */

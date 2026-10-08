@@ -30,6 +30,8 @@
 
 import crypto from 'node:crypto';
 import os from 'node:os';
+import { runAsTenant } from './db/tenant-context.js';
+import { DEFAULT_TENANT_ID } from './db/tenant-registry.js';
 
 const KEY_RE = /^[a-z0-9_.:-]{2,80}$/;
 const MAX_VALUE_BYTES = 2048;
@@ -487,7 +489,13 @@ export function mountRackState(app, { auth, requireMesa, mongo, busEmit, adminNo
 
   /* ---------------- arranque + getter para otros modulos ---------------- */
 
-  boot().catch((err) => console.error('[Rack] Error de arranque:', err.message));
+  // Arranque de boot, fuera de cualquier request: corre explicitamente
+  // contra el tenant por defecto (runAsTenant). AsyncLocalStorage propaga
+  // el contexto a los timers (heartbeatTimer/electionTimer) creados DENTRO
+  // de boot() -> becomeLeader()/resetElectionTimer() automaticamente (Node
+  // asocia el AsyncResource del contexto activo al crear el timer), asi que
+  // no hace falta envolver cada setInterval/setTimeout por separado.
+  runAsTenant(DEFAULT_TENANT_ID, () => boot().catch((err) => console.error('[Rack] Error de arranque:', err.message)));
 
   return {
     get: (key) => kv.get(key)?.value,

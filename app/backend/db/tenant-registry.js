@@ -17,6 +17,13 @@ import { ensureTenantIndexes } from './mongo.js';
 
 const CONTROL_DB_NAME = 'elvira_control';
 
+// Fase 1 de multi-tenancy: todos los usuarios actuales comparten este tenant
+// (ver seedDefaultTenant en routes/auth.routes.js) — apunta a las dbs
+// 'elvira'/'reff' de siempre, cero migracion de datos. Codigo de boot/crons
+// que corre fuera de un request HTTP (sin tenant resuelto en AsyncLocalStorage)
+// usa esta constante explicitamente via runAsTenant() en vez del Proxy.
+export const DEFAULT_TENANT_ID = 'equipo-interno';
+
 // tenantId -> { client, db }
 const registry = new Map();
 

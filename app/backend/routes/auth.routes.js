@@ -11,6 +11,8 @@
  */
 import bcrypt from 'bcrypt';
 import crypto from 'node:crypto';
+import { DEFAULT_TENANT_ID, getTenantDb, getTenantReffDb } from '../db/tenant-registry.js';
+import { tenantContext } from '../db/tenant-context.js';
 
 // Fase 1 de multi-tenancy (ver docs del plan): todos los usuarios actuales
 // comparten el tenant por defecto 'equipo-interno' — ese tenant ES la db
@@ -18,13 +20,16 @@ import crypto from 'node:crypto';
 // Fragmentar cada usuario en su propio tenant es una decision de negocio
 // pendiente (que mesas/documentos compartidos de equipo se dividen), no un
 // cambio tecnico — fuera de alcance mientras no se decida.
-const DEFAULT_TENANT_ID = 'equipo-interno';
 
+// reffUsername: antes vivia en un mapa fijo ELVIRA_TO_REFF_USERNAME aparte
+// (routes/reff-guest.routes.js) — los mismos 4 valores, ahora en el propio
+// documento de usuario. Solo admin/amir/gonzalo tienen la mesa 'reff' en
+// ROLE_MESAS, por eso el resto nunca tuvo (ni tiene) correspondencia.
 const SEED_USERS = {
-  'nzaroual@s-nfi.com':     { password: process.env.SEED_NOUR_PASSWORD,     role: 'admin',   tenantId: DEFAULT_TENANT_ID },
-  'mblanes@s-nficorp.com':  { password: process.env.SEED_MARC_PASSWORD,     role: 'admin',   tenantId: DEFAULT_TENANT_ID },
-  'gonzalosb@s-nficorp.com':{ password: process.env.SEED_GONZALO_PASSWORD,  role: 'admin',   tenantId: DEFAULT_TENANT_ID },
-  'ventures@s-nficorp.com': { password: process.env.SEED_AMIR_PASSWORD,     role: 'amir',    tenantId: DEFAULT_TENANT_ID },
+  'nzaroual@s-nfi.com':     { password: process.env.SEED_NOUR_PASSWORD,     role: 'admin',   tenantId: DEFAULT_TENANT_ID, reffUsername: 'nour' },
+  'mblanes@s-nficorp.com':  { password: process.env.SEED_MARC_PASSWORD,     role: 'admin',   tenantId: DEFAULT_TENANT_ID, reffUsername: 'marc' },
+  'gonzalosb@s-nficorp.com':{ password: process.env.SEED_GONZALO_PASSWORD,  role: 'admin',   tenantId: DEFAULT_TENANT_ID, reffUsername: 'gonzalo' },
+  'ventures@s-nficorp.com': { password: process.env.SEED_AMIR_PASSWORD,     role: 'amir',    tenantId: DEFAULT_TENANT_ID, reffUsername: 'amir' },
   'ray@s-nficorp.com':      { password: process.env.SEED_RAY_PASSWORD,      role: 'ray',     tenantId: DEFAULT_TENANT_ID },
   'csanser@s-nficorp.com':  { password: process.env.SEED_CELIA_PASSWORD,    role: 'celia',   tenantId: DEFAULT_TENANT_ID },
   'malvarez@s-nficorp.com': { password: process.env.SEED_MAITANE_PASSWORD,  role: 'maitane', tenantId: DEFAULT_TENANT_ID },
@@ -38,22 +43,34 @@ export async function ensureUsersSeed(mongo) {
   const count = await mongo.collection('users').countDocuments();
   if (count === 0) {
     const now = new Date().toISOString();
-    for (const [email, { password, role, tenantId }] of Object.entries(SEED_USERS)) {
+    for (const [email, { password, role, tenantId, reffUsername }] of Object.entries(SEED_USERS)) {
       if (!password) continue;
       await mongo.collection('users').insertOne({
         _id: email,
         passwordHash: bcrypt.hashSync(password, 12),
         role,
         tenantId,
+        ...(reffUsername ? { reffUsername } : {}),
         createdAt: now,
       });
     }
     return;
   }
   // Usuarios ya existentes de antes de multi-tenancy (Fase 1): backfill de
-  // tenantId sin tocar passwordHash/role. Idempotente — solo escribe donde
-  // falta el campo, no sobreescribe un tenantId ya asignado manualmente.
+  // tenantId/reffUsername sin tocar passwordHash/role. Idempotente — solo
+  // escribe donde falta el campo, no sobreescribe uno ya asignado a mano.
   await backfillTenantId(mongo);
+  await backfillReffUsername(mongo);
+}
+
+async function backfillReffUsername(mongo) {
+  for (const [email, { reffUsername }] of Object.entries(SEED_USERS)) {
+    if (!reffUsername) continue;
+    await mongo.collection('users').updateOne(
+      { _id: email, reffUsername: { $exists: false } },
+      { $set: { reffUsername } },
+    );
+  }
 }
 
 async function backfillTenantId(mongo) {
@@ -86,7 +103,15 @@ export async function seedDefaultTenant(controlDb) {
 
 /** Middleware factory: requiere que ensureUsersSeed ya se haya ejecutado sobre `mongo`.
  *  sentinelForensics es opcional (algunos montajes tempranos aun no lo tienen listo);
- *  si se pasa, aplica el bloqueo por usuario de Behavioral Analytics (Sentinel). */
+ *  si se pasa, aplica el bloqueo por usuario de Behavioral Analytics (Sentinel).
+ *
+ *  Fija el tenant resuelto de la sesion en el AsyncLocalStorage de tenant-context.js
+ *  envolviendo next() — NO como middleware separado (app.use(resolveTenant) corria
+ *  antes de que CADA app.use(path, auth, requireMesa(...)) ejecutara su propio auth,
+ *  por orden de registro de Express, asi que el contexto nunca llegaba a tiempo para
+ *  las rutas de negocio). Al fijarlo aqui, dentro del propio auth que cada mesa ya
+ *  usa, el contexto esta listo para requireMesa y el handler de esa MISMA cadena,
+ *  sin depender de donde se registre este middleware en server.js. */
 export function createAuthMiddleware(mongo, sentinelForensics) {
   return async function auth(req, res, next) {
     const h = req.headers.authorization || '';
@@ -101,7 +126,20 @@ export function createAuthMiddleware(mongo, sentinelForensics) {
     req.user = s.user;
     req.role = s.role;
     req.tenantId = s.tenantId;
-    next();
+    try {
+      // Calienta el cache async ANTES de propagar el contexto: el Proxy
+      // (tenant-context.js) solo tiene la variante *Sync, que exige que el
+      // tenant ya este cacheado. Sin este await, el PRIMER request de
+      // cualquier tenant (recien creado o tras reiniciar el proceso)
+      // fallaria con TenantNotFoundError aunque el tenant exista en
+      // elvira_control — getTenantDb/getTenantReffDb son no-op si ya esta
+      // en cache, asi que el coste solo se paga una vez por tenant.
+      await getTenantDb(s.tenantId);
+      await getTenantReffDb(s.tenantId);
+    } catch (err) {
+      return res.status(403).json({ error: 'Tenant no disponible', detail: err.message });
+    }
+    tenantContext.run({ tenantId: s.tenantId }, next);
   };
 }
 

@@ -72,7 +72,7 @@ describe('pactum-viridi.js: 6 sub-mesas sobre Mongo', { skip: skip && 'MONGO_URI
       requireMesa: requireMesaStub,
       requireAdmin: requireAdminStub,
       mongo: db,
-      getMongoClient: () => client,
+      getReffDb: () => client.db('reff'),
       getU2Snapshot: () => null,
     });
 
@@ -268,7 +268,7 @@ describe('pactum-viridi.js: 6 sub-mesas sobre Mongo', { skip: skip && 'MONGO_URI
       requireMesa: requireMesaStub,
       requireAdmin: requireAdminStub,
       mongo: db,
-      getMongoClient: () => client,
+      getReffDb: () => client.db('reff'),
       getU2Snapshot: () => null,
     });
     const server2 = app2.listen(0);

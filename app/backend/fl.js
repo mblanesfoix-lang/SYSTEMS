@@ -24,6 +24,8 @@
  */
 
 import crypto from 'node:crypto';
+import { runAsTenant } from './db/tenant-context.js';
+import { DEFAULT_TENANT_ID } from './db/tenant-registry.js';
 
 function withId(doc) {
   if (!doc) return doc;
@@ -456,6 +458,7 @@ export function mountFl(app, { auth, requireMesa, mongo, busEmit, adminNotify })
 
     if (['Apercibimiento', 'Clausura_Parcial', 'Clausura_Total'].includes(doc.resultado_visita)) {
       adminNotify?.({ origin: 'FL', label: `Inspección ${doc.resultado_visita} — ${instalacion.nombre_instalacion}`, detail: `Autoridad: ${doc.autoridad_inspectora}${doc.monto_multa_economica ? ` · Multa: ${doc.monto_multa_economica}€` : ''}`, severity: 'error' });
+      busEmit?.({ id: crypto.randomUUID(), ts: new Date().toISOString(), origin: 'FL', dest: 'ADMIN', type: 'alert', state: doc.resultado_visita.startsWith('Clausura') ? 'BLOCKED' : 'WARN', label: `Inspección ${doc.resultado_visita}`, payload: { inspeccionId: doc._id, instalacionId: instalacion._id, autoridad: doc.autoridad_inspectora, multa: doc.monto_multa_economica } });
     }
     res.status(201).json(withId(doc));
   });
@@ -858,8 +861,11 @@ export function mountFl(app, { auth, requireMesa, mongo, busEmit, adminNotify })
           adminNotify?.({ origin: 'FL', label: `Licencia próxima a vencer: ${lic.tipo_permiso}`, detail: `${lic.dependencia} · ${lic.codigo_interno || lic._id} · vence en ${dias} días`, severity: 'warning' });
           await appendFlLog(mongo, { action: 'licencia.alarma_vencimiento', actorId: 'system', detail: { licenciaId: lic._id, dias } });
         }
-        if (dias <= 90 && lic.estado_tramite !== 'En_Renovación') {
+        if (dias <= 90 && lic.estado_tramite !== 'En_Renovación' && lic.ultimo_escalado_vencimiento !== lic.fecha_vencimiento) {
           adminNotify?.({ origin: 'FL', label: `Escalado gerencial: licencia vence en ${dias} días sin trámite iniciado`, detail: `${lic.dependencia} · ${lic.tipo_permiso} · ${lic.codigo_interno || lic._id}`, severity: 'error' });
+          busEmit?.({ id: crypto.randomUUID(), ts: new Date().toISOString(), origin: 'FL', dest: 'ADMIN', type: 'alert', state: 'BLOCKED', label: 'Escalado gerencial licencia', payload: { licenciaId: lic._id, dias } });
+          await mongo.collection('fl_licencias').updateOne({ _id: lic._id }, { $set: { ultimo_escalado_vencimiento: lic.fecha_vencimiento } });
+          await appendFlLog(mongo, { action: 'licencia.escalado_gerencial', actorId: 'system', detail: { licenciaId: lic._id, dias } });
         }
       }
 
@@ -880,8 +886,12 @@ export function mountFl(app, { auth, requireMesa, mongo, busEmit, adminNotify })
       console.error('[FL] Error en checkAlarmas:', err.message);
     }
   }
-  checkAlarmas();
-  setInterval(checkAlarmas, 24 * 60 * 60 * 1000);
+  // Cron de boot, fuera de cualquier request: corre explicitamente contra el
+  // tenant por defecto (runAsTenant), nunca contra el mongo tenant-aware
+  // recibido arriba, que exige un request con resolveTenant ya corrido.
+  const runCheckAlarmas = () => runAsTenant(DEFAULT_TENANT_ID, checkAlarmas);
+  runCheckAlarmas();
+  setInterval(runCheckAlarmas, 24 * 60 * 60 * 1000);
 
   /* ==========================================================================
      KPI maestro de gobierno ejecutivo + integridad del log

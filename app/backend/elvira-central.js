@@ -21,6 +21,8 @@
  */
 
 import crypto from 'crypto';
+import { runAsTenant } from './db/tenant-context.js';
+import { DEFAULT_TENANT_ID } from './db/tenant-registry.js';
 
 const ACTION_TYPES = {
   'node.shutdown': { params: [], describe: (n) => `Apagar ${n}` },
@@ -57,7 +59,7 @@ function sha256(s) {
 
 export function mountElviraCentral(app, deps) {
   const {
-    auth, requireMesa, mongo, getMongoClient,
+    auth, requireMesa, mongo, getReffDb,
     callLLM, trackTokens, busEmit, adminNotify,
     readElvira, getU2Snapshot, cibe, llmLimiter,
   } = deps;
@@ -74,7 +76,11 @@ export function mountElviraCentral(app, deps) {
 
   /* ---------- mock Systems: seed + deriva simulada ---------- */
 
-  (async function ensureNodes() {
+  // Seed + deriva de boot, fuera de cualquier request: corren explicitamente
+  // contra el tenant por defecto (runAsTenant). Fase 1: solo existe
+  // 'equipo-interno' — cuando haya mas tenants activos, este cron debe
+  // iterar la lista en vez de fijar uno solo (pendiente, no resuelto aqui).
+  runAsTenant(DEFAULT_TENANT_ID, async function ensureNodes() {
     try {
       const count = await nodesCol().countDocuments();
       if (count === 0) {
@@ -84,10 +90,10 @@ export function mountElviraCentral(app, deps) {
     } catch (e) {
       console.error('[Central] seed nodos falló:', e.message);
     }
-  })();
+  });
 
   // Deriva: los nodos online respiran (temp hacia objetivo ± ruido, BSS y caudal oscilan)
-  setInterval(async () => {
+  setInterval(() => runAsTenant(DEFAULT_TENANT_ID, async () => {
     try {
       const nodes = await nodesCol().find({ status: { $in: ['online', 'restarting'] } }).toArray();
       for (const n of nodes) {
@@ -105,7 +111,7 @@ export function mountElviraCentral(app, deps) {
         await nodesCol().updateOne({ _id: n._id }, { $set });
       }
     } catch { /* deriva es cosmética, no crítica */ }
-  }, 20000);
+  }), 20000);
 
   /* ---------- log inmutable con cadena de hashes ---------- */
 
@@ -186,9 +192,9 @@ export function mountElviraCentral(app, deps) {
   async function gatherContext() {
     const ctx = { generado: new Date().toISOString() };
 
-    // CRM Rëff (db 'reff' compartida)
+    // CRM Rëff (db 'reff' del tenant de la sesion activa)
     try {
-      const reff = getMongoClient().db('reff');
+      const reff = getReffDb();
       const users = await reff.collection('users').find({}, { projection: { username: 1, display_name: 1 } }).toArray();
       const sheets = await reff.collection('sheets').find({}, { projection: { user_id: 1, name: 1 } }).toArray();
       const companies = await reff.collection('companies').find({}, { projection: { sheet_id: 1, name: 1, status: 1, city: 1, country: 1 } }).toArray();

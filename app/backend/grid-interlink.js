@@ -19,6 +19,8 @@ import crypto from 'node:crypto';
 import { Worker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { runAsTenant } from './db/tenant-context.js';
+import { DEFAULT_TENANT_ID } from './db/tenant-registry.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -385,5 +387,12 @@ export function mountGridInterlink(app, { auth, requireMesa, mongo, busEmit, adm
     res.json({ valid: true, totalEntries: all.length, brokenAtSeq: null });
   }));
 
-  boot().catch((err) => console.error('[Grid] Error de arranque:', err.message));
+  // Arranque de boot, fuera de cualquier request: corre explicitamente
+  // contra el tenant por defecto (runAsTenant). AsyncLocalStorage propaga el
+  // contexto a los listeners worker.on('message', ...) registrados dentro
+  // de boot() aunque el Worker corra en otro hilo (el listener en si vive en
+  // el hilo principal, verificado empiricamente), asi que la insercion
+  // mongo.collection('grid_signals')... dentro de ese callback tambien queda
+  // resuelta sin envolverla aparte.
+  runAsTenant(DEFAULT_TENANT_ID, () => boot().catch((err) => console.error('[Grid] Error de arranque:', err.message)));
 }

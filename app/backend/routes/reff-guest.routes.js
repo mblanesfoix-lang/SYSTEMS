@@ -8,26 +8,24 @@
  *
  * Antes la ruta no exigia sesion, tomaba el usuario de la cabecera X-Elvira-User
  * y, sin correspondencia, caia en 'marc': cualquiera con acceso de red obtenia un
- * JWT de Rëff. Ahora un usuario de Elvi-Ra sin correspondencia explicita en
- * ELVIRA_TO_REFF_USERNAME no recibe token (403).
+ * JWT de Rëff. Luego exigio sesion y tradujo el username via un mapa fijo en
+ * codigo (ELVIRA_TO_REFF_USERNAME). Multi-tenancy Fase 1: ese mapa fijo asumia
+ * usuarios fijos de la empresa, no tenants — se sustituye por el campo
+ * `reffUsername` en el propio documento de `users` (poblado inicialmente con
+ * los mismos 4 valores que tenia el mapa, ningun usuario pierde acceso en la
+ * migracion), leido con el `mongo` tenant-aware de la sesion en curso.
  */
 
-export const ELVIRA_TO_REFF_USERNAME = Object.freeze({
-  'mblanes@s-nficorp.com': 'marc',
-  'nzaroual@s-nfi.com': 'nour',
-  'ventures@s-nficorp.com': 'amir',
-  'gonzalosb@s-nficorp.com': 'gonzalo',
-});
-
-export function createGuestTokenHandler({ signToken, getUserByUsername, userMap = ELVIRA_TO_REFF_USERNAME }) {
+export function createGuestTokenHandler({ signToken, getUserByUsername, mongo }) {
   return async function guestToken(req, res) {
-    const username = userMap[String(req.user || '').trim().toLowerCase()];
-    if (!username) return res.status(403).json({ error: 'Tu usuario de Elvi-Ra no tiene correspondencia en Rëff' });
     try {
-      const userRow = await getUserByUsername(username);
+      const userDoc = await mongo.collection('users').findOne({ _id: req.user });
+      const reffUsername = userDoc?.reffUsername;
+      if (!reffUsername) return res.status(403).json({ error: 'Tu usuario de Elvi-Ra no tiene correspondencia en Rëff' });
+      const userRow = await getUserByUsername(reffUsername);
       if (!userRow) return res.status(500).json({ error: 'usuario no encontrado en DB de Rëff' });
       res.json({
-        token: signToken({ userId: userRow.id, username: userRow.username }),
+        token: signToken({ userId: userRow.id, username: userRow.username, tenantId: req.tenantId }),
         user: {
           id: userRow.id,
           username: userRow.username,
@@ -43,8 +41,8 @@ export function createGuestTokenHandler({ signToken, getUserByUsername, userMap 
 }
 
 /** Registra la ruta en /reff/api y en el alias /api que usa el cliente React (base "/"). */
-export function mountReffGuestToken(app, { auth, requireMesa, signToken, getUserByUsername }) {
-  const handler = createGuestTokenHandler({ signToken, getUserByUsername });
+export function mountReffGuestToken(app, { auth, requireMesa, signToken, getUserByUsername, mongo }) {
+  const handler = createGuestTokenHandler({ signToken, getUserByUsername, mongo });
   const guard = [auth, requireMesa('reff')];
   app.get('/reff/api/guest-token', ...guard, handler);
   app.get('/api/guest-token', ...guard, handler);
