@@ -96,7 +96,7 @@
 
         <a class="tile reveal delay-4" href="/pages/fl.html" data-mesa="fl" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
           <h3>S-NFI F&amp;L</h3>
-          <p>Audit Legal — Firmas &amp; Normas. Licencias multi-planta SEMARNAT/CONAGUA/CFE/MITECO, matriz de responsabilidad legal por proyecto y alarma de caducidad de poderes y firmas.</p>
+          <p>Fiscal &amp; Legal Hub. Modelos tributarios AEAT y forales, notificaciones de las AA.PP. con plazos, gobierno corporativo, contratos (CLM), alertas BOE/BORME y Expediente Fiscal y Jurídico.</p>
           <p class="mono" style="margin-top:10px;">acceso directo →</p>
         </a>
 
@@ -320,7 +320,10 @@
         parse: d => `${d.activeDeals ?? 0} deals activos`
       });
       checkMesa('fl', '/api/fl/summary', {
-        parse: d => d.icrl != null ? `ICRL ${d.icrl}%` : ''
+        parse: d => [
+          d.fiscal?.cumplimiento_pct != null ? `${d.fiscal.cumplimiento_pct}% fiscal en plazo` : '',
+          d.notificaciones?.sin_acuse ? `${d.notificaciones.sin_acuse} notificaciones sin acuse` : '',
+        ].filter(Boolean).join(' · ')
       });
       checkMesa('resilience', '/api/resilience/summary', {
         parse: d => d.autonomyHours != null ? `${d.autonomyHours}h autonomía` : ''

@@ -181,53 +181,21 @@ Object.assign(api, {
   mnaDiligenceItemDelete:  (id) => req('DELETE', `/api/mna/diligence/items/${id}`),
   mnaLogVerify:            () => req('GET', '/api/mna/log/verify'),
 
-  // S-NFI F&L · Audit Legal
+  // S-NFI F&L · Hub fiscal y legal (fl-hub.js). entidad: sociedades | modelos |
+  // notificaciones | juntas | apoderamientos | contratos | checklist.
+  flHub:                   () => req('GET', '/api/fl/hub'),
   flSummary:               () => req('GET', '/api/fl/summary'),
   flLogVerify:             () => req('GET', '/api/fl/log/verify'),
-
-  flInstalacionesList:     () => req('GET', '/api/fl/instalaciones'),
-  flInstalacionAdd:        (payload) => req('POST', '/api/fl/instalaciones', payload),
-  flInstalacionPatch:      (id, payload) => req('PATCH', `/api/fl/instalaciones/${id}`, payload),
-  flInstalacionDelete:     (id) => req('DELETE', `/api/fl/instalaciones/${id}`),
-
-  flLicenciasList:         (filters) => req('GET', `/api/fl/licencias${filters?.id_instalacion ? `?id_instalacion=${filters.id_instalacion}` : ''}`),
-  flLicenciaAdd:           (payload) => req('POST', '/api/fl/licencias', payload),
-  flLicenciaPatch:         (id, payload) => req('PATCH', `/api/fl/licencias/${id}`, payload),
-  flLicenciaDelete:        (id) => req('DELETE', `/api/fl/licencias/${id}`),
-  flLicenciaKpis:          (id) => req('GET', `/api/fl/licencias/${id}/kpis`),
-
-  flMetricasList:          (licenciaId) => req('GET', `/api/fl/licencias/${licenciaId}/metricas`),
-  flMetricaAdd:            (licenciaId, payload) => req('POST', `/api/fl/licencias/${licenciaId}/metricas`, payload),
-
-  flCondicionantesList:    (licenciaId) => req('GET', `/api/fl/licencias/${licenciaId}/condicionantes`),
-  flCondicionanteAdd:      (licenciaId, payload) => req('POST', `/api/fl/licencias/${licenciaId}/condicionantes`, payload),
-  flCondicionantePatch:    (id, payload) => req('PATCH', `/api/fl/condicionantes/${id}`, payload),
-
-  flEvidenciasList:        (condicionanteId) => req('GET', `/api/fl/condicionantes/${condicionanteId}/evidencias`),
-  flEvidenciaAdd:          (condicionanteId, payload) => req('POST', `/api/fl/condicionantes/${condicionanteId}/evidencias`, payload),
-
-  flInspeccionesList:      (filters) => req('GET', `/api/fl/inspecciones${filters?.id_instalacion ? `?id_instalacion=${filters.id_instalacion}` : ''}`),
-  flInspeccionAdd:         (payload) => req('POST', '/api/fl/inspecciones', payload),
-  flInspeccionPatch:       (id, payload) => req('PATCH', `/api/fl/inspecciones/${id}`, payload),
-
-  flProyectosList:         () => req('GET', '/api/fl/proyectos'),
-  flProyectoAdd:           (payload) => req('POST', '/api/fl/proyectos', payload),
-  flProyectoBloquear:      (id, bloqueado) => req('POST', `/api/fl/proyectos/${id}/bloquear`, { bloqueado }),
-  flProyectoKpis:          (id) => req('GET', `/api/fl/proyectos/${id}/kpis`),
-
-  flHitosList:             (proyectoId) => req('GET', `/api/fl/proyectos/${proyectoId}/hitos`),
-  flHitoAdd:               (proyectoId, payload) => req('POST', `/api/fl/proyectos/${proyectoId}/hitos`, payload),
-  flHitoTransicion:        (id, status) => req('POST', `/api/fl/hitos/${id}/transicion`, { status }),
-
-  flMatrizRiesgoList:      (proyectoId) => req('GET', `/api/fl/proyectos/${proyectoId}/matriz-riesgo`),
-  flMatrizRiesgoAdd:       (payload) => req('POST', '/api/fl/matriz-riesgo', payload),
-  flMatrizRiesgoPatch:     (id, payload) => req('PATCH', `/api/fl/matriz-riesgo/${id}`, payload),
-  flMatrizRiesgoVerificar: (id, complianceEvidenceUrl) => req('POST', `/api/fl/matriz-riesgo/${id}/verificar`, { compliance_evidence_url: complianceEvidenceUrl }),
-
-  flPoderesList:           () => req('GET', '/api/fl/poderes'),
-  flPoderAdd:              (payload) => req('POST', '/api/fl/poderes', payload),
-  flPoderPatch:            (id, payload) => req('PATCH', `/api/fl/poderes/${id}`, payload),
-  flPoderDelete:           (id) => req('DELETE', `/api/fl/poderes/${id}`),
+  flCrear:                 (entidad, payload) => req('POST', `/api/fl/${entidad}`, payload),
+  flActualizar:            (entidad, id, payload) => req('PATCH', `/api/fl/${entidad}/${encodeURIComponent(id)}`, payload),
+  flArchivar:              (entidad, id) => req('DELETE', `/api/fl/${entidad}/${encodeURIComponent(id)}`),
+  flConfirmarReal:         (entidad, id) => req('POST', `/api/fl/${entidad}/${encodeURIComponent(id)}/confirmar`, {}),
+  flHistorial:             (entidad, id) => req('GET', `/api/fl/historial/${entidad}/${encodeURIComponent(id)}`),
+  flAcuse:                 (id, payload) => req('POST', `/api/fl/notificaciones/${encodeURIComponent(id)}/acuse`, payload),
+  flNotifEstado:           (id, payload) => req('POST', `/api/fl/notificaciones/${encodeURIComponent(id)}/estado`, payload),
+  flAlertaEstado:          (id, estado) => req('PATCH', `/api/fl/alertas/${encodeURIComponent(id)}`, { estado }),
+  flBoletinesSync:         () => req('POST', '/api/fl/boletines/sync', {}),
+  flRetirarDemo:           () => req('POST', '/api/fl/demo/retirar', { confirmar: true }),
 
   // Expediente Fiscal y Juridico Impecable (CRM documental)
   flExpediente:            (filters) => {
@@ -462,30 +430,21 @@ export async function downloadFinanceExport(id, reportType = 'export') {
   URL.revokeObjectURL(url);
 }
 
-// F&L: subida raw de documentos (PDF/DOCX) igual patron que imagenes de Reff
-// (fetch con Content-Type del archivo + X-Filename, sin multipart).
-export async function uploadFlDoc(kind, entityId, file) {
-  const headers = { 'Content-Type': file.type, 'X-Filename': encodeURIComponent(file.name) };
+// F&L: ficha PDF de un registro del Hub. GET autenticado -> Blob para
+// previsualizar o descargar; el backend anota cada acceso en fl_log.
+export async function fetchFlFichaPdf(entidad, id) {
+  const headers = {};
   const t = getToken();
   if (t) headers.Authorization = `Bearer ${t}`;
-  const r = await fetch(`/api/fl/${kind}/${entityId}/docs`, { method: 'POST', headers, body: file });
-  const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
-  return data;
+  const r = await fetch(`/api/fl/${entidad}/${encodeURIComponent(id)}/pdf`, { headers });
+  if (!r.ok) {
+    const data = await r.json().catch(() => ({}));
+    throw new Error(data.error || `HTTP ${r.status}`);
+  }
+  return r.blob();
 }
 
-// F&L: [AUDITAR_CONTRATO] via PDF suelto (mismo patron raw upload, sin entidad).
-export async function uploadFlContractAuditPdf(file) {
-  const headers = { 'Content-Type': 'application/pdf', 'X-Filename': encodeURIComponent(file.name) };
-  const t = getToken();
-  if (t) headers.Authorization = `Bearer ${t}`;
-  const r = await fetch('/api/fl/contract-audits', { method: 'POST', headers, body: file });
-  const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
-  return data;
-}
-
-// Herzog: subida raw de documentos, mismo patron que uploadFlDoc.
+// Herzog: subida raw de documentos (Content-Type del archivo + X-Filename, sin multipart).
 export async function uploadHerzogDocument(file, department) {
   const headers = { 'Content-Type': file.type, 'X-Filename': encodeURIComponent(file.name), 'X-Department': department || 'sin-especificar' };
   const t = getToken();
@@ -574,22 +533,4 @@ export async function openFlExpedienteDoc(fileId, filename, download = false) {
     window.open(url, '_blank', 'noopener');
   }
   setTimeout(() => URL.revokeObjectURL(url), 60000);
-}
-
-export async function downloadFlDoc(docId, filename) {
-  const headers = {};
-  const t = getToken();
-  if (t) headers.Authorization = `Bearer ${t}`;
-  const r = await fetch(`/api/fl/docs/${docId}/download`, { headers });
-  if (!r.ok) {
-    const data = await r.json().catch(() => ({}));
-    throw new Error(data.error || `HTTP ${r.status}`);
-  }
-  const blob = await r.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename || 'documento';
-  a.click();
-  URL.revokeObjectURL(url);
 }

@@ -68,20 +68,18 @@ export async function ensureTenantIndexes(db) {
   await db.collection('pactvm_policies').createIndex({ category: 1, active: 1 });
   await db.collection('pactvm_access_rules').createIndex({ status: 1, scope: 1 });
 
-  // S-NFI F&L · Audit Legal (licencias multi-planta + matriz de responsabilidad + poderes)
-  await db.collection('fl_licencias').createIndex({ id_instalacion: 1 });
-  await db.collection('fl_licencias').createIndex({ fecha_vencimiento: 1 });
-  await db.collection('fl_licencias').createIndex({ dependencia: 1, estado_tramite: 1 });
-  await db.collection('fl_metricas').createIndex({ id_licencia: 1, tipo_parametro: 1 });
-  await db.collection('fl_condicionantes').createIndex({ id_licencia: 1, estado_cumplimiento: 1 });
-  await db.collection('fl_evidencias').createIndex({ id_condicionante: 1 });
-  await db.collection('fl_inspecciones').createIndex({ id_instalacion: 1, estatus_resolucion: 1 });
-  await db.collection('fl_hitos').createIndex({ project_id: 1 });
-  await db.collection('fl_matriz_riesgo').createIndex({ project_id: 1, status: 1 });
-  await db.collection('fl_matriz_riesgo').createIndex({ milestone_id: 1 });
-  await db.collection('fl_poderes').createIndex({ fecha_caducidad: 1 });
-  await db.collection('fl_poderes').createIndex({ estado: 1 });
+  // S-NFI F&L · Hub fiscal y legal (fl-hub.js). Las colecciones de la version
+  // anterior (fl_licencias, fl_poderes, fl_matriz_riesgo...) siguen en Mongo con
+  // sus indices: ya no las lee nadie, pero no se borran (retencion).
+  await db.collection('fl_modelos').createIndex({ sociedad_id: 1, fecha_limite: 1 });
+  await db.collection('fl_notificaciones').createIndex({ estado: 1, puesta_disposicion: -1 });
+  await db.collection('fl_juntas').createIndex({ sociedad_id: 1, fecha: -1 });
+  await db.collection('fl_apoderamientos').createIndex({ fecha_caducidad: 1 });
+  await db.collection('fl_clm_contratos').createIndex({ fecha_vencimiento: 1 });
+  await db.collection('fl_alertas_normativas').createIndex({ fecha_publicacion: -1 });
+  await db.collection('fl_alertas_normativas').createIndex({ sociedad_id: 1 });
   await db.collection('fl_log').createIndex({ seq: 1 }, { unique: true });
+  await db.collection('fl_log').createIndex({ entidad: 1, refId: 1 });
   // Expediente Fiscal y Juridico Impecable (CRM documental + adjuntos GridFS)
   await db.collection('fl_expediente_docs').createIndex({ bloque: 1, orden: 1 });
   await db.collection('fl_expediente_docs').createIndex({ fecha_caducidad: 1 });

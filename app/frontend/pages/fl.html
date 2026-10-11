@@ -6,8 +6,9 @@
   <title>S-NFI F&amp;L · S-NFI</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,500;1,400&display=swap">
   <link rel="stylesheet" href="/css/theme.css">
+  <link rel="stylesheet" href="/css/fl-hub.css">
   <script>
     (function () {
       try {
@@ -18,75 +19,13 @@
   </script>
   <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
   <style>
-    .fl-hero {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 32px 40px;
-      margin-bottom: 24px;
-    }
-    .fl-hero__title {
-      font-family: var(--font-display);
-      font-size: 12px;
-      font-weight: 800;
-      letter-spacing: -0.02em;
-      margin: 0 0 10px;
-    }
-    .fl-hero__sub {
-      font-size: 0.88rem;
-      color: var(--text-muted);
-      max-width: 680px;
-      line-height: 1.65;
-      margin: 0;
-    }
-    .mode-tabs {
-      display: flex; gap: 0; margin-bottom: 24px;
-      border: 1px solid var(--border-mid); border-radius: var(--radius-sm); width: fit-content; overflow: hidden;
-    }
-    .mode-tab {
-      padding: 10px 24px; font-family: var(--font-mono); font-size: 0.65rem;
-      letter-spacing: 0.02em; color: var(--text-muted);
-      background: var(--bg-card); border: none; border-right: 1px solid var(--border-mid);
-      cursor: pointer; transition: background 0.18s var(--ease), color 0.18s var(--ease);
-    }
-    .mode-tab:last-child { border-right: none; }
-    .mode-tab.active { background: var(--accent-blue); color: #fff; font-weight: 600; }
-    .mode-tab:hover:not(.active) { color: var(--text-primary); }
-    @media (max-width: 720px) {
-      .mode-tabs { width: 100%; overflow-x: auto; }
-      .mode-tab { flex-shrink: 0; white-space: nowrap; }
-    }
-
-    .kpi-grid {
-      display: grid; grid-template-columns: repeat(5, 1fr); gap: 0;
-      border: 1px solid var(--border-mid); border-radius: var(--radius); overflow: hidden; margin-bottom: 24px; background: var(--bg-card);
-    }
-    @media (max-width: 1000px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
-    @media (max-width: 480px) { .kpi-grid { grid-template-columns: 1fr; } .kpi-cell { border-right: none !important; } }
+    /* ---- Expediente Fiscal y Juridico Impecable (estilos propios, sin cambios) ---- */
     .kpi-cell { padding: 20px 22px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); position: relative; }
-    .kpi-cell:nth-child(5n) { border-right: none; }
-    @media (max-width: 1000px) { .kpi-cell:nth-child(2n) { border-right: none; } }
     .kpi-cell.alert::before { content: ''; position: absolute; top: 0; left: 0; width: 3px; height: 100%; background: #d80300; }
     .kpi-label { font-family: var(--font-mono); font-size: 0.55rem; letter-spacing: 0.04em; color: var(--text-muted); margin-bottom: 10px; }
     .kpi-val { font-family: var(--font-display); font-size: 1.8rem; font-weight: 800; letter-spacing: -0.03em; }
     .kpi-val.warn { color: #d80300; }
     .kpi-val.good { color: #00a878; }
-
-    .fl-panel { display: none; }
-    .fl-panel.active { display: block; }
-
-    .add-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; align-items: flex-end; }
-    .add-row .sf { display: flex; flex-direction: column; gap: 4px; }
-    .add-row .sf label { font-size: 0.62rem; letter-spacing: -0.005em; color: var(--text-muted); font-family: var(--font-mono); }
-    .add-row .input { min-width: 120px; }
-
-    .status-pill {
-      display: inline-flex; align-items: center; gap: 6px;
-      font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.02em;
-      padding: 3px 10px; border-radius: var(--radius-pill); background: var(--bg-elevated); border: 1px solid var(--border);
-      white-space: nowrap;
-    }
-    .status-dot-sm { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 
     .picker-row {
       display: flex; align-items: center; gap: 10px; margin-bottom: 18px; flex-wrap: wrap;
@@ -94,24 +33,11 @@
     }
     .picker-row label { font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: -0.005em; color: var(--text-muted); }
     .picker-row select { min-width: 220px; }
+    /* .input es width:100% en theme.css: en la barra del expediente los filtros van en linea. */
+    #panel-expediente .picker-row > div:first-child { flex: 1 1 520px; }
+    #panel-expediente .picker-row .input { width: auto; flex: 1 1 200px; }
+    .empty-state { text-align: center; color: var(--text-muted); font-size: 0.82rem; padding: 24px !important; }
 
-    .progress-bar { width: 100%; max-width: 120px; height: 6px; border-radius: 3px; background: var(--bg-elevated); overflow: hidden; border: 1px solid var(--border); }
-    .progress-bar__fill { height: 100%; background: var(--accent-blue); transition: width 0.3s var(--ease); }
-    .progress-bar__fill.full { background: #00a878; }
-
-    .sub-block { border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; margin-top: 18px; }
-    .sub-block h4 { margin: 0 0 12px; font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: -0.005em; color: var(--text-muted); }
-
-    .risk-badge { font-family: var(--font-mono); font-size: 0.58rem; padding: 3px 9px; border-radius: var(--radius-pill); font-weight: 600; letter-spacing: 0.02em; }
-    .risk-CRITICO { background: rgba(216,3,0,0.12); color: #d80300; }
-    .risk-ALTO { background: rgba(255,149,0,0.14); color: #cc7a00; }
-    .risk-MEDIO { background: rgba(0,113,227,0.12); color: #0071e3; }
-    .risk-BAJO { background: rgba(0,168,120,0.12); color: #00a878; }
-
-    .empty-row td, .empty-state { text-align: center; color: var(--text-muted); font-size: 0.82rem; padding: 24px !important; }
-    .gating-tag { font-family: var(--font-mono); font-size: 0.55rem; color: #d80300; }
-
-    /* ---- Expediente Fiscal y Juridico Impecable ---- */
     .exp-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 18px; }
 
     .exp-alert-box { border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 18px; margin-bottom: 18px; background: var(--bg-card); }
@@ -146,7 +72,7 @@
     .exp-row__meta.bad { color: #d80300; }
     .exp-bloque__empty { font-size: 0.76rem; color: var(--text-muted); padding: 8px 10px; }
 
-    .exp-ficha { border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; position: sticky; top: 90px; }
+    .exp-ficha { border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; position: sticky; top: 140px; }
     .exp-ficha h3 { margin: 0 0 2px; font-size: 0.9rem; letter-spacing: -0.02em; }
     .exp-ficha .sf { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
     .exp-ficha .sf label { font-size: 0.6rem; color: var(--text-muted); font-family: var(--font-mono); }
@@ -193,34 +119,9 @@
     .exp-state-pendiente { background: var(--bg-elevated); color: var(--text-muted); }
     .exp-state-en_tramite { background: rgba(0,113,227,0.12); color: #0071e3; }
     .exp-state-no_aplica { background: var(--bg-elevated); color: var(--text-muted); }
-
-    /* ---- Accesos externos (portales de terceros: verificacion CSV de la Abogacia, Overleaf) ---- */
-    .ext-intro { font-size: 0.82rem; color: var(--text-muted); margin: 0; max-width: 720px; }
-    .ext-intro + .ext-item, .ext-item + .ext-item { margin-top: 26px; padding-top: 22px; border-top: 1px solid var(--border); }
-    .ext-item__note { font-size: 0.78rem; color: var(--text-muted); line-height: 1.5; margin: 0 0 12px; max-width: 720px; }
-    .ext-access {
-      display: flex; align-items: center; gap: 18px; padding: 22px 24px; margin-bottom: 14px;
-      border: 1px solid var(--border-mid); border-radius: var(--radius); background: var(--bg-card);
-      color: inherit; text-decoration: none;
-      transition: border-color 0.2s var(--ease), background 0.2s var(--ease), transform 0.2s var(--ease);
-    }
-    .ext-access:hover { border-color: var(--accent-blue); background: rgba(0,113,227,0.05); transform: translateY(-1px); }
-    .ext-access:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 3px; }
-    .ext-access__icon { flex-shrink: 0; width: 44px; height: 44px; display: grid; place-items: center; border-radius: var(--radius-sm); background: rgba(0,113,227,0.12); color: var(--accent-blue); }
-    /* Logo de marca de terceros: baldosa blanca fija, el verde de marca contrasta igual en tema oscuro y claro */
-    .ext-access__icon--logo { background: #fff; box-shadow: inset 0 0 0 1px var(--border-mid); }
-    .ext-access__icon--logo img { display: block; height: 28px; width: auto; }
-    .ext-access__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-    .ext-access__kicker { font-family: var(--font-mono); font-size: 0.56rem; letter-spacing: 0.04em; color: var(--text-muted); }
-    .ext-access__title { font-size: 1rem; font-weight: 600; letter-spacing: -0.02em; }
-    .ext-access__url { font-family: var(--font-mono); font-size: 0.64rem; color: var(--text-muted); overflow-wrap: anywhere; }
-    .ext-access__cta { flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 0.65rem; color: var(--accent-blue); white-space: nowrap; }
-    .ext-access__cta svg { transition: transform 0.2s var(--ease); }
-    .ext-access:hover .ext-access__cta svg { transform: translate(2px, -2px); }
-    @media (max-width: 560px) { .ext-access { flex-wrap: wrap; } .ext-access__cta { width: 100%; } }
   </style>
 </head>
-<body>
+<body class="flh">
   <nav class="nav">
     <div class="brand">
       <img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;">
@@ -254,406 +155,103 @@
       <span class="active">S-NFI F&amp;L</span>
     </div>
 
-    <div class="fl-hero reveal">
-      <span class="kicker">Mesa · Audit Legal</span>
-      <h1 class="fl-hero__title">S-NFI <em style="font-style:normal;color:var(--accent-blue);">F&amp;L</em></h1>
-      <p class="fl-hero__sub">
-        Firmas &amp; Normas. Licencias y permisos multi-planta ante SEMARNAT, CONAGUA, CFE y MITECO;
-        matriz de responsabilidad civil/penal por proyecto con bloqueo de pagos ante control sin
-        verificar; alarma de caducidad de poderes corporativos y firmas digitales.
-      </p>
+    <header class="flh-bar reveal">
+      <div class="flh-brand">
+        <span class="flh-brand__kicker">S-NFI F&amp;L · Mesa Rëff</span>
+        <span class="flh-brand__name">Systems<b>//</b>Fiscal &amp; Legal</span>
+      </div>
+      <button class="flh-cmd" id="flhCmd" type="button" aria-label="Buscar en la mesa (Ctrl+K)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <span>Buscar NIF, referencia BOE, contrato, modelo…</span>
+        <kbd class="flh-kbd" id="flhKbd">Ctrl K</kbd>
+      </button>
+      <div class="flh-status">
+        <span class="flh-clock" id="flhClock"></span>
+        <button class="flh-signal" id="flhSignalDehu" type="button" title="Estado del enlace con la DEHú"><span class="flh-dot flh-dot--warn"></span>DEHú · sin conector</button>
+        <button class="flh-signal" id="flhSignalBoe" type="button"><span class="flh-dot"></span>BOE · BORME</button>
+        <button class="flh-bell" id="flhBell" type="button" aria-label="Notificaciones oficiales sin acuse" title="Notificaciones oficiales sin acuse">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+          <span class="flh-bell__badge" id="flhBellBadge" hidden>0</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="flh-demo" id="flhDemo" hidden>
+      <strong>DATOS DE DEMOSTRACIÓN</strong>
+      <p><span id="flhDemoCount">0</span> registros (sociedades, modelos, notificaciones, juntas, poderes y contratos) son ejemplo PLACEHOLDER hasta que Dirección confirme los reales: llevan la marca DEMO y no generan avisos. Las alertas BOE y BORME sí son reales.</p>
+      <button type="button" class="flh-btn flh-btn--sm" id="flhDemoRetirar">Retirar datos de demostración</button>
     </div>
 
-    <div id="errorBox" style="display:none;" class="mole-error"></div>
+    <div id="errorBox" class="flh-error" style="display:none;" role="alert"></div>
 
-    <div class="kpi-grid reveal" id="summaryKpis">
-      <div class="kpi-cell">
-        <div class="kpi-label">ICRL · cumplimiento regulatorio</div>
-        <div class="kpi-val" id="kpiIcrl">—</div>
-      </div>
-      <div class="kpi-cell" id="kpiIrvCell">
-        <div class="kpi-label">IRV · riesgo vencimiento</div>
-        <div class="kpi-val" id="kpiIrv">—</div>
-      </div>
-      <div class="kpi-cell" id="kpiInfraccionesCell">
-        <div class="kpi-label">Infracciones</div>
-        <div class="kpi-val" id="kpiInfracciones">—</div>
-      </div>
-      <div class="kpi-cell" id="kpiPoderesCell">
-        <div class="kpi-label">Poderes/firmas en alerta</div>
-        <div class="kpi-val" id="kpiPoderes">—</div>
-      </div>
-      <div class="kpi-cell" id="kpiControlesCell">
-        <div class="kpi-label">Controles legales en alerta</div>
-        <div class="kpi-val" id="kpiControles">—</div>
-      </div>
+    <div class="flh-tabs-wrap">
+      <nav class="flh-tabs" id="flhTabs" role="tablist" aria-label="Secciones de S-NFI F&amp;L">
+        <button class="flh-tab" type="button" role="tab" id="tab-overview" data-tab="overview" aria-controls="panel-overview" aria-selected="true"><span class="flh-tab__n">01</span>Centro de mando</button>
+        <button class="flh-tab" type="button" role="tab" id="tab-fiscal" data-tab="fiscal" aria-controls="panel-fiscal" aria-selected="false" tabindex="-1"><span class="flh-tab__n">02</span>Fiscalidad y auditoría<span class="flh-tab__badge" data-badge="fiscal" hidden></span></button>
+        <button class="flh-tab" type="button" role="tab" id="tab-gobtech" data-tab="gobtech" aria-controls="panel-gobtech" aria-selected="false" tabindex="-1"><span class="flh-tab__n">03</span>GobTech · Notificaciones AA.PP.<span class="flh-tab__badge" data-badge="gobtech" hidden></span></button>
+        <button class="flh-tab" type="button" role="tab" id="tab-corporativo" data-tab="corporativo" aria-controls="panel-corporativo" aria-selected="false" tabindex="-1"><span class="flh-tab__n">04</span>Gobierno corporativo<span class="flh-tab__badge" data-badge="corporativo" hidden></span></button>
+        <button class="flh-tab" type="button" role="tab" id="tab-clm" data-tab="clm" aria-controls="panel-clm" aria-selected="false" tabindex="-1"><span class="flh-tab__n">05</span>CLM · Contratos<span class="flh-tab__badge" data-badge="clm" hidden></span></button>
+        <button class="flh-tab" type="button" role="tab" id="tab-expediente" data-tab="expediente" aria-controls="panel-expediente" aria-selected="false" tabindex="-1"><span class="flh-tab__n">06</span>Expediente fiscal y jurídico</button>
+      </nav>
     </div>
 
-    <div class="mode-tabs reveal">
-      <button class="mode-tab active" data-panel="licencias">Licencias</button>
-      <button class="mode-tab" data-panel="matriz">Matriz Legal</button>
-      <button class="mode-tab" data-panel="poderes">Poderes &amp; Firmas</button>
-      <button class="mode-tab" data-panel="inspecciones">Inspecciones</button>
-      <button class="mode-tab" data-panel="expediente">Expediente Fiscal y Jurídico</button>
-      <button class="mode-tab" data-panel="externos">Accesos externos</button>
-    </div>
+    <section class="flh-panel is-active" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview"></section>
+    <section class="flh-panel" id="panel-fiscal" role="tabpanel" aria-labelledby="tab-fiscal"></section>
+    <section class="flh-panel" id="panel-gobtech" role="tabpanel" aria-labelledby="tab-gobtech"></section>
+    <section class="flh-panel" id="panel-corporativo" role="tabpanel" aria-labelledby="tab-corporativo"></section>
+    <section class="flh-panel" id="panel-clm" role="tabpanel" aria-labelledby="tab-clm"></section>
 
-    <!-- LICENCIAS -->
-    <div class="fl-panel active card reveal" id="panel-licencias" style="padding:20px;">
-      <div class="sub-block">
-        <h4>Instalaciones</h4>
-        <div class="add-row">
-          <div class="sf"><label>Nombre</label><input class="input" id="instNombre" placeholder="Planta Solar Norte"></div>
-          <div class="sf"><label>País</label>
-            <select class="input" id="instPais">
-              <option value="">—</option>
-              <option value="México">México</option>
-              <option value="España">España</option>
-            </select>
-          </div>
-          <div class="sf"><label>Región/Estado</label><input class="input" id="instRegion" placeholder="Opcional"></div>
-          <button class="btn sage" id="instAddBtn">Añadir instalación</button>
-        </div>
-        <div style="overflow-x:auto;">
-          <table class="tbl" id="instTable">
-            <thead><tr><th>Nombre</th><th>País</th><th>Región</th><th>Licencias</th><th></th></tr></thead>
-            <tbody id="instBody"><tr class="empty-row"><td colspan="5">Cargando…</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="picker-row">
-        <label>Instalación</label>
-        <select id="licInstSelect"><option value="">Todas</option></select>
-      </div>
-
-      <div class="add-row">
-        <div class="sf"><label>Instalación</label>
-          <select class="input" id="licInstalacion"></select>
-        </div>
-        <div class="sf"><label>Dependencia</label>
-          <select class="input" id="licDependencia">
-            <option value="SEMARNAT">SEMARNAT</option>
-            <option value="CONAGUA">CONAGUA</option>
-            <option value="CFE">CFE</option>
-            <option value="MITECO">MITECO</option>
-            <option value="OTRO_LOCAL">Otro local</option>
-          </select>
-        </div>
-        <div class="sf"><label>Tipo de permiso</label><input class="input" id="licTipo" placeholder="MIA, AAI, Código de Red..."></div>
-        <div class="sf"><label>Folio/Oficio</label><input class="input" id="licFolio" placeholder="Opcional"></div>
-        <div class="sf"><label>Emisión</label><input class="input" type="date" id="licEmision"></div>
-        <div class="sf"><label>Vencimiento</label><input class="input" type="date" id="licVencimiento"></div>
-        <div class="sf"><label>Días alerta</label><input class="input" id="licDiasAlerta" style="width:80px;" placeholder="180"></div>
-        <button class="btn sage" id="licAddBtn">Añadir licencia</button>
-      </div>
-      <div style="overflow-x:auto;">
-        <table class="tbl" id="licTable">
-          <thead><tr><th>Dependencia</th><th>Tipo</th><th>Folio</th><th>Vencimiento</th><th>Estado</th><th></th></tr></thead>
-          <tbody id="licBody"><tr class="empty-row"><td colspan="6">Cargando…</td></tr></tbody>
-        </table>
-      </div>
-
-      <div class="sub-block" id="licDetailBlock" style="display:none;">
-        <h4 id="licDetailTitle">Detalle de licencia</h4>
-        <div id="licKpisBox" style="margin-bottom:16px; font-size:0.82rem; color:var(--text-muted);"></div>
-
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:24px;">
-          <div>
-            <h4>Métricas medidas</h4>
-            <div class="add-row">
-              <div class="sf"><label>Parámetro</label>
-                <select class="input" id="metTipo">
-                  <option value="Volumen_Agua_m3">Volumen Agua (m3)</option>
-                  <option value="Factor_Potencia">Factor Potencia</option>
-                  <option value="Descarga_BOD">Descarga BOD</option>
-                  <option value="CO2_Emisiones">CO2 Emisiones</option>
-                  <option value="Otro">Otro</option>
-                </select>
-              </div>
-              <div class="sf"><label>Límite</label><input class="input" id="metLimite" style="width:90px;"></div>
-              <div class="sf"><label>Real</label><input class="input" id="metReal" style="width:90px;"></div>
-              <div class="sf"><label>Unidad</label><input class="input" id="metUnidad" style="width:70px;" placeholder="m3"></div>
-              <div class="sf"><label>Fecha</label><input class="input" type="date" id="metFecha"></div>
-              <button class="btn ghost" id="metAddBtn">Registrar</button>
-            </div>
-            <div style="overflow-x:auto;">
-              <table class="tbl" id="metTable">
-                <thead><tr><th>Parámetro</th><th>Límite</th><th>Real</th><th>Cumple</th><th>Fecha</th></tr></thead>
-                <tbody id="metBody"><tr class="empty-row"><td colspan="5">Selecciona una licencia.</td></tr></tbody>
-              </table>
-            </div>
-          </div>
-
-          <div>
-            <h4>Condicionantes / obligaciones</h4>
-            <div class="add-row">
-              <div class="sf"><label>Código</label><input class="input" id="condCodigo" style="width:100px;" placeholder="COND-01"></div>
-              <div class="sf"><label>Frecuencia</label>
-                <select class="input" id="condFrecuencia">
-                  <option value="Única">Única</option>
-                  <option value="Mensual">Mensual</option>
-                  <option value="Trimestral">Trimestral</option>
-                  <option value="Semestral">Semestral</option>
-                  <option value="Anual">Anual</option>
-                  <option value="Por_Evento">Por evento</option>
-                </select>
-              </div>
-              <div class="sf"><label>Criticidad</label>
-                <select class="input" id="condCriticidad">
-                  <option value="Alta">Alta</option>
-                  <option value="Media" selected>Media</option>
-                  <option value="Baja">Baja</option>
-                </select>
-              </div>
-              <button class="btn ghost" id="condAddBtn">Añadir</button>
-            </div>
-            <div class="sf" style="max-width:100%; margin-bottom:10px;"><label>Descripción</label><input class="input" id="condDescripcion" style="width:100%;" placeholder="Requisito exigido por la licencia"></div>
-            <div style="overflow-x:auto;">
-              <table class="tbl" id="condTable">
-                <thead><tr><th>Código</th><th>Avance</th><th>Estado</th><th>Criticidad</th></tr></thead>
-                <tbody id="condBody"><tr class="empty-row"><td colspan="4">Selecciona una licencia.</td></tr></tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- MATRIZ LEGAL -->
-    <div class="fl-panel card reveal" id="panel-matriz" style="padding:20px;">
-      <div class="sub-block">
-        <h4>Proyectos legales</h4>
-        <div class="add-row">
-          <div class="sf"><label>Nombre del proyecto</label><input class="input" id="proyNombre" placeholder="Expansión Planta Norte"></div>
-          <button class="btn sage" id="proyAddBtn">Añadir proyecto</button>
-        </div>
-        <div style="overflow-x:auto;">
-          <table class="tbl" id="proyTable">
-            <thead><tr><th>Proyecto</th><th>Bloqueado</th><th>ICE</th><th>TMM</th><th>Garantes homologados</th><th></th></tr></thead>
-            <tbody id="proyBody"><tr class="empty-row"><td colspan="6">Cargando…</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="picker-row">
-        <label>Proyecto seleccionado</label>
-        <select id="matrizProySelect"></select>
-      </div>
-
-      <div class="sub-block">
-        <h4>Hitos</h4>
-        <div class="add-row">
-          <div class="sf"><label>Nombre del hito</label><input class="input" id="hitoNombre" placeholder="Cierre financiero fase 1"></div>
-          <div class="sf"><label style="display:flex; align-items:center; gap:6px; margin-top:14px;"><input type="checkbox" id="hitoFinanciero"> Hito financiero</label></div>
-          <button class="btn ghost" id="hitoAddBtn">Añadir hito</button>
-        </div>
-        <div style="overflow-x:auto;">
-          <table class="tbl" id="hitoTable">
-            <thead><tr><th>Hito</th><th>Financiero</th><th>Estado</th><th></th></tr></thead>
-            <tbody id="hitoBody"><tr class="empty-row"><td colspan="4">Selecciona un proyecto.</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="sub-block">
-        <h4>Matriz de responsabilidad legal</h4>
-        <div class="add-row">
-          <div class="sf"><label>Tipo de riesgo</label>
-            <select class="input" id="riesgoTipo">
-              <option value="PENAL">Penal</option>
-              <option value="CIVIL">Civil</option>
-              <option value="TRIBUTARIO_FISCAL">Tributario/Fiscal</option>
-              <option value="LABORAL">Laboral</option>
-            </select>
-          </div>
-          <div class="sf"><label>Nivel</label>
-            <select class="input" id="riesgoNivel">
-              <option value="CRITICO">Crítico</option>
-              <option value="ALTO">Alto</option>
-              <option value="MEDIO">Medio</option>
-              <option value="BAJO">Bajo</option>
-            </select>
-          </div>
-          <div class="sf"><label>Hito (opcional)</label><select class="input" id="riesgoHito"><option value="">Sin hito</option></select></div>
-          <div class="sf"><label>Garante (username)</label><input class="input" id="riesgoGarante" placeholder="nour"></div>
-          <div class="sf"><label style="display:flex; align-items:center; gap:6px; margin-top:14px;"><input type="checkbox" id="riesgoGating" checked> Bloquea pago</label></div>
-          <button class="btn ghost" id="riesgoAddBtn">Añadir control</button>
-        </div>
-        <div class="sf" style="max-width:100%; margin-bottom:10px;"><label>Descripción del riesgo</label><input class="input" id="riesgoDescripcion" style="width:100%;" placeholder="Descripción del riesgo legal / delito / sanción"></div>
-        <div class="sf" style="max-width:100%; margin-bottom:10px;"><label>Control preventivo</label><input class="input" id="riesgoControl" style="width:100%;" placeholder="Acción o validación requerida"></div>
-        <div style="overflow-x:auto;">
-          <table class="tbl" id="riesgoTable">
-            <thead><tr><th>Riesgo</th><th>Nivel</th><th>Garante</th><th>Gating</th><th>Estado</th><th>Evidencia</th></tr></thead>
-            <tbody id="riesgoBody"><tr class="empty-row"><td colspan="6">Selecciona un proyecto.</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- PODERES & FIRMAS -->
-    <div class="fl-panel card reveal" id="panel-poderes" style="padding:20px;">
-      <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:16px; max-width:640px;">
-        Motor de alarmas de caducidad de poderes corporativos y firmas digitales. El sistema revisa
-        diariamente los registros y notifica al Admin cuando un poder entra en ventana de alerta o
-        caduca, para que no se pase por alto la renovación.
-      </p>
-      <div class="add-row">
-        <div class="sf"><label>Titular</label><input class="input" id="poderTitular" placeholder="Nombre del apoderado"></div>
-        <div class="sf"><label>Tipo</label>
-          <select class="input" id="poderTipo">
-            <option value="Poder_Notarial">Poder Notarial</option>
-            <option value="Firma_Digital">Firma Digital</option>
-            <option value="Certificado_Representacion">Certificado Representación</option>
-            <option value="Otro">Otro</option>
-          </select>
-        </div>
-        <div class="sf"><label>Entidad</label><input class="input" id="poderEntidad" placeholder="Opcional"></div>
-        <div class="sf"><label>Emisión</label><input class="input" type="date" id="poderEmision"></div>
-        <div class="sf"><label>Caducidad</label><input class="input" type="date" id="poderCaducidad"></div>
-        <div class="sf"><label>Días alerta</label><input class="input" id="poderDiasAlerta" style="width:80px;" placeholder="60"></div>
-        <button class="btn sage" id="poderAddBtn">Registrar poder</button>
-      </div>
-      <div style="overflow-x:auto;">
-        <table class="tbl" id="poderTable">
-          <thead><tr><th>Titular</th><th>Tipo</th><th>Entidad</th><th>Caducidad</th><th>Estado</th><th></th></tr></thead>
-          <tbody id="poderBody"><tr class="empty-row"><td colspan="6">Cargando…</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- INSPECCIONES -->
-    <div class="fl-panel card reveal" id="panel-inspecciones" style="padding:20px;">
-      <div class="add-row">
-        <div class="sf"><label>Instalación</label><select class="input" id="inspInstalacion"></select></div>
-        <div class="sf"><label>Autoridad</label>
-          <select class="input" id="inspAutoridad">
-            <option value="SEMARNAT">SEMARNAT</option>
-            <option value="PROFEPA">PROFEPA</option>
-            <option value="CONAGUA">CONAGUA</option>
-            <option value="CFE">CFE</option>
-            <option value="MITECO">MITECO</option>
-            <option value="OTRA">Otra</option>
-          </select>
-        </div>
-        <div class="sf"><label>Fecha visita</label><input class="input" type="date" id="inspFecha"></div>
-        <div class="sf"><label>Resultado</label>
-          <select class="input" id="inspResultado">
-            <option value="Sin_Observaciones">Sin observaciones</option>
-            <option value="Con_Observaciones">Con observaciones</option>
-            <option value="Apercibimiento">Apercibimiento</option>
-            <option value="Clausura_Parcial">Clausura parcial</option>
-            <option value="Clausura_Total">Clausura total</option>
-          </select>
-        </div>
-        <div class="sf"><label>Multa (€)</label><input class="input" id="inspMulta" style="width:100px;" placeholder="0"></div>
-        <button class="btn sage" id="inspAddBtn">Registrar inspección</button>
-      </div>
-      <div style="overflow-x:auto;">
-        <table class="tbl" id="inspTable">
-          <thead><tr><th>Instalación</th><th>Autoridad</th><th>Fecha</th><th>Resultado</th><th>Multa</th><th>Estatus</th></tr></thead>
-          <tbody id="inspBody"><tr class="empty-row"><td colspan="6">Cargando…</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- EXPEDIENTE FISCAL Y JURIDICO IMPECABLE -->
-    <div class="fl-panel card reveal" id="panel-expediente" style="padding:20px;">
-      <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:16px; max-width:720px;">
-        CRM de documentación corporativa. Cuatro carpetas fijas; dentro das de alta los documentos que
-        necesites, con su PDF (también Word, hoja de cálculo o imagen), fecha de caducidad y días de
-        preaviso. El sistema revisa el expediente al arrancar y cada 24 h, y notifica al Admin cuando
-        un documento entra en ventana de alerta, caduca o sigue sin archivo adjunto.
-      </p>
-
-      <div class="exp-kpis">
-        <div class="kpi-cell"><div class="kpi-label">COMPLETITUD</div><div class="kpi-val" id="expKpiCompletitud">—</div></div>
-        <div class="kpi-cell"><div class="kpi-label">DOCUMENTOS</div><div class="kpi-val" id="expKpiTotal">—</div></div>
-        <div class="kpi-cell"><div class="kpi-label">VIGENTES</div><div class="kpi-val good" id="expKpiVigentes">—</div></div>
-        <div class="kpi-cell" id="expKpiPorCaducarCell"><div class="kpi-label">POR CADUCAR</div><div class="kpi-val" id="expKpiPorCaducar">—</div></div>
-        <div class="kpi-cell" id="expKpiCaducadosCell"><div class="kpi-label">CADUCADOS</div><div class="kpi-val" id="expKpiCaducados">—</div></div>
-        <div class="kpi-cell" id="expKpiFaltantesCell"><div class="kpi-label">SIN ARCHIVO</div><div class="kpi-val" id="expKpiFaltantes">—</div></div>
-      </div>
-
-      <div id="expAlertas"></div>
-
-      <div class="picker-row" style="justify-content:space-between;">
-        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-          <input class="input" id="expSearch" placeholder="Buscar por nombre, emisor, referencia…" style="min-width:240px;">
-          <select class="input" id="expFiltroBloque"><option value="">Todas las carpetas</option></select>
-          <select class="input" id="expFiltroEstado"><option value="">Todos los estados</option></select>
-        </div>
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button class="btn" id="expRevisarBtn">Revisar caducidades</button>
-          <button class="btn sage" id="expNuevoBtn">Nuevo documento</button>
-        </div>
-      </div>
-
-      <div class="exp-layout">
-        <div id="expBloques"><p class="empty-state">Cargando expediente…</p></div>
-        <aside class="exp-ficha" id="expFicha">
-          <p class="empty-state">Selecciona un documento de la lista, o crea uno nuevo.</p>
-        </aside>
-      </div>
-    </div>
-
-    <!-- ACCESOS EXTERNOS (verificacion CSV de la Abogacia Espanola + Overleaf) -->
-    <div class="fl-panel card reveal" id="panel-externos" style="padding:20px;">
-      <p class="ext-intro">
-        Accesos directos a portales externos. Cada uno se abre en una pestaña nueva: lo que se haga allí
-        ocurre en la web del propio servicio, este sistema no recibe ni guarda códigos, sesiones ni documentos.
-      </p>
-
-      <div class="ext-item">
-        <p class="ext-item__note">
-          Portal de verificación del Código Seguro de Verificación (CSV) del Consejo General de la Abogacía
-          Española. Con el código impreso en un documento, comprueba su autenticidad e integridad.
+    <!-- EXPEDIENTE FISCAL Y JURIDICO IMPECABLE (fl-expediente.js, guard propio fl_expediente) -->
+    <section class="flh-panel" id="panel-expediente" role="tabpanel" aria-labelledby="tab-expediente">
+      <div class="card" style="padding:20px;">
+        <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:16px; max-width:720px;">
+          CRM de documentación corporativa. Cuatro carpetas fijas; dentro das de alta los documentos que
+          necesites, con su PDF (también Word, hoja de cálculo o imagen), fecha de caducidad y días de
+          preaviso. El sistema revisa el expediente al arrancar y cada 24 h, y notifica al Admin cuando
+          un documento entra en ventana de alerta, caduca o sigue sin archivo adjunto.
         </p>
-        <a class="ext-access" id="csvAccess" href="https://www.abogacia.es/repositorio/csv/" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">
-          <span class="ext-access__icon" aria-hidden="true">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
-          </span>
-          <span class="ext-access__body">
-            <span class="ext-access__kicker">CONSEJO GENERAL DE LA ABOGACÍA ESPAÑOLA</span>
-            <span class="ext-access__title">Verificación de documentos por CSV</span>
-            <span class="ext-access__url">www.abogacia.es/repositorio/csv/</span>
-          </span>
-          <span class="ext-access__cta">
-            Abrir portal
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7"/><path d="M8 7h9v9"/></svg>
-          </span>
-        </a>
-        <button class="btn ghost ext-copy" type="button" aria-label="Copiar enlace del verificador CSV">Copiar enlace</button>
-      </div>
 
-      <div class="ext-item">
-        <p class="ext-item__note">
-          Editor LaTeX en línea, sin instalación y con colaboración en tiempo real.
-        </p>
-        <a class="ext-access" id="overleafAccess" href="https://www.overleaf.com/" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">
-          <span class="ext-access__icon ext-access__icon--logo" aria-hidden="true">
-            <!-- Logo oficial de Overleaf (O logo, primary), kit https://www.overleaf.com/for/partners/logos, descargado 2026-10-01, sin modificar. Solo identifica el enlace; si la pagina sale del uso interno, consultar a Overleaf. -->
-            <img src="/assets/logo-overleaf.svg" alt="" width="24" height="28">
-          </span>
-          <span class="ext-access__body">
-            <span class="ext-access__kicker">EDITOR LATEX EN LÍNEA</span>
-            <span class="ext-access__title">Overleaf</span>
-            <span class="ext-access__url">www.overleaf.com</span>
-          </span>
-          <span class="ext-access__cta">
-            Abrir editor
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7"/><path d="M8 7h9v9"/></svg>
-          </span>
-        </a>
-        <button class="btn ghost ext-copy" type="button" aria-label="Copiar enlace de Overleaf">Copiar enlace</button>
+        <div class="exp-kpis">
+          <div class="kpi-cell"><div class="kpi-label">COMPLETITUD</div><div class="kpi-val" id="expKpiCompletitud">—</div></div>
+          <div class="kpi-cell"><div class="kpi-label">DOCUMENTOS</div><div class="kpi-val" id="expKpiTotal">—</div></div>
+          <div class="kpi-cell"><div class="kpi-label">VIGENTES</div><div class="kpi-val good" id="expKpiVigentes">—</div></div>
+          <div class="kpi-cell" id="expKpiPorCaducarCell"><div class="kpi-label">POR CADUCAR</div><div class="kpi-val" id="expKpiPorCaducar">—</div></div>
+          <div class="kpi-cell" id="expKpiCaducadosCell"><div class="kpi-label">CADUCADOS</div><div class="kpi-val" id="expKpiCaducados">—</div></div>
+          <div class="kpi-cell" id="expKpiFaltantesCell"><div class="kpi-label">SIN ARCHIVO</div><div class="kpi-val" id="expKpiFaltantes">—</div></div>
+        </div>
+
+        <div id="expAlertas"></div>
+
+        <div class="picker-row" style="justify-content:space-between;">
+          <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+            <input class="input" id="expSearch" placeholder="Buscar por nombre, emisor, referencia…" style="min-width:240px;">
+            <select class="input" id="expFiltroBloque"><option value="">Todas las carpetas</option></select>
+            <select class="input" id="expFiltroEstado"><option value="">Todos los estados</option></select>
+          </div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn" id="expRevisarBtn">Revisar caducidades</button>
+            <button class="btn sage" id="expNuevoBtn">Nuevo documento</button>
+          </div>
+        </div>
+
+        <div class="exp-layout">
+          <div id="expBloques"><p class="empty-state">Cargando expediente…</p></div>
+          <aside class="exp-ficha" id="expFicha">
+            <p class="empty-state">Selecciona un documento de la lista, o crea uno nuevo.</p>
+          </aside>
+        </div>
       </div>
-    </div>
+    </section>
   </main>
 
+  <dialog class="flh-dialog" id="flhModal" aria-label="Detalle"></dialog>
+  <dialog class="flh-dialog flh-palette" id="flhPalette" aria-label="Buscar en S-NFI F&amp;L"></dialog>
+
   <script type="module">
-    import { api, getUser, requireAuth, clearSession, toast, escapeHtml, uploadFlExpedienteDoc, openFlExpedienteDoc } from '/js/api.js';
+    import { api, getUser, getToken, requireAuth, clearSession, toast, escapeHtml, uploadFlExpedienteDoc, openFlExpedienteDoc } from '/js/api.js';
     import { mountThemeToggle } from '/js/theme.js';
     import { mountOfficeBg } from '/js/office-bg.js';
+    import { initFlHub } from '/js/fl-hub.js';
     requireAuth();
     mountThemeToggle(document.querySelector('nav.nav .row'));
     mountOfficeBg();
@@ -703,495 +301,6 @@
       box.textContent = msg;
       box.style.display = msg ? 'block' : 'none';
     }
-    function pill(label, color) {
-      return `<span class="status-pill"><span class="status-dot-sm" style="background:${color};"></span>${escapeHtml(label)}</span>`;
-    }
-
-    // ---- Tabs ----
-    document.querySelectorAll('.mode-tab').forEach(tab => {
-      tab.addEventListener('click', () => {
-        document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
-        document.querySelectorAll('.fl-panel').forEach(p => p.classList.remove('active'));
-        tab.classList.add('active');
-        document.getElementById(`panel-${tab.dataset.panel}`).classList.add('active');
-      });
-    });
-
-    // ---- Summary KPIs ----
-    async function loadSummary() {
-      try {
-        const s = await api.flSummary();
-        document.getElementById('kpiIcrl').textContent = s.icrl != null ? `${s.icrl}%` : '—';
-        document.getElementById('kpiIcrl').classList.toggle('warn', s.icrl != null && s.icrl < 98);
-        document.getElementById('kpiIrv').textContent = `${s.irv ?? 0}%`;
-        document.getElementById('kpiIrvCell').classList.toggle('alert', (s.irv ?? 0) > 0);
-        document.getElementById('kpiIrv').classList.toggle('warn', (s.irv ?? 0) > 0);
-        document.getElementById('kpiInfracciones').textContent = s.contadorInfracciones ?? 0;
-        document.getElementById('kpiInfraccionesCell').classList.toggle('alert', (s.contadorInfracciones ?? 0) > 0);
-        document.getElementById('kpiInfracciones').classList.toggle('warn', (s.contadorInfracciones ?? 0) > 0);
-        document.getElementById('kpiPoderes').textContent = s.poderesEnAlerta ?? 0;
-        document.getElementById('kpiPoderesCell').classList.toggle('alert', (s.poderesEnAlerta ?? 0) > 0);
-        document.getElementById('kpiPoderes').classList.toggle('warn', (s.poderesEnAlerta ?? 0) > 0);
-        document.getElementById('kpiControles').textContent = s.controlesLegalesEnAlerta ?? 0;
-        document.getElementById('kpiControlesCell').classList.toggle('alert', (s.controlesLegalesEnAlerta ?? 0) > 0);
-        document.getElementById('kpiControles').classList.toggle('warn', (s.controlesLegalesEnAlerta ?? 0) > 0);
-      } catch (ex) { showError(ex.message || 'Error al cargar resumen'); }
-    }
-
-    /* ============================= LICENCIAS ============================= */
-
-    let instalaciones = [];
-    let licenciaSeleccionada = null;
-
-    async function loadInstalaciones() {
-      const body = document.getElementById('instBody');
-      try {
-        instalaciones = await api.flInstalacionesList();
-        const licCounts = await Promise.all(instalaciones.map(i => api.flLicenciasList({ id_instalacion: i.id }).then(l => l.length).catch(() => 0)));
-        if (instalaciones.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="5">Sin instalaciones registradas.</td></tr>'; }
-        else {
-          body.innerHTML = instalaciones.map((i, idx) => `<tr data-id="${i.id}">
-            <td>${escapeHtml(i.nombre_instalacion)}</td>
-            <td>${escapeHtml(i.pais || '—')}</td>
-            <td>${escapeHtml(i.region_estado || '—')}</td>
-            <td class="mono">${licCounts[idx]}</td>
-            <td><button class="btn ghost btn--sm inst-del" ${licCounts[idx] > 0 ? 'disabled title="tiene licencias asociadas"' : ''}>Eliminar</button></td>
-          </tr>`).join('');
-          body.querySelectorAll('.inst-del').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-              const id = e.target.closest('tr').dataset.id;
-              try { await api.flInstalacionDelete(id); loadInstalaciones(); } catch (ex) { showError(ex.message); }
-            });
-          });
-        }
-        const options = instalaciones.map(i => `<option value="${i.id}">${escapeHtml(i.nombre_instalacion)}</option>`).join('');
-        document.getElementById('licInstSelect').innerHTML = '<option value="">Todas</option>' + options;
-        document.getElementById('licInstalacion').innerHTML = options || '<option value="">Sin instalaciones</option>';
-        document.getElementById('inspInstalacion').innerHTML = options || '<option value="">Sin instalaciones</option>';
-      } catch (ex) { showError(ex.message || 'Error al cargar instalaciones'); }
-    }
-
-    document.getElementById('instAddBtn').addEventListener('click', async () => {
-      showError('');
-      const nombre_instalacion = document.getElementById('instNombre').value.trim();
-      if (!nombre_instalacion) return showError('Indica el nombre de la instalación');
-      try {
-        await api.flInstalacionAdd({
-          nombre_instalacion,
-          pais: document.getElementById('instPais').value || null,
-          region_estado: document.getElementById('instRegion').value.trim() || null,
-        });
-        document.getElementById('instNombre').value = '';
-        document.getElementById('instRegion').value = '';
-        loadInstalaciones();
-      } catch (ex) { showError(ex.message || 'Error al crear instalación'); }
-    });
-
-    const ESTADO_TRAMITE_COLOR = {
-      Vigente: '#00a878', En_Renovación: '#0071e3', Vencido: '#d80300',
-      En_Prevención: '#cc7a00', Revocado: '#d80300', No_Aplica: '#8a8a8a',
-    };
-
-    async function loadLicencias() {
-      const body = document.getElementById('licBody');
-      const instId = document.getElementById('licInstSelect').value;
-      try {
-        const rows = await api.flLicenciasList(instId ? { id_instalacion: instId } : {});
-        if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="6">Sin licencias registradas.</td></tr>'; return; }
-        body.innerHTML = rows.map(l => `<tr data-id="${l.id}" class="lic-row" style="cursor:pointer;">
-          <td>${escapeHtml(l.dependencia)}</td>
-          <td>${escapeHtml(l.tipo_permiso)}</td>
-          <td>${escapeHtml(l.numero_oficio_folio || '—')}</td>
-          <td class="mono">${l.fecha_vencimiento || '—'}</td>
-          <td>${pill(l.estado_tramite, ESTADO_TRAMITE_COLOR[l.estado_tramite] || '#8a8a8a')}</td>
-          <td><button class="btn ghost btn--sm lic-del">Eliminar</button></td>
-        </tr>`).join('');
-        body.querySelectorAll('.lic-row').forEach(tr => {
-          tr.addEventListener('click', (e) => {
-            if (e.target.closest('.lic-del')) return;
-            openLicenciaDetail(tr.dataset.id);
-          });
-        });
-        body.querySelectorAll('.lic-del').forEach(btn => {
-          btn.addEventListener('click', async (e) => {
-            e.stopPropagation();
-            const id = e.target.closest('tr').dataset.id;
-            if (!confirm('¿Eliminar licencia? Se borrarán métricas y condicionantes asociados.')) return;
-            try { await api.flLicenciaDelete(id); loadLicencias(); loadSummary(); } catch (ex) { showError(ex.message); }
-          });
-        });
-      } catch (ex) { showError(ex.message || 'Error al cargar licencias'); }
-    }
-    document.getElementById('licInstSelect').addEventListener('change', loadLicencias);
-
-    document.getElementById('licAddBtn').addEventListener('click', async () => {
-      showError('');
-      const id_instalacion = document.getElementById('licInstalacion').value;
-      const tipo_permiso = document.getElementById('licTipo').value.trim();
-      if (!id_instalacion) return showError('Añade una instalación primero');
-      if (!tipo_permiso) return showError('Indica el tipo de permiso');
-      const fecha_emision = document.getElementById('licEmision').value;
-      const fecha_vencimiento = document.getElementById('licVencimiento').value;
-      if (!fecha_emision || !fecha_vencimiento) return showError('Indica fecha de emisión y vencimiento');
-      try {
-        await api.flLicenciaAdd({
-          id_instalacion,
-          dependencia: document.getElementById('licDependencia').value,
-          tipo_permiso,
-          numero_oficio_folio: document.getElementById('licFolio').value.trim() || null,
-          fecha_emision,
-          fecha_vencimiento,
-          dias_alerta_vencimiento: Number(document.getElementById('licDiasAlerta').value) || 180,
-        });
-        document.getElementById('licTipo').value = '';
-        document.getElementById('licFolio').value = '';
-        document.getElementById('licEmision').value = '';
-        document.getElementById('licVencimiento').value = '';
-        loadLicencias(); loadSummary();
-      } catch (ex) { showError(ex.message || 'Error al crear licencia'); }
-    });
-
-    const METRICA_LABEL = { Volumen_Agua_m3: 'Vol. Agua (m3)', Factor_Potencia: 'Factor Potencia', Descarga_BOD: 'Descarga BOD', CO2_Emisiones: 'CO2 Emisiones', Otro: 'Otro' };
-
-    async function openLicenciaDetail(licenciaId) {
-      licenciaSeleccionada = licenciaId;
-      document.getElementById('licDetailBlock').style.display = 'block';
-      document.getElementById('licDetailTitle').textContent = `Detalle de licencia`;
-      await Promise.all([loadMetricas(), loadCondicionantes(), loadLicenciaKpis()]);
-      document.getElementById('licDetailBlock').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-
-    async function loadLicenciaKpis() {
-      const box = document.getElementById('licKpisBox');
-      try {
-        const k = await api.flLicenciaKpis(licenciaSeleccionada);
-        const parts = Object.entries(k).filter(([key]) => key !== 'dependencia').map(([key, val]) => `<strong>${key}</strong>: ${val != null ? val + '%' : 'sin datos'}`);
-        box.innerHTML = parts.length ? parts.join(' &nbsp;·&nbsp; ') : 'Sin KPIs específicos para esta dependencia todavía.';
-      } catch (ex) { box.textContent = ''; }
-    }
-
-    async function loadMetricas() {
-      const body = document.getElementById('metBody');
-      try {
-        const rows = await api.flMetricasList(licenciaSeleccionada);
-        if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="5">Sin métricas registradas.</td></tr>'; return; }
-        body.innerHTML = rows.map(m => `<tr>
-          <td>${METRICA_LABEL[m.tipo_parametro] || m.tipo_parametro}</td>
-          <td class="mono">${m.valor_limite_autorizado} ${escapeHtml(m.unidad_medida || '')}</td>
-          <td class="mono">${m.valor_real_medido} ${escapeHtml(m.unidad_medida || '')}</td>
-          <td>${m.cumple_limite_legal ? pill('Cumple', '#00a878') : pill('Incumple', '#d80300')}</td>
-          <td class="mono">${m.fecha_medicion}</td>
-        </tr>`).join('');
-      } catch (ex) { showError(ex.message || 'Error al cargar métricas'); }
-    }
-    document.getElementById('metAddBtn').addEventListener('click', async () => {
-      showError('');
-      if (!licenciaSeleccionada) return;
-      const valor_limite_autorizado = document.getElementById('metLimite').value;
-      const valor_real_medido = document.getElementById('metReal').value;
-      const fecha_medicion = document.getElementById('metFecha').value;
-      if (!valor_limite_autorizado || !valor_real_medido || !fecha_medicion) return showError('Rellena límite, valor real y fecha');
-      try {
-        await api.flMetricaAdd(licenciaSeleccionada, {
-          tipo_parametro: document.getElementById('metTipo').value,
-          valor_limite_autorizado: Number(valor_limite_autorizado),
-          valor_real_medido: Number(valor_real_medido),
-          unidad_medida: document.getElementById('metUnidad').value.trim(),
-          fecha_medicion,
-        });
-        document.getElementById('metLimite').value = '';
-        document.getElementById('metReal').value = '';
-        document.getElementById('metUnidad').value = '';
-        loadMetricas(); loadLicenciaKpis();
-      } catch (ex) { showError(ex.message || 'Error al registrar métrica'); }
-    });
-
-    const COND_ESTADO_COLOR = { Cumplido: '#00a878', Pendiente: '#8a8a8a', En_Revision: '#0071e3', Incumplido: '#d80300', Atrasado: '#cc7a00' };
-
-    async function loadCondicionantes() {
-      const body = document.getElementById('condBody');
-      try {
-        const rows = await api.flCondicionantesList(licenciaSeleccionada);
-        if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="4">Sin condicionantes registrados.</td></tr>'; return; }
-        body.innerHTML = rows.map(c => `<tr data-id="${c.id}">
-          <td>${escapeHtml(c.codigo_condicionante)}</td>
-          <td><div class="progress-bar"><div class="progress-bar__fill ${c.porcentaje_avance >= 100 ? 'full' : ''}" style="width:${c.porcentaje_avance}%;"></div></div></td>
-          <td>
-            <select class="input cond-estado" style="font-size:0.7rem; padding:3px 6px;">
-              ${Object.keys(COND_ESTADO_COLOR).map(k => `<option value="${k}" ${k === c.estado_cumplimiento ? 'selected' : ''}>${k.replace('_',' ')}</option>`).join('')}
-            </select>
-          </td>
-          <td>${pill(c.criticidad, c.criticidad === 'Alta' ? '#d80300' : c.criticidad === 'Media' ? '#cc7a00' : '#00a878')}</td>
-        </tr>`).join('');
-        body.querySelectorAll('tr[data-id]').forEach(tr => {
-          tr.querySelector('.cond-estado').addEventListener('change', async (e) => {
-            try { await api.flCondicionantePatch(tr.dataset.id, { estado_cumplimiento: e.target.value }); loadCondicionantes(); loadSummary(); } catch (ex) { showError(ex.message); }
-          });
-        });
-      } catch (ex) { showError(ex.message || 'Error al cargar condicionantes'); }
-    }
-    document.getElementById('condAddBtn').addEventListener('click', async () => {
-      showError('');
-      if (!licenciaSeleccionada) return;
-      const codigo_condicionante = document.getElementById('condCodigo').value.trim();
-      if (!codigo_condicionante) return showError('Indica el código del condicionante');
-      try {
-        await api.flCondicionanteAdd(licenciaSeleccionada, {
-          codigo_condicionante,
-          descripcion_requisito: document.getElementById('condDescripcion').value.trim(),
-          frecuencia_cumplimiento: document.getElementById('condFrecuencia').value,
-          criticidad: document.getElementById('condCriticidad').value,
-        });
-        document.getElementById('condCodigo').value = '';
-        document.getElementById('condDescripcion').value = '';
-        loadCondicionantes();
-      } catch (ex) { showError(ex.message || 'Error al crear condicionante'); }
-    });
-
-    /* ============================= MATRIZ LEGAL ============================= */
-
-    let proyectos = [];
-    let proyectoSeleccionado = null;
-    let hitosProyecto = [];
-
-    async function loadProyectos() {
-      const body = document.getElementById('proyBody');
-      try {
-        proyectos = await api.flProyectosList();
-        if (proyectos.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="6">Sin proyectos registrados.</td></tr>'; }
-        else {
-          const kpis = await Promise.all(proyectos.map(p => api.flProyectoKpis(p.id).catch(() => ({}))));
-          body.innerHTML = proyectos.map((p, idx) => `<tr>
-            <td>${escapeHtml(p.nombre)}</td>
-            <td>${p.bloqueado ? pill('Bloqueado', '#d80300') : pill('Activo', '#00a878')}</td>
-            <td class="mono">${kpis[idx].ice != null ? kpis[idx].ice + '%' : '—'}</td>
-            <td class="mono">${kpis[idx].tmmHoras != null ? kpis[idx].tmmHoras + 'h' : '—'}</td>
-            <td class="mono">${kpis[idx].tasaGarantes != null ? kpis[idx].tasaGarantes + '%' : '—'}</td>
-            <td><button class="btn ghost btn--sm proy-toggle" data-id="${p.id}" data-bloqueado="${p.bloqueado}">${p.bloqueado ? 'Desbloquear' : 'Bloquear'}</button></td>
-          </tr>`).join('');
-          body.querySelectorAll('.proy-toggle').forEach(btn => {
-            btn.addEventListener('click', async () => {
-              try { await api.flProyectoBloquear(btn.dataset.id, btn.dataset.bloqueado !== 'true'); loadProyectos(); } catch (ex) { showError(ex.message); }
-            });
-          });
-        }
-        const options = proyectos.map(p => `<option value="${p.id}">${escapeHtml(p.nombre)}</option>`).join('');
-        const sel = document.getElementById('matrizProySelect');
-        const prev = sel.value;
-        sel.innerHTML = options || '<option value="">Sin proyectos</option>';
-        if (proyectos.some(p => p.id === prev)) sel.value = prev;
-        proyectoSeleccionado = sel.value || null;
-      } catch (ex) { showError(ex.message || 'Error al cargar proyectos'); }
-    }
-    document.getElementById('proyAddBtn').addEventListener('click', async () => {
-      showError('');
-      const nombre = document.getElementById('proyNombre').value.trim();
-      if (!nombre) return showError('Indica el nombre del proyecto');
-      try {
-        await api.flProyectoAdd({ nombre });
-        document.getElementById('proyNombre').value = '';
-        loadProyectos();
-      } catch (ex) { showError(ex.message || 'Error al crear proyecto'); }
-    });
-
-    document.getElementById('matrizProySelect').addEventListener('change', (e) => {
-      proyectoSeleccionado = e.target.value;
-      loadHitos(); loadMatrizRiesgo();
-    });
-
-    async function loadHitos() {
-      const body = document.getElementById('hitoBody');
-      const hitoSelect = document.getElementById('riesgoHito');
-      if (!proyectoSeleccionado) { body.innerHTML = '<tr class="empty-row"><td colspan="4">Selecciona un proyecto.</td></tr>'; return; }
-      try {
-        hitosProyecto = await api.flHitosList(proyectoSeleccionado);
-        hitoSelect.innerHTML = '<option value="">Sin hito</option>' + hitosProyecto.map(h => `<option value="${h.id}">${escapeHtml(h.nombre)}</option>`).join('');
-        if (hitosProyecto.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="4">Sin hitos registrados.</td></tr>'; return; }
-        body.innerHTML = hitosProyecto.map(h => `<tr data-id="${h.id}">
-          <td>${escapeHtml(h.nombre)}</td>
-          <td>${h.es_hito_financiero ? 'Sí' : 'No'}</td>
-          <td>
-            <select class="input hito-status" style="font-size:0.7rem; padding:3px 6px;">
-              ${['PLANIFICADO','EN_EJECUCION','APROBADO_PARA_PAGO','COMPLETADO'].map(s => `<option value="${s}" ${s === h.status ? 'selected' : ''}>${s.replace(/_/g,' ')}</option>`).join('')}
-            </select>
-          </td>
-          <td class="hito-gating-msg" style="color:#d80300; font-size:0.72rem;"></td>
-        </tr>`).join('');
-        body.querySelectorAll('tr[data-id]').forEach(tr => {
-          tr.querySelector('.hito-status').addEventListener('change', async (e) => {
-            const msgCell = tr.querySelector('.hito-gating-msg');
-            msgCell.textContent = '';
-            try {
-              await api.flHitoTransicion(tr.dataset.id, e.target.value);
-              loadHitos(); loadMatrizRiesgo(); loadProyectos();
-            } catch (ex) {
-              if (ex.message === 'LegalGatingError') {
-                msgCell.textContent = 'Bloqueado: controles gating sin verificar';
-                e.target.value = e.target.dataset.prev || 'PLANIFICADO';
-              } else {
-                showError(ex.message);
-              }
-            }
-          });
-        });
-      } catch (ex) { showError(ex.message || 'Error al cargar hitos'); }
-    }
-    document.getElementById('hitoAddBtn').addEventListener('click', async () => {
-      showError('');
-      if (!proyectoSeleccionado) return showError('Selecciona un proyecto');
-      const nombre = document.getElementById('hitoNombre').value.trim();
-      if (!nombre) return showError('Indica el nombre del hito');
-      try {
-        await api.flHitoAdd(proyectoSeleccionado, { nombre, es_hito_financiero: document.getElementById('hitoFinanciero').checked });
-        document.getElementById('hitoNombre').value = '';
-        document.getElementById('hitoFinanciero').checked = false;
-        loadHitos();
-      } catch (ex) { showError(ex.message || 'Error al crear hito'); }
-    });
-
-    const CONTROL_ESTADO_COLOR = { PENDIENTE: '#8a8a8a', VERIFICADO: '#00a878', EN_ALERTA: '#d80300', EXCEPCION_APROBADA: '#0071e3' };
-
-    async function loadMatrizRiesgo() {
-      const body = document.getElementById('riesgoBody');
-      if (!proyectoSeleccionado) { body.innerHTML = '<tr class="empty-row"><td colspan="6">Selecciona un proyecto.</td></tr>'; return; }
-      try {
-        const rows = await api.flMatrizRiesgoList(proyectoSeleccionado);
-        if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="6">Sin controles registrados.</td></tr>'; return; }
-        body.innerHTML = rows.map(c => `<tr data-id="${c.id}">
-          <td>${escapeHtml(c.risk_description)}<br><span class="mono" style="font-size:0.6rem; color:var(--text-muted);">${escapeHtml(c.legal_risk_type)}</span></td>
-          <td><span class="risk-badge risk-${c.risk_level}">${c.risk_level}</span></td>
-          <td>${escapeHtml(c.duty_of_guarantor_user_id)}</td>
-          <td>${c.is_gating_control ? '<span class="gating-tag">BLOQUEA PAGO</span>' : '—'}</td>
-          <td>${pill(c.status.replace(/_/g,' '), CONTROL_ESTADO_COLOR[c.status])}</td>
-          <td>${c.status === 'VERIFICADO'
-            ? `<span class="mono" style="font-size:0.65rem;">✓ ${c.verified_at ? new Date(c.verified_at).toLocaleDateString('es-ES') : ''}</span>`
-            : `<button class="btn ghost btn--sm riesgo-verificar" data-id="${c.id}">Verificar</button>`}</td>
-        </tr>`).join('');
-        body.querySelectorAll('.riesgo-verificar').forEach(btn => {
-          btn.addEventListener('click', async () => {
-            const url = prompt('URL/referencia de la evidencia de cumplimiento (obligatoria para verificar):');
-            if (!url) return;
-            try {
-              await api.flMatrizRiesgoVerificar(btn.dataset.id, url);
-              toast('Control verificado, firma digital generada');
-              loadMatrizRiesgo(); loadProyectos(); loadSummary();
-            } catch (ex) { showError(ex.message || 'Error al verificar control'); }
-          });
-        });
-      } catch (ex) { showError(ex.message || 'Error al cargar matriz de riesgo'); }
-    }
-    document.getElementById('riesgoAddBtn').addEventListener('click', async () => {
-      showError('');
-      if (!proyectoSeleccionado) return showError('Selecciona un proyecto');
-      const risk_description = document.getElementById('riesgoDescripcion').value.trim();
-      const duty_of_guarantor_user_id = document.getElementById('riesgoGarante').value.trim();
-      if (!risk_description) return showError('Indica la descripción del riesgo');
-      if (!duty_of_guarantor_user_id) return showError('Indica el usuario garante');
-      try {
-        await api.flMatrizRiesgoAdd({
-          project_id: proyectoSeleccionado,
-          milestone_id: document.getElementById('riesgoHito').value || null,
-          legal_risk_type: document.getElementById('riesgoTipo').value,
-          risk_level: document.getElementById('riesgoNivel').value,
-          risk_description,
-          duty_of_guarantor_user_id,
-          preventive_control_description: document.getElementById('riesgoControl').value.trim(),
-          is_gating_control: document.getElementById('riesgoGating').checked,
-        });
-        document.getElementById('riesgoDescripcion').value = '';
-        document.getElementById('riesgoGarante').value = '';
-        document.getElementById('riesgoControl').value = '';
-        loadMatrizRiesgo(); loadProyectos();
-      } catch (ex) { showError(ex.message || 'Error al crear control'); }
-    });
-
-    /* ============================= PODERES & FIRMAS ============================= */
-
-    const PODER_ESTADO_COLOR = { Vigente: '#00a878', Por_Caducar: '#cc7a00', Caducado: '#d80300', Renovado: '#0071e3' };
-
-    async function loadPoderes() {
-      const body = document.getElementById('poderBody');
-      try {
-        const rows = await api.flPoderesList();
-        if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="6">Sin poderes registrados.</td></tr>'; return; }
-        body.innerHTML = rows.map(p => `<tr data-id="${p.id}">
-          <td>${escapeHtml(p.titular)}</td>
-          <td>${escapeHtml(p.tipo.replace(/_/g,' '))}</td>
-          <td>${escapeHtml(p.entidad || '—')}</td>
-          <td class="mono">${p.fecha_caducidad}</td>
-          <td>${pill(p.estado.replace(/_/g,' '), PODER_ESTADO_COLOR[p.estado])}</td>
-          <td><button class="btn ghost btn--sm poder-del">Eliminar</button></td>
-        </tr>`).join('');
-        body.querySelectorAll('.poder-del').forEach(btn => {
-          btn.addEventListener('click', async (e) => {
-            const id = e.target.closest('tr').dataset.id;
-            try { await api.flPoderDelete(id); loadPoderes(); loadSummary(); } catch (ex) { showError(ex.message); }
-          });
-        });
-      } catch (ex) { showError(ex.message || 'Error al cargar poderes'); }
-    }
-    document.getElementById('poderAddBtn').addEventListener('click', async () => {
-      showError('');
-      const titular = document.getElementById('poderTitular').value.trim();
-      const fecha_emision = document.getElementById('poderEmision').value;
-      const fecha_caducidad = document.getElementById('poderCaducidad').value;
-      if (!titular) return showError('Indica el titular');
-      if (!fecha_emision || !fecha_caducidad) return showError('Indica fecha de emisión y caducidad');
-      try {
-        await api.flPoderAdd({
-          titular,
-          tipo: document.getElementById('poderTipo').value,
-          entidad: document.getElementById('poderEntidad').value.trim() || null,
-          fecha_emision, fecha_caducidad,
-          dias_alerta: Number(document.getElementById('poderDiasAlerta').value) || 60,
-        });
-        document.getElementById('poderTitular').value = '';
-        document.getElementById('poderEntidad').value = '';
-        document.getElementById('poderEmision').value = '';
-        document.getElementById('poderCaducidad').value = '';
-        loadPoderes(); loadSummary();
-      } catch (ex) { showError(ex.message || 'Error al registrar poder'); }
-    });
-
-    /* ============================= INSPECCIONES ============================= */
-
-    const RESULTADO_COLOR = { Sin_Observaciones: '#00a878', Con_Observaciones: '#cc7a00', Apercibimiento: '#d80300', Clausura_Parcial: '#d80300', Clausura_Total: '#d80300' };
-
-    async function loadInspecciones() {
-      const body = document.getElementById('inspBody');
-      try {
-        const rows = await api.flInspeccionesList();
-        if (rows.length === 0) { body.innerHTML = '<tr class="empty-row"><td colspan="6">Sin inspecciones registradas.</td></tr>'; return; }
-        const instName = new Map(instalaciones.map(i => [i.id, i.nombre_instalacion]));
-        body.innerHTML = rows.map(i => `<tr>
-          <td>${escapeHtml(instName.get(i.id_instalacion) || '—')}</td>
-          <td>${escapeHtml(i.autoridad_inspectora)}</td>
-          <td class="mono">${i.fecha_visita}</td>
-          <td>${pill(i.resultado_visita.replace(/_/g,' '), RESULTADO_COLOR[i.resultado_visita])}</td>
-          <td class="mono">${i.monto_multa_economica ? '€' + i.monto_multa_economica.toLocaleString('es-ES') : '—'}</td>
-          <td class="mono">${i.estatus_resolucion.replace(/_/g,' ')}</td>
-        </tr>`).join('');
-      } catch (ex) { showError(ex.message || 'Error al cargar inspecciones'); }
-    }
-    document.getElementById('inspAddBtn').addEventListener('click', async () => {
-      showError('');
-      const id_instalacion = document.getElementById('inspInstalacion').value;
-      const fecha_visita = document.getElementById('inspFecha').value;
-      if (!id_instalacion) return showError('Añade una instalación primero');
-      if (!fecha_visita) return showError('Indica la fecha de la visita');
-      try {
-        await api.flInspeccionAdd({
-          id_instalacion,
-          autoridad_inspectora: document.getElementById('inspAutoridad').value,
-          fecha_visita,
-          resultado_visita: document.getElementById('inspResultado').value,
-          monto_multa_economica: Number(document.getElementById('inspMulta').value) || 0,
-        });
-        document.getElementById('inspFecha').value = '';
-        document.getElementById('inspMulta').value = '';
-        loadInspecciones(); loadSummary();
-      } catch (ex) { showError(ex.message || 'Error al registrar inspección'); }
-    });
 
     // ---- Expediente Fiscal y Juridico Impecable (CRM documental) ----
     const EXP_ESTADOS_LBL = {
@@ -1596,29 +705,36 @@
     document.getElementById('expFiltroBloque').addEventListener('change', loadExpediente);
     document.getElementById('expFiltroEstado').addEventListener('change', loadExpediente);
 
-    // ---- Accesos externos ----
-    document.getElementById('panel-externos').addEventListener('click', async (e) => {
-      const btn = e.target.closest('.ext-copy');
-      if (!btn) return;
+    // El expediente se carga al abrir su pestaña por primera vez (guard propio
+    // fl_expediente: sin ese permiso no se piden sus datos).
+    let expCargado = false;
+    async function cargarExpediente() {
+      if (expCargado) return;
+      expCargado = true;
       try {
-        await navigator.clipboard.writeText(btn.closest('.ext-item').querySelector('.ext-access').href);
-        toast('Enlace copiado');
-      } catch { toast('No se pudo copiar el enlace'); }
-    });
-
-    // ---- Init ----
-    (async () => {
-      await loadInstalaciones();
-      loadSummary();
-      loadLicencias();
-      loadProyectos().then(() => { loadHitos(); loadMatrizRiesgo(); });
-      loadPoderes();
-      loadInspecciones();
-      await loadExpedienteMeta();
+        await loadExpedienteMeta();
+      } catch (ex) {
+        expCargado = false;
+        showError(ex.message || 'No se pudo cargar el expediente');
+        return;
+      }
       loadExpediente();
       loadExpedienteSummary();
       loadExpedienteAlertas();
-    })();
+    }
+
+    // ---- Init: Hub fiscal y legal (cinco vistas) + Expediente ----
+    const hub = initFlHub({ onTab: (tab) => { if (tab === 'expediente') cargarExpediente(); } });
+
+    // Sin la mesa fl_expediente, la pestaña del Expediente no se ofrece.
+    fetch('/api/me/permissions', { headers: { Authorization: `Bearer ${getToken()}` } })
+      .then(r => (r.ok ? r.json() : null))
+      .then(p => {
+        if (!p || (p.mesas || []).includes('fl_expediente')) return;
+        document.getElementById('tab-expediente').hidden = true;
+        if (location.hash === '#expediente') hub.irATab('overview');
+      })
+      .catch(() => {});
   </script>
 </body>
 </html>

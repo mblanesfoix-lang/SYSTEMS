@@ -25,7 +25,7 @@ import { mountElviraCentral } from './elvira-central.js';
 import { mountFinance } from './finance.js';
 import { mountFinanceCompanies } from './finance-companies.js';
 import { mountMna } from './mna.js';
-import { mountFl } from './fl.js';
+import { mountFlHub } from './fl-hub.js';
 import { mountFlExpediente } from './fl-expediente.js';
 import { mountPactvm } from './pactum-viridi.js';
 import { mountResilience } from './resilience.js';
@@ -130,7 +130,7 @@ await seedDefaultTenant(getControlDb());
 // Calienta el cache de tenant-registry.js para 'equipo-interno' ANTES de
 // montar ningun modulo: varios mounts disparan seeds/crons de boot via
 // runAsTenant(DEFAULT_TENANT_ID, ...) de forma sincronica al montarse (ver
-// pactum-viridi.js, fl.js, fl-expediente.js, resilience.js, elvira-central.js,
+// pactum-viridi.js, fl-hub.js, fl-expediente.js, resilience.js, elvira-central.js,
 // herzog.js, rack-state.js, grid-interlink.js) — esos usan la variante *Sync
 // del registro, que exige que la variante async ya se haya resuelto una vez.
 // Sin este warm-up, el primer mount que dispare un seed lanzaria
@@ -146,7 +146,7 @@ await ensureUsersSeed(rawMongo);
 // Mesas accesibles por rol. 'admin' = todo. Others = whitelist.
 // fl_expediente: scope propio del Expediente Fiscal y Juridico (NDA-B bilaterales
 // y documentacion protegida) dentro de F&L. Deliberadamente distinto de 'fl'
-// (licencias/poderes/matriz de riesgo, menos sensible) aunque hoy ambos solo
+// (Hub fiscal y legal: modelos, notificaciones, gobierno corporativo, CLM) aunque hoy ambos solo
 // los tenga admin — separa el permiso para el dia que 'fl' se abra a mas roles
 // sin arrastrar automaticamente el expediente confidencial.
 const ROLE_MESAS = {
@@ -418,7 +418,7 @@ app.use('/api/finance',   auth, requireMesa('finance'));
 app.use('/api/mna',       auth, requireMesa('mna'));
 // /api/fl/expediente/* NO entra por este middleware generico: tiene guard
 // propio (requireMesa('fl_expediente')) montado en fl-expediente.js, distinto
-// de la mesa 'fl' del resto de F&L (licencias/poderes) — ver SEGURIDAD en ese
+// de la mesa 'fl' del resto de F&L (Hub fiscal y legal) — ver SEGURIDAD en ese
 // archivo. mesaForPath (usado por sentinelForensics, no por autorizacion)
 // sigue clasificando /api/fl/* como mesa 'fl' a efectos de log forense; eso
 // es correcto y no otorga acceso por si solo.
@@ -480,12 +480,14 @@ const cibe = createCibeBunker({ mongo: rawMongo, busEmit, adminNotify });
 cibe.ready().catch((err) => console.error('[CIBE] Error de arranque (creacion temprana para F&L):', err.message));
 
 /* ==========================================================================
-   S-NFI F&L · Audit Legal - Firmas & Normas (reconstruida 2026-09-08,
-   ver FL-PLAN.md). Licencias multi-planta SEMARNAT/CONAGUA/CFE/MITECO,
-   matriz de responsabilidad legal por proyecto con gating de pagos, motor
-   de alarmas de caducidad de poderes/firmas sobre adminNotify.
+   S-NFI F&L · Hub fiscal y legal (rehecho 2026-10-12, sustituye a fl.js).
+   Modelos tributarios AEAT y forales, notificaciones de las AA.PP. con
+   rechazo presunto y plazos (Ley 39/2015), gobierno corporativo (sociedades,
+   juntas, apoderamientos), CLM y alertas BOE/BORME reales (fl-boletines.js,
+   API de datos abiertos del BOE, cada 6 h). Datos de demostracion marcados
+   placeholder hasta que Direccion confirme los reales.
 ========================================================================== */
-mountFl(app, { auth, requireMesa, mongo, busEmit, adminNotify });
+mountFlHub(app, { auth, requireMesa, mongo, busEmit, adminNotify });
 /* Expediente Fiscal y Juridico Impecable: catalogo fijo de documentacion
    corporativa (identidad fiscal, PI, dataroom financiero, anclaje comercial)
    con adjuntos en GridFS y motor propio de alerta de caducidad. Modulo aparte,
@@ -549,7 +551,7 @@ await ensureNotificationCenterIndexes();
 /* ==========================================================================
    CIBE Bunker · rutas de administracion (mesa pactvm) + endpoint externo
    POST /api/cibe/token. La instancia 'cibe' se crea mas arriba (antes de
-   mountFl/mountFlExpediente, que ya la necesitan) — aqui solo se montan
+   mountFlHub/mountFlExpediente, que ya la necesitan) — aqui solo se montan
    las rutas HTTP del bunker sobre esa misma instancia.
 ========================================================================== */
 mountCibeBunker(app, { auth, requireMesa, mongo, bunker: cibe, busEmit });

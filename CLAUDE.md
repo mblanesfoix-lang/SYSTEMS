@@ -34,7 +34,7 @@ Permisos por rol en `ROLE_MESAS` y `MESA_ROUTES` de `server.js` (admin = todo). 
 | S-NFI U2 | Rëff | Energía desperdiciada del sistema eléctrico ES (REE/ESIOS en vivo) |
 | S-NFI Finance | Rëff | Tesorería, caja, contabilidad analítica, activos (`finance.js`, céntimos) y CRM documental de empresas (`finance-companies.js`) |
 | S-NFI M&A | Rëff | Valoración y pipeline de deals (`mna.js`) |
-| S-NFI F&L | Rëff | Audit legal (`fl.js`), Expediente Fiscal y Jurídico (`fl-expediente.js`, scope propio `fl_expediente`) y Accesos externos |
+| S-NFI F&L | Rëff | Hub fiscal y legal (`fl-hub.js`: modelos, notificaciones AA.PP., gobierno corporativo, CLM; BOE/BORME reales en `fl-boletines.js`) y Expediente Fiscal y Jurídico (`fl-expediente.js`, scope `fl_expediente`) |
 | S-NFI Resilience | Rëff | Detecta fallos de red y eventos sistémicos; solo señala a Elvi-Ra (`resilience.js`) |
 | S-EAGLE | Rëff | Revisa lo que retiene Herzog Central (`seagle.js`) |
 | S-NFI Factory | Rëff | Vaciada a petición (2026-09-08): placeholder, guard `factory` reservado |
@@ -77,12 +77,12 @@ Bearer en `localStorage`; cada página llama `requireAuth()` y `/api/me/permissi
 
 - Reiniciar el servidor (el dev server aún no tiene guest-token con sesión, desbloqueos limitados ni `path-normalize.js`), reconstruyendo antes el cliente de Rëff (`npm run build` en `Elvi-Ra/Mesas/Rëff`): el SPA antiguo no manda el Bearer y recibiría 401. Los códigos de verificación de carbono emitidos antes del cambio ya no sirven.
 - Verificar en navegador real con login real (Sentinel bloquea la IP local por HTTP): Pactvm (Carbono, Planetario, VDR e invitados), Consola Maestra y Comunicaciones de Rëff, Finance Empresas, F&L, Resilience, S-EAGLE, Herzog Central, Centro de Notificaciones y el visor 3D de PAIA con HUD.
-- Datos reales: todo es PLACEHOLDER hasta que el jefe confirme (Pactvm planetario, nodos por país y ratio de carbono; Resilience; fechas de caducidad del Expediente F&L; países de `VDR_COUNTRY_COORDS`).
+- Datos reales: todo es PLACEHOLDER hasta que el jefe confirme (Pactvm planetario, nodos por país y ratio de carbono; Resilience; F&L: datos DEMO del Hub y caducidades del Expediente; países de `VDR_COUNTRY_COORDS`).
 - ØPS/PAIA: el código lee `ops_nodes`, `ops_readings` y `ops_log` (2026-10-02), que es donde están los datos (3 y 246 docs; `ops_log` vacía); no hay migración. Rutas, clave de mesa y scopes CIBE en ASCII (`ops`/`ophs`), coherente con la convención; `path-normalize.js` retirado por innecesario (dev server necesita reinicio para dejar de buscarlo).
 - HUD de PAIA: telemetría SIMULADA (`createTelemetryFeed()` es el punto de sustitución por la fuente real). Dos incoherencias de la spec por decidir con el jefe: composición del piloto (2 BioGrinders + 1 BioDeshidratador en la base de conocimiento frente a los totales por nodo) y 80 % de extracción secundaria frente al 7 % de humedad estándar.
 - ØPHS real del jefe: puerto `SYSTEMS_URL`; el manifest de ØPHS en `k8s/` está listo con `replicas: 0`. ØPS y Herzog (tiles) siguen "próximamente".
 - Volumen 3: cluster multi-rack (`RACK_PEERS`, `RACK_SHARED_KEY`), URLs live de TSO (`GRID_<CC>_URL`), claves CIBE a vault, `CIBE_MODE=strict` con racks reales. Rëff Meetings: SMTP real (`SMTP_HOST`, `SMTP_USER`, `SMTP_PASS` en `app/backend/.env`; reiniciar tras configurar).
 - Factory: redefinir alcance. S-EAGLE: métricas propias. Herzog Central: ampliar `pollBaseMetrics` si el jefe lo pide.
-- Tests por añadir: F&L (+ Expediente), M&A, Finance Empresas, S-EAGLE, Centro de Notificaciones, Rack, Grid y las rutas públicas de verificación y VDR.
+- Tests por añadir: Expediente F&L, M&A, Finance Empresas, S-EAGLE, Centro de Notificaciones, Rack, Grid y las rutas públicas de verificación y VDR.
 - Otros: confirmar el dominio de `aporquet@snficorp.com` (único distinto en `SEED_USERS`); LinkedIn API; logo de la Abogacía (descarga manual a `app/frontend/assets/`); `kubectl apply --dry-run=client -f k8s/` nunca ejecutado contra un API server real (sí validado con `kubeconform -strict` en 1.34/1.37, ver `k8s/README.md`).
 - Git: hay mucho trabajo sin commitear de varias sesiones; mirar `git status` antes de asumir qué está en `master`.
