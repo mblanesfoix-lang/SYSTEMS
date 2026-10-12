@@ -2,7 +2,9 @@
 
 Manifests para probar el salto a k8s en local antes de tocar produccion (Coolify/Hetzner sigue siendo el despliegue real hoy, ver CLAUDE.md "Infraestructura de despliegue").
 
-**Estado de validacion (2026-10-02)**: los 6 manifests (14 recursos) validan limpio contra el schema real de Kubernetes con `kubeconform -strict`, en 1.34 y 1.37, sin errores. `server.js` se arranco en caliente contra un `mongod` 7.0.43 real (con y sin auth) verificando: `/api/livez`/`/api/readyz`/`/api/ophs/readyz` responden lo esperado, las sondas no ensucian `forensic_log`, `readyz` falla en <3s si Mongo cae (antes: sin timeout acotado), el apagado ordenado (`SIGTERM`) drena conexiones/SSE y deja la marca de arranque limpia, un proceso que muere sin apagarse (`SIGKILL`/OOM) SI dispara el aviso de "recuperado tras caida" en el siguiente arranque y uno que se apago limpio NO, y `withTransaction` funciona en Mongo standalone (sin replica set, la topologia real de `k8s/03-mongo.yaml`) sin lanzar `IllegalOperation`. Suite completa de tests del repo (96/96) verde contra el codigo parcheado. Este entorno de desarrollo sigue sin `kubectl`/`kind`/`docker` instalados — los 14 recursos se dieron por buenos via kubeconform + arranque real del proceso, no contra un API server de Kubernetes real. Antes de desplegar: correr `kubectl apply --dry-run=client -f k8s/` con las herramientas instaladas (paso de la Fase 1 de abajo), que detecta ademas problemas especificos del cluster (admission webhooks, CRDs) que kubeconform no ve.
+**Estado de validacion (2026-10-02)**: los primeros 6 manifests (14 recursos) validaron limpio contra el schema real de Kubernetes con `kubeconform -strict`, en 1.34 y 1.37, sin errores, y `server.js` se arranco en caliente contra un `mongod` 7.0.43 real (con y sin auth) verificando: `/api/livez`/`/api/readyz`/`/api/ophs/readyz` responden lo esperado, las sondas no ensucian `forensic_log`, `readyz` falla en <3s si Mongo cae (antes: sin timeout acotado), el apagado ordenado (`SIGTERM`) drena conexiones/SSE y deja la marca de arranque limpia, un proceso que muere sin apagarse (`SIGKILL`/OOM) SI dispara el aviso de "recuperado tras caida" en el siguiente arranque y uno que se apago limpio NO, y `withTransaction` funciona en Mongo standalone (sin replica set, la topologia real de `k8s/03-mongo.yaml`) sin lanzar `IllegalOperation`. Suite completa de tests del repo verde contra el codigo parcheado (98/98 a 2026-10-05).
+
+**Añadido 2026-10-05, sin re-ejecutar kubeconform todavia** (este entorno sigue sin `kubectl`/`kind`/`docker`/`kubeconform` instalados — no se puede verificar aqui, hay que correrlo antes de aplicar): `06-networkpolicy.yaml` (default-deny + reglas explicitas Mongo/elvira-core/ophs/DNS), `podAntiAffinity` (preferida) en `04-elvira-core.yaml` y `05-ophs.yaml` para que las 2 replicas no caigan en el mismo nodo, y `automountServiceAccountToken: false` en los tres Deployments/StatefulSet (ninguno llama al API de k8s desde dentro). Sintaxis revisada a mano contra la spec de `networking.k8s.io/v1`, `apps/v1` y `v1`/PodSpec, pero no sustituye a `kubeconform -strict` ni a `kubectl apply --dry-run=client -f k8s/`: correr ambos antes de desplegar (ver Requisitos locales).
 
 ## Requisitos locales
 
@@ -40,6 +42,7 @@ kubectl apply -f k8s/02-secrets.yaml
 kubectl apply -f k8s/03-mongo.yaml
 kubectl apply -f k8s/04-elvira-core.yaml
 kubectl apply -f k8s/05-ophs.yaml   # replicas:0, no consume recursos aun
+kubectl apply -f k8s/06-networkpolicy.yaml   # requiere CNI con soporte NetworkPolicy, ver nota en el fichero
 
 # 5. Verificar
 kubectl -n elvira get pods -w
@@ -102,6 +105,22 @@ kubectl -n elvira get pods -w   # Terminating -> Running del pod nuevo, sin que 
 kubectl -n elvira exec deploy/elvira-core -- kill -9 1
 # el siguiente arranque de ESE pod debe generar una notificacion Admin "recuperado tras
 # caida" (ver /api/notif-center o admin_notifications.json); un rollout normal no la genera.
+```
+
+## Comprobar NetworkPolicy (aislamiento de red)
+
+```bash
+# Requiere un cluster con CNI que soporte NetworkPolicy (kindnet, el CNI por
+# defecto de kind, NO lo soporta -- crear el cluster con Calico o Cilium para
+# probar esto en local, ver kind.sigs.k8s.io/docs/user/configuration/#the-kindnetd-cni).
+
+# Debe FALLAR (ningun pod fuera de elvira-core/ophs puede hablar con Mongo):
+kubectl -n elvira run probe --rm -it --image=mongo:7.0.43 --restart=Never -- \
+  mongosh --host mongo --eval "db.adminCommand('ping')" --quiet
+
+# Debe FUNCIONAR (elvira-core SI puede hablar con Mongo):
+kubectl -n elvira exec -it deploy/elvira-core -- node -e \
+  "require('net').connect(27017,'mongo').on('connect',()=>{console.log('ok');process.exit(0)})"
 ```
 
 ## Limpieza

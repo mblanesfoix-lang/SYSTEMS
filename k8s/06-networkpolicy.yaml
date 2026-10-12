@@ -1,0 +1,118 @@
+# Aislamiento de red dentro del namespace. Sin esto, cualquier pod que acabe
+# corriendo en "elvira" (presente o futuro) puede hablar con Mongo o con
+# elvira-core/ophs sin restriccion: un NetworkPolicy "default deny" + reglas
+# explicitas por app es la practica estandar para no depender de que nadie
+# despliegue nada inesperado en el namespace.
+#
+# Nota: esto solo tiene efecto si el CNI del cluster soporta NetworkPolicy
+# (Calico, Cilium, etc). kind con el CNI por defecto (kindnet) NO lo aplica
+# -- hace falta crear el cluster con un CNI que lo soporte para probarlo en
+# local. En produccion (si el proveedor final es k8s y no Coolify) depende
+# del CNI del proveedor.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: elvira
+spec:
+  podSelector: {}
+  policyTypes: ["Ingress", "Egress"]
+---
+# DNS siempre permitido (CoreDNS vive en kube-system, fuera de este namespace):
+# sin esta regla, el default-deny de arriba rompe toda resolucion de nombres,
+# incluida la de mongo.elvira.svc que usa el propio MONGO_URI.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: elvira
+spec:
+  podSelector: {}
+  policyTypes: ["Egress"]
+  egress:
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# Mongo: solo acepta conexiones desde elvira-core u ophs, nunca desde otro pod
+# del namespace ni desde fuera del cluster.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mongo-allow-from-backend
+  namespace: elvira
+spec:
+  podSelector:
+    matchLabels:
+      app: mongo
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: elvira-core
+        - podSelector:
+            matchLabels:
+              app: ophs
+      ports:
+        - protocol: TCP
+          port: 27017
+---
+# elvira-core: acepta trafico HTTP desde cualquier origen (es el Service que
+# expone la app) y puede salir a Mongo + DNS + APIs externas (Anthropic,
+# ESIOS, etc. via HTTPS 443).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: elvira-core-allow-http-and-egress
+  namespace: elvira
+spec:
+  podSelector:
+    matchLabels:
+      app: elvira-core
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 5173
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: mongo
+      ports:
+        - protocol: TCP
+          port: 27017
+    - ports:
+        - protocol: TCP
+          port: 443
+---
+# ophs: mismo criterio que elvira-core (hoy vive en la misma imagen/proceso).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ophs-allow-http-and-egress
+  namespace: elvira
+spec:
+  podSelector:
+    matchLabels:
+      app: ophs
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 5173
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: mongo
+      ports:
+        - protocol: TCP
+          port: 27017
+    - ports:
+        - protocol: TCP
+          port: 443

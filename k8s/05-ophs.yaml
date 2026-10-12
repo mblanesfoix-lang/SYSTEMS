@@ -33,6 +33,8 @@ spec:
       # mismo criterio que 04-elvira-core.yaml: margen sobre el tope duro de apagado
       # ordenado de server.js (SHUTDOWN_HARD_MS, 25s por defecto).
       terminationGracePeriodSeconds: 35
+      # mismo criterio que 04-elvira-core.yaml: no llama al API de k8s desde dentro.
+      automountServiceAccountToken: false
       securityContext:
         # mismo criterio que 04-elvira-core.yaml: misma imagen (elvira:local),
         # mismo USER elvira:elvira (uid/gid 10001) del Dockerfile.
@@ -40,6 +42,16 @@ spec:
         runAsUser: 10001
         runAsGroup: 10001
         fsGroup: 10001
+      affinity:
+        # mismo criterio que 04-elvira-core.yaml: replicas repartidas entre nodos.
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: ophs
+                topologyKey: kubernetes.io/hostname
       containers:
         - name: ophs
           image: elvira:local   # sustituir por imagen propia si ØPHS se extrae a proceso separado

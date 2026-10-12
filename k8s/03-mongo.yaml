@@ -23,6 +23,8 @@ spec:
       # kubelet mande SIGKILL; con datos reales (hash chains Sentinel/Rack/Grid/CIBE) un
       # corte en seco es peor que una espera de unos segundos de mas.
       terminationGracePeriodSeconds: 30
+      # el proceso no llama al API de k8s desde dentro.
+      automountServiceAccountToken: false
       containers:
         - name: mongo
           # pin a la version exacta en uso (7.0.43, ver app/backend/package.json ^7.3.0

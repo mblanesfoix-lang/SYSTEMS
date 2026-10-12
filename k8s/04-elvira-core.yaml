@@ -34,6 +34,9 @@ spec:
       # salida antes de este plazo — el margen evita que kubelet mate el proceso a mitad
       # del apagado ordenado.
       terminationGracePeriodSeconds: 35
+      # el proceso no llama al API de Kubernetes desde dentro: sin token de
+      # ServiceAccount montado, menos superficie si un pod se compromete.
+      automountServiceAccountToken: false
       securityContext:
         # pod-level: coherente con el USER elvira:elvira (uid/gid 10001)
         # fijado en app/Dockerfile — cinturon y tirantes (Dockerfile ya evita
@@ -43,6 +46,19 @@ spec:
         runAsUser: 10001
         runAsGroup: 10001
         fsGroup: 10001   # el volumen elvira-data debe ser escribible por ese uid
+      affinity:
+        # las replicas de un mismo Deployment nunca en el mismo nodo fisico:
+        # si no, el PDB (minAvailable:1) no protege de una caida de nodo real,
+        # solo de un drenado voluntario. "preferred" y no "required": en un
+        # cluster de 1 nodo (kind local) no debe bloquear el scheduling.
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: elvira-core
+                topologyKey: kubernetes.io/hostname
       containers:
         - name: elvira
           image: elvira:local   # kind load docker-image elvira:local (ver README Fase 1)
