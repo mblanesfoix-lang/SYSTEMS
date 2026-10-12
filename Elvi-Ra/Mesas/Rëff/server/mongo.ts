@@ -33,6 +33,10 @@ async function ensureIndexes(): Promise<void> {
   await reffDb.collection('company_meetings').createIndex({ sheet_id: 1, scheduled_at: 1 });
   await reffDb.collection('company_meetings').createIndex({ status: 1, scheduled_at: 1 });
   await reffDb.collection('company_meetings').createIndex({ reminder_sent_at: 1 });
+  await reffDb.collection('company_communications').createIndex({ company_id: 1, occurred_at: -1 });
+  await reffDb.collection('company_communications').createIndex({ sheet_id: 1, occurred_at: -1 });
+  await reffDb.collection('company_comm_files.files').createIndex({ 'metadata.comm_id': 1 });
+  await reffDb.collection('company_comm_files.files').createIndex({ 'metadata.company_id': 1 });
 }
 
 // Emula AUTOINCREMENT de SQLite vía contador atómico.

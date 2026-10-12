@@ -11,7 +11,7 @@ interface Props {
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', hint: 'Globo 3D' },
   { to: '/crm', label: 'CRM', hint: 'Hojas y empresas' },
-  { to: '/calendario', label: 'Calendario', hint: 'Reuniones con empresas' },
+  { to: '/calendario', label: 'Direccion de enlace y exterior', hint: 'Calendario y comunicaciones' },
   { to: '/vigilancia', label: 'Vigilancia', hint: 'Herzog + feed inteligente 24/7' },
 ];
 

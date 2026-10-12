@@ -6,6 +6,7 @@ import {
 import { STATUS_META, STATUS_OPTIONS } from '../lib/status';
 import { CompanyImages } from './CompanyImages';
 import { CompanyMeetings } from './CompanyMeetings';
+import { CompanyCommunications } from './CompanyCommunications';
 
 interface Props {
   company: Company | null;
@@ -191,6 +192,8 @@ export function CompanyModal({ company, onClose, onSave, onDelete }: Props) {
         )}
 
         {company && <CompanyMeetings companyId={company.id} />}
+
+        {company && <CompanyCommunications companyId={company.id} />}
 
         {company && <CompanyImages companyId={company.id} />}
 

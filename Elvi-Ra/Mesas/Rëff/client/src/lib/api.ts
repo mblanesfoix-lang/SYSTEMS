@@ -593,3 +593,145 @@ export async function updateMeeting(id: number, input: Partial<MeetingInput> & {
 export async function deleteMeeting(id: number) {
   return request<{ ok: true }>(`/api/crm/meetings/${id}`, { method: 'DELETE' });
 }
+
+/* ---------- Dashboard de comunicaciones ---------- */
+
+export const COMM_CHANNELS = ['email', 'llamada', 'whatsapp', 'reunion', 'carta', 'otro'] as const;
+export type CommChannel = typeof COMM_CHANNELS[number];
+
+export const COMM_DIRECTIONS = ['saliente', 'entrante'] as const;
+export type CommDirection = typeof COMM_DIRECTIONS[number];
+
+export const COMM_CHANNEL_LABEL: Record<CommChannel, string> = {
+  email: 'Email',
+  llamada: 'Llamada',
+  whatsapp: 'WhatsApp',
+  reunion: 'Reunión',
+  carta: 'Carta',
+  otro: 'Otro',
+};
+
+export const COMM_DIRECTION_LABEL: Record<CommDirection, string> = {
+  saliente: 'Saliente',
+  entrante: 'Entrante',
+};
+
+export interface Communication {
+  id: number;
+  companyId: number;
+  companyName: string | null;
+  companyCity: string | null;
+  companyCountry: string | null;
+  sheetId: number;
+  channel: CommChannel;
+  direction: CommDirection;
+  subject: string;
+  notes: string | null;
+  occurredAt: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  attachmentCount: number;
+}
+
+export interface CommunicationInput {
+  channel: CommChannel;
+  direction: CommDirection;
+  subject: string;
+  notes?: string | null;
+  occurredAt?: string;
+}
+
+export interface CommunicationsSummary {
+  total: number;
+  last30Days: number;
+  withoutAttachment: number;
+  companiesContacted: number;
+}
+
+export async function searchCommunications(params: {
+  q?: string; sheetId?: number; companyId?: number; channel?: CommChannel; direction?: CommDirection;
+  from?: string; to?: string; sort?: 'newest' | 'oldest'; limit?: number;
+} = {}) {
+  const qs = new URLSearchParams();
+  if (params.q) qs.set('q', params.q);
+  if (params.sheetId != null) qs.set('sheetId', String(params.sheetId));
+  if (params.companyId != null) qs.set('companyId', String(params.companyId));
+  if (params.channel) qs.set('channel', params.channel);
+  if (params.direction) qs.set('direction', params.direction);
+  if (params.from) qs.set('from', params.from);
+  if (params.to) qs.set('to', params.to);
+  if (params.sort) qs.set('sort', params.sort);
+  if (params.limit) qs.set('limit', String(params.limit));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return request<{ communications: Communication[] }>(`/api/crm/communications${suffix}`);
+}
+
+export async function fetchCommunicationsSummary() {
+  return request<CommunicationsSummary>('/api/crm/communications/summary');
+}
+
+export async function fetchCompanyCommunications(companyId: number) {
+  return request<{ communications: Communication[] }>(`/api/crm/companies/${companyId}/communications`);
+}
+
+export async function createCommunication(companyId: number, input: CommunicationInput) {
+  return request<{ communication: Communication }>(`/api/crm/companies/${companyId}/communications`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateCommunication(id: number, input: Partial<CommunicationInput>) {
+  return request<{ communication: Communication }>(`/api/crm/communications/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteCommunication(id: number) {
+  return request<{ ok: true }>(`/api/crm/communications/${id}`, { method: 'DELETE' });
+}
+
+export interface CommAttachment {
+  id: string;
+  filename: string;
+  contentType: string;
+  size: number;
+  uploadedAt: string | null;
+}
+
+export async function fetchCommAttachments(commId: number) {
+  return request<{ attachments: CommAttachment[] }>(`/api/crm/communications/${commId}/attachments`);
+}
+
+// Subida raw (sin multipart): el body es el File directamente, mismo patrón que uploadCompanyImage.
+export async function uploadCommAttachment(commId: number, file: File) {
+  const headers = new Headers();
+  headers.set('Content-Type', file.type);
+  headers.set('X-Filename', encodeURIComponent(file.name));
+  const token = getToken();
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  const res = await fetch(`${API_URL}/api/crm/communications/${commId}/attachments`, {
+    method: 'POST',
+    body: file,
+    headers,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as any).error || `Error HTTP ${res.status}`);
+  return data as { attachment: CommAttachment };
+}
+
+export async function deleteCommAttachment(fileId: string) {
+  return request<{ ok: true }>(`/api/crm/communications/attachments/${fileId}`, { method: 'DELETE' });
+}
+
+// Los adjuntos exigen Authorization: se baja el blob autenticado como object URL.
+export async function fetchCommAttachmentObjectUrl(fileId: string): Promise<string> {
+  const headers = new Headers();
+  const token = getToken();
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  const res = await fetch(`${API_URL}/api/crm/communications/attachments/${fileId}`, { headers });
+  if (!res.ok) throw new Error('No se pudo cargar el adjunto');
+  return URL.createObjectURL(await res.blob());
+}

@@ -1,10 +1,52 @@
 import { useEffect, useMemo, useState } from 'react';
 import { MeetingModal } from '../components/MeetingModal';
+import { CommunicationsBoard } from '../components/CommunicationsBoard';
 import {
   fetchMeetings, fetchMeetingsSummary, fetchSheets, fetchCompanies,
   MEETING_KIND_LABEL, MEETING_STATUS_META,
   type Company, type Meeting, type MeetingsSummary, type Sheet,
 } from '../lib/api';
+
+type Tab = 'calendario' | 'comunicaciones' | 'overleaf' | 'diccionario' | 'drive' | 'gmail';
+
+interface ExternalLink {
+  key: Tab;
+  label: string;
+  url: string;
+  logo: string;
+  description: string;
+}
+
+const EXTERNAL_LINKS: ExternalLink[] = [
+  {
+    key: 'overleaf',
+    label: 'Overleaf',
+    url: 'https://www.overleaf.com/',
+    logo: '/assets/logo-overleaf.png',
+    description: 'Editor LaTeX colaborativo en la nube.',
+  },
+  {
+    key: 'diccionario',
+    label: 'Diccionario',
+    url: 'https://www.wordreference.com/es/',
+    logo: '/assets/logo-wordreference.png',
+    description: 'WordReference: diccionario y traductor.',
+  },
+  {
+    key: 'drive',
+    label: 'Drive',
+    url: 'https://drive.google.com/',
+    logo: '/assets/logo-drive.png',
+    description: 'Google Drive: almacenamiento y documentos.',
+  },
+  {
+    key: 'gmail',
+    label: 'Gmail',
+    url: 'https://mail.google.com/',
+    logo: '/assets/logo-gmail.png',
+    description: 'Correo corporativo.',
+  },
+];
 
 const WEEKDAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 const MONTHS = [
@@ -37,6 +79,7 @@ function formatFullDate(iso: string): string {
 
 export function CalendarPage() {
   const today = new Date();
+  const [tab, setTab] = useState<Tab>('calendario');
   const [cursor, setCursor] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [summary, setSummary] = useState<MeetingsSummary | null>(null);
@@ -126,15 +169,60 @@ export function CalendarPage() {
     { label: 'Sin acta registrada', value: summary?.pendingMinutes ?? 0 },
   ];
 
+  const TAB_TITLE: Record<Tab, string> = {
+    calendario: 'Calendario',
+    comunicaciones: 'Dashboard de comunicaciones',
+    overleaf: 'Overleaf',
+    diccionario: 'Diccionario',
+    drive: 'Drive',
+    gmail: 'Gmail',
+  };
+  const TAB_SUBTITLE: Record<Tab, string> = {
+    calendario: 'Agenda reuniones con las empresas del CRM y deja registrado qué se habló en cada una.',
+    comunicaciones: 'Busca y consulta toda comunicación registrada con las empresas del CRM, con prueba adjunta si aplica.',
+    overleaf: 'Acceso directo al editor LaTeX colaborativo.',
+    diccionario: 'Acceso directo al diccionario y traductor WordReference.',
+    drive: 'Acceso directo a Google Drive.',
+    gmail: 'Acceso directo al correo.',
+  };
+
   return (
     <div className="fade-up" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{ padding: '24px 24px 0' }}>
-        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', margin: 0 }}>Calendario</h1>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', margin: 0 }}>
+          {TAB_TITLE[tab]}
+        </h1>
         <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4, marginBottom: 16 }}>
-          Agenda reuniones con las empresas del CRM y deja registrado qué se habló en cada una.
+          {TAB_SUBTITLE[tab]}
         </p>
       </div>
 
+      <div style={{ display: 'flex', gap: 4, padding: '0 24px 16px', flexWrap: 'wrap' }}>
+        {([
+          { key: 'calendario' as const, label: 'Calendario' },
+          { key: 'comunicaciones' as const, label: 'Dashboard de comunicaciones' },
+          { key: 'overleaf' as const, label: 'Overleaf' },
+          { key: 'diccionario' as const, label: 'Diccionario' },
+          { key: 'drive' as const, label: 'Drive' },
+          { key: 'gmail' as const, label: 'Gmail' },
+        ]).map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={tab === t.key ? 'btn-primary' : 'btn-secondary'}
+            style={{ fontSize: 12, padding: '7px 14px' }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'comunicaciones' ? (
+        <CommunicationsBoard sheets={sheets} companies={companies} />
+      ) : EXTERNAL_LINKS.some((l) => l.key === tab) ? (
+        <ExternalLinkCard link={EXTERNAL_LINKS.find((l) => l.key === tab)!} />
+      ) : (
+      <>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, padding: '0 24px 16px' }}>
         {kpis.map((k) => (
           <div key={k.label} className="card" style={{ padding: '14px 16px' }}>
@@ -339,6 +427,40 @@ export function CalendarPage() {
           onDeleted={() => { setModal(null); refresh(); }}
         />
       )}
+      </>
+      )}
+    </div>
+  );
+}
+
+function ExternalLinkCard({ link }: { link: ExternalLink }) {
+  return (
+    <div style={{ padding: '0 24px 24px' }}>
+      <div
+        className="card"
+        style={{
+          padding: 32,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 16,
+          maxWidth: 420,
+        }}
+      >
+        <img
+          src={link.logo}
+          alt={`Logo ${link.label}`}
+          style={{ width: 64, height: 64, objectFit: 'contain' }}
+          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+        />
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem' }}>{link.label}</div>
+          <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>{link.description}</p>
+        </div>
+        <a href={link.url} target="_blank" rel="noopener noreferrer" className="btn-primary" style={{ textDecoration: 'none' }}>
+          Abrir {link.label}
+        </a>
+      </div>
     </div>
   );
 }

@@ -15,6 +15,7 @@ import herzogRoutes from './routes/herzog.routes.js';
 import watchRoutes from './routes/watch.routes.js';
 import trafficRoutes from './routes/traffic.routes.js';
 import meetingsRoutes from './routes/meetings.routes.js';
+import communicationsRoutes from './routes/communications.routes.js';
 import { startWatchCron } from './watch.js';
 import { startMeetingReminderCron } from './meeting-reminders.js';
 
@@ -64,6 +65,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/crm', sheetsRoutes);
 app.use('/api/crm', companiesRoutes);
 app.use('/api/crm', meetingsRoutes);
+app.use('/api/crm', communicationsRoutes);
 app.use('/api/geo', geoRoutes);
 app.use('/api/herzog', herzogRoutes);
 app.use('/api/watch', watchRoutes);
