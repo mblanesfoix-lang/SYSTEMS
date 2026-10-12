@@ -57,6 +57,11 @@
       justify-content: center;
       border-left: 1px solid var(--border);
       overflow: hidden;
+      background:
+        radial-gradient(circle at 50% 42%, rgba(0,168,120,0.16), transparent 62%),
+        repeating-linear-gradient(0deg, rgba(0,168,120,0.05) 0px, rgba(0,168,120,0.05) 1px, transparent 1px, transparent 28px),
+        repeating-linear-gradient(90deg, rgba(0,168,120,0.05) 0px, rgba(0,168,120,0.05) 1px, transparent 1px, transparent 28px),
+        #0b0f0d;
     }
     #globeCanvas {
       display: block;
@@ -64,6 +69,27 @@
       height: 100%;
       position: absolute;
       inset: 0;
+    }
+    .globe-pulse {
+      position: absolute;
+      top: 14px; left: 0; right: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-family: var(--font-mono);
+      font-size: 0.55rem;
+      letter-spacing: 0.06em;
+      color: rgba(230,255,244,0.6);
+      pointer-events: none;
+      text-transform: uppercase;
+    }
+    .globe-pulse__dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--accent-green);
+      box-shadow: 0 0 8px var(--accent-green);
+      animation: pulse-dot 2s ease-in-out infinite;
     }
 
     .mole-badge {
@@ -814,7 +840,7 @@
       font-family: var(--font-mono);
       font-size: 0.55rem;
       letter-spacing: 0.03em;
-      color: var(--text-dim);
+      color: rgba(230,255,244,0.55);
       pointer-events: none;
     }
 
@@ -908,6 +934,7 @@
       </div>
       <div class="mole-hero__globe">
         <canvas id="globeCanvas"></canvas>
+        <div class="globe-pulse"><span class="globe-pulse__dot"></span>Telemetria REE en vivo</div>
         <div class="globe-label">Red eléctrica peninsular</div>
       </div>
     </div>
@@ -935,9 +962,7 @@
           <div class="status-dot idle" id="statusDot"></div>
           <span class="status-text" id="statusText">Conectando...</span>
         </div>
-        <button class="btn ghost btn--sm" id="gwRequestBtn" style="margin-left:auto;" title="Envia una solicitud firmada al Puerto Maestro para cruzar este dato con Elvi-Ra Analytics">Solicitar Informe Elvi-Ra</button>
-        <span class="mono" id="gwRequestMsg" style="font-size:0.62rem;color:var(--text-muted);"></span>
-        <span class="status-time" id="statusTime"></span>
+        <span class="status-time" id="statusTime" style="margin-left:auto;"></span>
       </div>
 
       <!-- KPIs -->
@@ -1438,31 +1463,6 @@
       document.getElementById('userTag').textContent = u.user || '—';
     }).catch(() => {});
 
-    // Puerto Maestro — solicitud real de cruce Reff U2 -> Elvi-Ra Analytics.
-    // Doctrina: ningun perfil extrae datos cruzados sin pasar por el filtro
-    // del Puerto Maestro; esta llamada crea la solicitud firmada, queda
-    // PENDING_MASTER_APPROVAL hasta que un Admin decide en /pages/master-gateway.html.
-    document.getElementById('gwRequestBtn').addEventListener('click', async () => {
-      const btn = document.getElementById('gwRequestBtn');
-      const msg = document.getElementById('gwRequestMsg');
-      btn.disabled = true;
-      msg.textContent = 'enviando…';
-      try {
-        const r = await api.gatewayRequestCreate({
-          sourcePort: 'REFF_U2',
-          targetPort: 'ELVIRA_ANALYTICS',
-          scope: 'BIOHYBRID_MASS_BALANCE',
-          range: 'LAST_30_DAYS',
-        });
-        msg.textContent = `${r.request_id} · pendiente de aprobación`;
-        toast('Solicitud enviada al Puerto Maestro');
-      } catch (ex) {
-        msg.textContent = ex.message || 'error al solicitar';
-      } finally {
-        btn.disabled = false;
-      }
-    });
-
     document.getElementById('logoutBtn').addEventListener('click', async () => {
       try { await api.logout(); } catch (_) {}
       localStorage.removeItem('elvira_token');
@@ -1532,7 +1532,7 @@
         void main() {
           v_alpha = a_alpha;
           v_lat = a_pos.y;
-          gl_PointSize = 2.0;
+          gl_PointSize = 2.6;
           gl_Position = u_mvp * vec4(a_pos, 1.0);
         }`;
       const FS = `
@@ -1671,7 +1671,7 @@
         const ry   = rotY(t * 0.12);
         const mvp  = mat4Mul(mat4Mul(proj, tr), mat4Mul(ry, rx));
 
-        gl.clearColor(0.97, 0.97, 0.97, 0);
+        gl.clearColor(0, 0, 0, 0);
         gl.clear(gl.COLOR_BUFFER_BIT);
 
         gl.uniformMatrix4fv(uMvpLoc, false, mvp);
