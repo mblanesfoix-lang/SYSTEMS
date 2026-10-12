@@ -1,0 +1,42 @@
+[
+  {
+    "id": "bio-grinder",
+    "label": "Bio-Grinder",
+    "subtitle": "Trituración y homogenización",
+    "file": "bio-grinder.glb",
+    "focus": { "min": [-0.05, 0, -0.8], "max": [1.05, 1.65, 0.05] },
+    "hotspots": [
+      { "id": "inlet", "label": "Tolva de entrada", "position": [0.46, 0.954, -0.47], "normal": [0, 1, 0], "metrics": ["h_in", "rate"] },
+      { "id": "chamber", "label": "Cámara de trituración", "position": [0.55, 0.62, -0.084], "normal": [0, 0, 1], "metrics": ["torque", "vibration"] },
+      { "id": "water", "label": "Circuito hídrico", "position": [0.965, 0.508, -0.156], "normal": [0.775, 0, 0.632], "metrics": ["extraction", "chassisTemp"] },
+      { "id": "outlet", "label": "Salida a contenedor", "position": [0.213, 0.406, -0.01], "normal": [0, 0, 1], "metrics": ["granulometry", "h_out"] }
+    ]
+  },
+  {
+    "id": "bio-dehydrator",
+    "label": "Bio-Dehydrator",
+    "subtitle": "Deshidratación térmico-mecánica",
+    "file": "bio-dehydrator.glb",
+    "focus": { "min": [0.8, 0, -8.3], "max": [27.2, 3.2, -3.7] },
+    "zoom": 0.7,
+    "hotspots": [
+      { "id": "feed", "label": "Entrada de producto", "position": [6.568, 2.709, -4.544], "normal": [0, 0, 1], "metrics": ["rate"] },
+      { "id": "chamber", "label": "Cámara de secado", "position": [12, 1.7, -4.544], "normal": [0, 0, 1], "metrics": ["chamberTemp", "pt1", "pt2", "pt3"] },
+      { "id": "pressure", "label": "Cámara de evaporación", "position": [18.773, 1.986, -4.544], "normal": [0, 0, 1], "metrics": ["chamberPressure"] },
+      { "id": "vapor", "label": "Extracción de vapor", "position": [21.102, 1.291, -5.189], "normal": [0, 0, 1], "metrics": ["steam"] },
+      { "id": "outlet", "label": "Salida de producto", "position": [21.152, 0.653, -4.322], "normal": [0, 1, 0], "metrics": ["h_out", "extraction"] }
+    ]
+  },
+  {
+    "id": "bio-pelletizator",
+    "label": "Bio-Pelletizer",
+    "subtitle": "Densificación y formación del biocombustible",
+    "file": "bio-pelletizator.glb",
+    "hotspots": [
+      { "id": "feed", "label": "Alimentación", "position": [0.985, 1.795, -0.724], "normal": [0.35, 0.88, 0.3], "metrics": ["rate"] },
+      { "id": "die", "label": "Dado y matriz", "position": [1.15, 1.33, -0.329], "normal": [0.5, 0, 0.866], "metrics": ["diePressure", "matrixTemp"] },
+      { "id": "drive", "label": "Motor principal", "position": [2.367, 1.001, -0.459], "normal": [0.936, 0, 0.351], "metrics": ["power", "specificEnergy"] },
+      { "id": "outlet", "label": "Descarga de pellet", "position": [0.089, 1.169, -0.78], "normal": [-0.68, 0.73, 0], "metrics": ["moisture", "density"] }
+    ]
+  }
+]

@@ -3,11 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SYSTEMS · OPHS</title>
+  <title>SYSTEMS · ØPHS</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap">
   <link rel="stylesheet" href="/css/theme.css">
+  <link rel="stylesheet" href="/css/machine-hud.css">
   <script>
     (function () {
       try {
@@ -76,11 +77,14 @@
       margin-left: auto; align-self: center; padding-bottom: 4px;
     }
     .op-body { flex: 1; min-height: 0; position: relative; display: flex; }
+    /* [hidden] debe ganar al display:flex de los paneles. Sin esto el visor 3D (display:flex)
+       se pinta siempre pegado al Cockpit y el aviso .machine-empty tapa el modelo y bloquea el arrastre. */
+    .op-body [hidden] { display: none !important; }
 
     /* ============ COCKPIT (hub de mesas: OPS + PAIA + Herzog + Sentinel) ============ */
     .cockpit-wrap { flex: 1; overflow-y: auto; padding: 24px 32px; }
     .cockpit-empty { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); padding: 10px 0; }
-    .cockpit-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+    .cockpit-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
     .cockpit-tile {
       border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-card);
       padding: 20px 22px; text-decoration: none; color: inherit; display: block;
@@ -88,6 +92,7 @@
     }
     .cockpit-tile.is-live { cursor: pointer; }
     .cockpit-tile.is-live:hover { border-color: var(--accent-blue); }
+    .cockpit-tile.is-live:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
     .cockpit-tile.is-soon { opacity: 0.6; cursor: default; }
     .cockpit-tile h3 { font-family: var(--font-display); font-size: 1.02rem; margin: 0 0 8px; color: var(--text-primary); }
     .cockpit-tile p { font-size: 0.8rem; line-height: 1.5; color: var(--text-secondary); margin: 0; }
@@ -105,6 +110,145 @@
     }
     .cockpit-btn:disabled { opacity: 0.5; cursor: default; }
     .cockpit-btn--ghost { background: none; border: 1px solid var(--border-mid); color: var(--text-muted); }
+
+    /* ============ VISOR DE MAQUINARIA 3D (sección PAIA) ============ */
+    .machine-wrap {
+      flex: 1; min-height: 0; display: flex; flex-direction: column;
+      background: #050607;
+      /* el visor es siempre oscuro, con cualquier tema: se fijan los tokens de texto del tema oscuro
+         (en el claro, título y selector salían oscuros sobre fondo oscuro) */
+      --text-primary: #f5f5f7; --text-secondary: #c7cad1; --text-muted: #8b8f99;
+    }
+
+    /* -- barra superior: identidad + controles de vista + volver -- */
+    .machine-topbar {
+      display: flex; align-items: center; gap: 16px; padding: 14px 28px;
+      border-bottom: 1px solid rgba(0,212,160,0.12); flex-wrap: wrap;
+    }
+    .machine-eyebrow {
+      font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.12em; color: #00d4a0;
+      text-transform: uppercase; opacity: 0.85;
+    }
+    .machine-title { font-family: var(--font-display); font-size: 1.05rem; color: var(--text-primary); margin: 2px 0 0; }
+    .machine-topbar-spacer { flex: 1; }
+    .machine-toggle {
+      font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.02em;
+      padding: 7px 13px; background: none; border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 999px; color: var(--text-muted); cursor: pointer;
+      transition: border-color 0.15s, color 0.15s, background 0.15s;
+    }
+    .machine-toggle:hover { color: var(--text-primary); border-color: rgba(0,212,160,0.5); }
+    .machine-toggle.is-active { color: #00d4a0; border-color: #00d4a0; background: rgba(0,212,160,0.1); }
+    .machine-back {
+      font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.02em;
+      padding: 7px 13px; background: none; border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 999px; color: var(--text-muted); cursor: pointer; text-decoration: none;
+    }
+    .machine-back:hover { color: var(--text-primary); border-color: rgba(255,255,255,0.3); }
+
+    /* -- escenario 3D -- */
+    .machine-stage { flex: 1; min-height: 0; position: relative; overflow: hidden; }
+    .machine-canvas { position: absolute; inset: 0; }
+    .machine-canvas canvas { display: block; width: 100%; height: 100%; }
+
+    /* vinetas de esquina, estetica lab/HUD */
+    .machine-corner { position: absolute; width: 26px; height: 26px; pointer-events: none; z-index: 3; border-color: rgba(0,212,160,0.4); border-style: solid; border-width: 0; }
+    .machine-corner.tl { top: 16px; left: 16px; border-top-width: 1.5px; border-left-width: 1.5px; }
+    .machine-corner.tr { top: 16px; right: 16px; border-top-width: 1.5px; border-right-width: 1.5px; }
+    .machine-corner.bl { bottom: 16px; left: 16px; border-bottom-width: 1.5px; border-left-width: 1.5px; }
+    .machine-corner.br { bottom: 16px; right: 16px; border-bottom-width: 1.5px; border-right-width: 1.5px; }
+
+    /* -- nombre de la maquina, arriba a la izquierda. La telemetria vive en el HUD (css/machine-hud.css) -- */
+    /* el suelo reflectante deja manchas claras de luz: el degradado oscuro mantiene legible el nombre */
+    .machine-name {
+      position: absolute; top: 16px; left: 14px; z-index: 4; pointer-events: none; text-align: left;
+      padding: 10px 56px 12px 12px; border-radius: 12px;
+      background: linear-gradient(90deg, rgba(5,6,7,0.8), rgba(5,6,7,0.5) 62%, transparent);
+      text-shadow: 0 1px 14px rgba(0,0,0,0.9);
+    }
+    .machine-name .n-label { font-family: var(--font-display); font-size: 1.3rem; color: #eafff6; }
+    .machine-name .n-sub {
+      font-family: var(--font-mono); font-size: 0.64rem; letter-spacing: 0.04em; color: #00d4a0;
+      text-transform: uppercase; margin-top: 2px;
+    }
+
+    .machine-hint {
+      position: absolute; bottom: 20px; left: 26px; z-index: 4; pointer-events: none;
+      font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.02em; color: rgba(200,210,210,0.45);
+    }
+    .machine-scale-note {
+      position: absolute; bottom: 36px; left: 26px; z-index: 4; pointer-events: none;
+      font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.02em; color: rgba(200,210,210,0.4);
+    }
+
+    .machine-loading {
+      position: absolute; inset: 0; z-index: 6; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 12px; background: rgba(5,6,7,0.94); transition: opacity 0.25s ease;
+    }
+    .machine-loading.is-hidden { opacity: 0; pointer-events: none; }
+    .machine-loading .spin {
+      width: 34px; height: 34px; border-radius: 50%;
+      border: 2px solid rgba(0,212,160,0.2); border-top-color: #00d4a0;
+      animation: machine-spin 0.9s linear infinite;
+    }
+    @keyframes machine-spin { to { transform: rotate(360deg); } }
+    .machine-loading .bar-track { width: 220px; height: 3px; border-radius: 2px; background: rgba(255,255,255,0.08); overflow: hidden; }
+    .machine-loading .bar-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #00a878, #00d4a0); transition: width 0.18s ease; }
+    .machine-loading .label { font-family: var(--font-mono); font-size: 0.64rem; letter-spacing: 0.06em; color: var(--text-muted); text-transform: uppercase; }
+
+    .machine-empty {
+      position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 8px; text-align: center; padding: 20px;
+    }
+    .machine-empty .e-icon { font-size: 2rem; opacity: 0.3; }
+    .machine-empty .e-title { font-family: var(--font-display); font-size: 1rem; color: var(--text-secondary); }
+    .machine-empty .e-detail { font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-muted); max-width: 420px; line-height: 1.6; }
+
+    /* -- selector de maquina: fila inferior tipo pestanas grandes -- */
+    .machine-selector {
+      display: flex; gap: 1px; background: rgba(255,255,255,0.06);
+      border-top: 1px solid rgba(0,212,160,0.12);
+    }
+    .machine-btn {
+      flex: 1; padding: 14px 20px; background: #050607; border: none; cursor: pointer;
+      text-align: left; transition: background 0.15s;
+      display: flex; flex-direction: column; gap: 2px;
+    }
+    .machine-btn:hover { background: rgba(255,255,255,0.03); }
+    .machine-btn.is-active { background: rgba(0,212,160,0.07); }
+    .machine-btn .m-index {
+      display: flex; align-items: center; gap: 8px;
+      font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.06em; color: rgba(200,215,212,0.4);
+    }
+    .machine-btn.is-active .m-index { color: #00d4a0; }
+    /* pulso de estado de cada maquina de la linea, vivo aunque no sea la que se esta viendo */
+    .m-pulse { width: 6px; height: 6px; border-radius: 50%; background: #00d4a0; box-shadow: 0 0 8px rgba(0,212,160,0.7); }
+    .m-pulse[data-level="warn"] { background: #fbbf24; box-shadow: 0 0 8px rgba(251,191,36,0.75); }
+    .m-pulse[data-level="crit"] { background: #f87171; box-shadow: 0 0 8px rgba(248,113,113,0.8); }
+    .machine-btn .m-name { font-family: var(--font-display); font-size: 0.92rem; color: var(--text-secondary); }
+    .machine-btn.is-active .m-name { color: #eafff6; }
+    .machine-btn .m-sub {
+      font-family: var(--font-mono); font-size: 0.62rem; color: var(--text-muted); letter-spacing: 0.01em;
+    }
+    .machine-btn .m-bar {
+      height: 2px; background: transparent; margin-top: 8px; border-radius: 2px; transition: background 0.15s;
+    }
+    .machine-btn.is-active .m-bar { background: #00d4a0; box-shadow: 0 0 8px rgba(0,212,160,0.6); }
+
+    @media (max-width: 1100px) {
+      .cockpit-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 760px) {
+      .cockpit-tiles { grid-template-columns: 1fr; }
+      .machine-topbar { padding: 10px 14px; gap: 8px 10px; }
+      .machine-name { top: 10px; left: 8px; padding: 8px 40px 10px 10px; }
+      .machine-name .n-label { font-size: 1.05rem; }
+      .machine-selector { flex-direction: row; }
+      .machine-btn { padding: 10px 12px; min-width: 0; }
+      .machine-btn .m-name { font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .machine-btn .m-sub { display: none; }
+      .machine-hint, .machine-scale-note { display: none; }
+    }
 
     /* ============ GRID INTERLINK (Volumen 3) ============ */
     .grid-wrap { flex: 1; overflow-y: auto; padding: 24px 32px; }
@@ -146,8 +290,8 @@
   <div class="op-layout">
     <div class="op-nav">
       <div class="brand" id="brandLogo"><div class="dot"></div> <span class="brand-mark">S-NFI Systems (c)</span></div>
-      <div class="breadcrumb">
-        <a href="/pages/dashboard.html">Systems</a><span class="sep">/</span><span class="active">OPHS</span>
+      <div class="breadcrumb" id="opBreadcrumb">
+        <a href="/pages/dashboard.html">Systems</a><span class="sep">/</span><span class="active">ØPHS</span>
       </div>
       <div class="controls">
         <button class="btn btn--ghost" id="backBtn" style="font-size:0.72rem;padding:0 14px;height:32px;">&lt; Dashboard</button>
@@ -172,7 +316,7 @@
     <div class="op-tabs">
       <button class="op-tab active" data-tab="cockpit">Cockpit</button>
       <button class="op-tab" data-tab="grid">Grid Interlink</button>
-      <span class="op-doctrine">Consola Soberana · 4 mesas: OPS · PAIA · Herzog · Sentinel</span>
+      <span class="op-doctrine">Consola Soberana · 4 mesas: ØPS · PAIA · Herzog · Sentinel</span>
     </div>
 
     <div class="op-body">
@@ -181,14 +325,15 @@
         <div class="cockpit-tiles">
           <div class="cockpit-tile is-soon">
             <span class="ct-badge">próximamente</span>
-            <h3>OPS</h3>
+            <h3>ØPS</h3>
             <p>Telemetría hardware físico: presión, caudal, temperatura, RPM, estado circuito cerrado.</p>
           </div>
-          <div class="cockpit-tile is-soon">
-            <span class="ct-badge">próximamente</span>
+          <a class="cockpit-tile is-live" href="#paia" id="paiaTile">
+            <span class="ct-badge">activa</span>
             <h3>PAIA</h3>
-            <p>Analítica predictiva: detección de anomalías/tendencias sobre lecturas OPS, insight en lenguaje natural.</p>
-          </div>
+            <p>Analítica predictiva: detección de anomalías/tendencias sobre lecturas ØPS, insight en lenguaje natural.</p>
+            <div class="ct-cta">visor 3D →</div>
+          </a>
           <div class="cockpit-tile is-soon">
             <span class="ct-badge">próximamente</span>
             <h3>Herzog</h3>
@@ -224,6 +369,46 @@
           </div>
           <div id="gridMsg" class="cockpit-empty" style="padding-top:8px;"></div>
         </div>
+      </div>
+      <!-- ============ PAIA · sección de OPHS (#paia): visor de maquinaria 3D, modelos .glb optimizados a partir de los .skp (app/assets-src) ============ -->
+      <div class="machine-wrap" id="panelPaia" hidden>
+        <div class="machine-topbar">
+          <div>
+            <div class="machine-eyebrow">PAIA · Analítica predictiva</div>
+            <h3 class="machine-title">Visor de Maquinaria BioHybrid</h3>
+          </div>
+          <div class="machine-topbar-spacer"></div>
+          <button class="machine-toggle" id="machineRotateBtn">⟳ Auto-rotación</button>
+          <button class="machine-toggle" id="machineWireBtn">▦ Blueprint</button>
+          <button class="machine-toggle" id="machineResetBtn">⊙ Reencuadrar</button>
+          <a class="machine-back" href="#cockpit">← ØPHS</a>
+        </div>
+
+        <div class="machine-stage" id="machineStage">
+          <div class="machine-canvas" id="machineCanvas"></div>
+          <div class="machine-corner tl"></div>
+          <div class="machine-corner tr"></div>
+          <div class="machine-corner bl"></div>
+          <div class="machine-corner br"></div>
+
+          <div class="machine-name" id="machineName"></div>
+          <div class="machine-hint">arrastrar: rotar · rueda: zoom · clic en la máquina: telemetría</div>
+          <div class="machine-scale-note" id="machineScaleNote"></div>
+
+          <div class="machine-loading" id="machineLoading">
+            <div class="spin"></div>
+            <div class="bar-track"><div class="bar-fill" id="machineLoadingFill"></div></div>
+            <div class="label" id="machineLoadingLabel">Cargando modelo…</div>
+          </div>
+
+          <div class="machine-empty" id="machineEmpty" hidden>
+            <div class="e-icon">◇</div>
+            <div class="e-title" id="machineEmptyTitle">Sin modelo 3D todavía</div>
+            <div class="e-detail" id="machineEmptyDetail"></div>
+          </div>
+        </div>
+
+        <div class="machine-selector" id="machineSelector"></div>
       </div>
       </div>
     </div>
@@ -295,8 +480,9 @@
     }
 
     /* ============================================================
-       COCKPIT · hub de mesas OPHS (OPS/PAIA/Herzog "próximamente",
-       Sentinel enlaza a su mesa propia). Sin lógica: tiles estáticos.
+       COCKPIT · hub de 4 mesas OPHS. Solo tiles estáticos: PAIA abre su
+       sección (#paia, visor 3D), Sentinel enlaza a su mesa propia, OPS y
+       Herzog "próximamente". La navegación entre vistas vive en ROUTER (final).
        ============================================================ */
 
     /* ============================================================
@@ -308,15 +494,228 @@
     const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
     let gridVisible = false;
 
-    document.querySelectorAll('.op-tab').forEach(tab => {
-      tab.addEventListener('click', () => {
-        document.querySelectorAll('.op-tab').forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
-        gridVisible = tab.dataset.tab === 'grid';
-        document.getElementById('panelCockpit').hidden = gridVisible;
-        document.getElementById('panelGrid').hidden = !gridVisible;
-        if (gridVisible) refreshGrid();
+    /* ============================================================
+       VISOR DE MAQUINARIA 3D (modelos .glb optimizados con app/assets-src a
+       partir de los .skp). Hoy vive en la sección PAIA (#paia) de OPHS; los
+       identificadores son neutros (machine*): el visor no depende de la sección
+       que lo aloja. Se entra desde el tile PAIA del Cockpit; tiene URL propia
+       (ophs.html#paia), no es tab de nivel superior. El ROUTER (final del script)
+       decide cuándo se ve.
+       Carga perezosa del modulo three.js: solo pesa si se abre la sección.
+       Selector de maquina en fila inferior (Bio-Grinder / Bio-Dehydrator /
+       Bio-Pelletizator), estilo referencia airsup.ai/lab. Cada entrada del
+       manifest puede no tener .glb subido todavia: en ese caso se muestra un
+       estado vacio claro en vez de dejar el spinner colgado o un error de red crudo.
+       ============================================================ */
+    let machineViewer = null;
+    let machineManifest = [];
+    let machineActiveIdx = -1;
+    let machineLoadedFile = null; // archivo cargado con exito ahora mismo en el visor, evita recargas redundantes
+    let machineWireframe = false;
+    let machineSelectToken = 0; // descarta selecciones de maquina obsoletas si el usuario cambia rapido
+    let machineOpening = false; // evita dos openMachineViewer() en paralelo (doble clic en el tile, Atrás/Adelante rápido)
+    // HUD de telemetría (js/machine-hud.js) sobre el visor. Hoy las lecturas son SIMULADAS (js/machine-telemetry.js):
+    // no hay sensores conectados. La fuente real sustituye a createTelemetryFeed() sin tocar el HUD.
+    let machineSpecs = {};        // MACHINE_SPECS: métricas, límites y layout de cada máquina
+    let machineFeed = null;       // fuente de telemetría
+    let machineHud = null;        // panel flotante + marcadores de hotspot
+    let machineLastSnaps = null;  // último snapshot de las 3 máquinas, para repintar los pulsos del selector
+
+    function setMachineLoading(visible, pct = 0, label = 'Cargando modelo…') {
+      const overlay = document.getElementById('machineLoading');
+      overlay.classList.toggle('is-hidden', !visible);
+      document.getElementById('machineLoadingFill').style.width = `${Math.round(pct * 100)}%`;
+      document.getElementById('machineLoadingLabel').textContent = label;
+    }
+
+    function setMachineEmpty(visible, detail = '', title = 'Sin modelo 3D todavía') {
+      document.getElementById('machineEmpty').hidden = !visible;
+      document.getElementById('machineEmptyTitle').textContent = title;
+      document.getElementById('machineEmptyDetail').textContent = detail;
+    }
+
+    function renderMachineName(entry) {
+      const nameBox = document.getElementById('machineName');
+      nameBox.innerHTML = entry ? `
+        <div class="n-label">${esc(entry.label)}</div>
+        <div class="n-sub">${esc(entry.subtitle || '')}</div>
+      ` : '';
+    }
+
+    function renderMachineSelector() {
+      const bar = document.getElementById('machineSelector');
+      bar.innerHTML = machineManifest.map((m, i) => `
+        <button class="machine-btn${i === machineActiveIdx ? ' is-active' : ''}" data-idx="${i}">
+          <span class="m-index">MÁQUINA ${String(i + 1).padStart(2, '0')}<i class="m-pulse" data-pulse="${esc(m.id)}" data-level="ok"></i></span>
+          <span class="m-name">${esc(m.label)}</span>
+          <span class="m-sub">${esc(m.subtitle || '')}</span>
+          <span class="m-bar"></span>
+        </button>
+      `).join('');
+      bar.querySelectorAll('.machine-btn').forEach((btn) => {
+        btn.addEventListener('click', () => selectMachine(Number(btn.dataset.idx)));
       });
+      if (machineLastSnaps) updateSelectorPulses(machineLastSnaps);
+    }
+
+    // Estado de las 3 máquinas de la línea en el selector, aunque solo una esté en pantalla.
+    function updateSelectorPulses(snaps) {
+      machineLastSnaps = snaps;
+      document.querySelectorAll('.m-pulse').forEach((el) => {
+        const snap = snaps.get(el.dataset.pulse);
+        if (snap && el.dataset.level !== snap.status) el.dataset.level = snap.status;
+      });
+    }
+
+    async function selectMachine(idx) {
+      const entry = machineManifest[idx];
+      if (!entry || !machineViewer) return;
+
+      machineActiveIdx = idx;
+      renderMachineSelector();
+      renderMachineName(entry);
+
+      // El panel de telemetría no depende del modelo 3D: aparece ya. Los marcadores de hotspot sí
+      // dependen de su geometría y se anclan cuando el modelo está en escena.
+      const hotspots = entry.hotspots || [];
+      machineHud.setMachine(machineSpecs[entry.id] || null, []);
+
+      // Si ya es el archivo activo y cargado con exito, no volver a descargar ni a parsear:
+      // evita repetir la carga solo por reabrir el panel o re-clicar la misma pestana
+      // ya seleccionada.
+      if (machineLoadedFile === entry.file) {
+        setMachineEmpty(false);
+        machineViewer.setAnchors(hotspots);
+        machineHud.setHotspots(hotspots);
+        return;
+      }
+
+      const myToken = ++machineSelectToken; // invalida cualquier seleccion anterior en vuelo
+      machineLoadedFile = null;
+      setMachineEmpty(false);
+      document.getElementById('machineScaleNote').textContent = '';
+      setMachineLoading(true, 0);
+
+      // Carga directa, sin HEAD previo: un fetch HEAD por separado antes de loadModel()
+      // podia dar falso negativo (cache del navegador, lentitud del server con un .glb
+      // grande en vuelo) y pisaba un modelo que en realidad ya estaba bien cargado.
+      // loadModel() ya distingue el 404 real (err.status) de otros fallos.
+      try {
+        // entry.focus acota el encuadre a la máquina cuando el .glb trae figuras de escala o piezas lejanas;
+        // entry.zoom (< 1 acerca) afina la distancia en naves largas y planas
+        const { meta } = await machineViewer.loadModel(`/vendor/models/${entry.file}`, { focus: entry.focus, zoom: entry.zoom });
+        if (myToken !== machineSelectToken) return; // el usuario ya selecciono otra maquina mientras esta cargaba
+        machineLoadedFile = entry.file;
+        if (window.__machine) window.__machine.meta = meta; // ?debug3d: bbox nativo, para fijar focus y hotspots
+        if (machineWireframe) machineViewer.setWireframe(true);
+        document.getElementById('machineScaleNote').textContent =
+          `${meta.size.x.toFixed(2)} × ${meta.size.y.toFixed(2)} × ${meta.size.z.toFixed(2)} m · ${meta.triangles.toLocaleString('es-ES')} triángulos`;
+        machineViewer.setAnchors(hotspots);
+        machineHud.setHotspots(hotspots);
+        setMachineLoading(false, 1);
+      } catch (err) {
+        if (myToken !== machineSelectToken) return;
+        machineViewer.clearModel();
+        machineHud.setHotspots([]);
+        setMachineLoading(false);
+        if (err?.code === 'MODEL_TOO_HEAVY') {
+          // .glb crudo de SketchUp: se rechaza antes de parsear para no colgar la pestaña
+          setMachineEmpty(true, err.message, 'Modelo demasiado pesado');
+          return;
+        }
+        const is404 = err?.status === 404 || /404|not ?found/i.test(String(err?.message || err));
+        setMachineEmpty(true, is404
+          ? `Falta subir /vendor/models/${entry.file}. En cuanto se añada el archivo, esta vista lo carga automáticamente.`
+          : `Error al cargar el modelo: ${err.message || err}`);
+      }
+    }
+
+    async function loadMachineManifest() {
+      try {
+        const r = await fetch('/vendor/models/manifest.json', { cache: 'no-store' });
+        machineManifest = r.ok ? await r.json() : [];
+      } catch { machineManifest = []; }
+    }
+
+    // Monta el visor y carga la maquina activa. La visibilidad del panel la gestiona showView() (ROUTER).
+    async function openMachineViewer() {
+      // Guard de reentrada: doble clic en el tile PAIA o Atrás/Adelante rápido dispararían dos
+      // aperturas en paralelo, y sus llamadas a setMachineEmpty()/selectMachine() se entrelazarían.
+      if (machineOpening) return;
+      machineOpening = true;
+      try {
+        // Motor three.js: se monta una sola vez por sesion de pestana (import + WebGL context son caros).
+        if (!machineViewer) {
+          const [{ mountMachineViewer }, telemetry, { mountMachineHud }] = await Promise.all([
+            import('/js/machine-viewer.js'),
+            import('/js/machine-telemetry.js'),
+            import('/js/machine-hud.js'),
+          ]);
+          machineSpecs = telemetry.MACHINE_SPECS;
+          machineFeed = telemetry.createTelemetryFeed();
+          machineHud = mountMachineHud(document.getElementById('machineStage'), {
+            // el panel ocupa un lado del visor: el modelo se re-centra en el área que queda libre
+            onLayout: (inset) => machineViewer?.setViewInset(inset),
+            // cursor sobre un marcador o el panel: la rotación automática se frena para poder leer
+            onHold: (on) => machineViewer?.setHold(on),
+            // "Simular desviación": desvía una lectura de la simulación para ver las alertas (solo demo, nada real cambia)
+            onFault: ({ machineId, activate, fault }) => {
+              if (activate) machineFeed.injectFault(machineId, fault.key, fault.delta);
+              else machineFeed.clearFaults(machineId);
+            },
+          });
+          machineViewer = mountMachineViewer(document.getElementById('machineCanvas'), {
+            onProgress: (pct) => setMachineLoading(true, pct, pct >= 1 ? 'Procesando escena…' : 'Cargando modelo…'),
+            onAutoRotate: (on) => document.getElementById('machineRotateBtn').classList.toggle('is-active', on),
+            // GPU/driver tumba el contexto WebGL: el canvas queda congelado hasta que el navegador lo restaura (three.js re-sube los recursos solo)
+            onContextChange: (lost) => setMachineLoading(lost, 0, lost ? 'Contexto gráfico perdido, recuperando…' : ''),
+            onAnchors: (list) => machineHud.placeMarkers(list),
+            onHover: (on) => machineHud.setMachineHover(on),
+            onClick: ({ hit }) => { if (hit) machineHud.toggleExpanded(); },
+          });
+          machineFeed.subscribe((snaps) => { machineHud.update(snaps); updateSelectorPulses(snaps); });
+          // el usuario pudo salir de PAIA mientras se importaba three.js
+          machineViewer.setActive(currentView === 'paia');
+          machineFeed.setActive(currentView === 'paia');
+
+          // Autoría de hotspots: con ?debug3d, clic en la máquina escribe en consola el punto y la normal de
+          // superficie (coordenadas nativas del .glb) listos para pegar en vendor/models/manifest.json.
+          if (new URLSearchParams(location.search).has('debug3d')) {
+            window.__machine = { viewer: machineViewer, hud: machineHud, feed: machineFeed };
+            document.getElementById('machineCanvas').addEventListener('click', (e) => {
+              const p = machineViewer.pick(e.clientX, e.clientY);
+              if (p) console.info('[hotspot]', JSON.stringify({ position: p.position, normal: p.normal }));
+            });
+          }
+        }
+
+        // Manifest si: recargar cada vez que se abre el panel, no solo la primera,
+        // para que anadir/renombrar modelos se vea sin recargar toda la pagina.
+        await loadMachineManifest();
+        renderMachineSelector();
+
+        if (!machineManifest.length) {
+          renderMachineName(null);
+          machineHud.setMachine(null);
+          setMachineLoading(false);
+          setMachineEmpty(true, 'No hay máquinas definidas en /vendor/models/manifest.json.');
+          return;
+        }
+        const keepIdx = machineActiveIdx >= 0 && machineActiveIdx < machineManifest.length ? machineActiveIdx : 0;
+        await selectMachine(keepIdx);
+      } finally {
+        machineOpening = false;
+      }
+    }
+
+    document.getElementById('machineResetBtn').addEventListener('click', () => machineViewer && machineViewer.resetView());
+    // El estado visual del botón lo sincroniza el visor vía onAutoRotate (también cuando arrastrar apaga la rotación).
+    document.getElementById('machineRotateBtn').addEventListener('click', () => machineViewer && machineViewer.toggleAutoRotate());
+    document.getElementById('machineWireBtn').addEventListener('click', (e) => {
+      if (!machineViewer) return;
+      machineWireframe = !machineWireframe;
+      machineViewer.setWireframe(machineWireframe);
+      e.currentTarget.classList.toggle('is-active', machineWireframe);
     });
 
     function gcStateClass(state) {
@@ -408,6 +807,57 @@
     });
 
     setInterval(() => { if (gridVisible) refreshGrid(); }, 4000);
+
+    /* ============================================================
+       ROUTER · vistas de OPHS por hash, sin recarga:
+         (vacío) | #cockpit   hub de 4 tiles
+         #paia                sección PAIA (visor de maquinaria 3D)
+         #grid                Grid Interlink
+       PAIA tiene URL propia: recarga, enlace directo y botón Atrás funcionan.
+       Cualquier otro hash (p.ej. el antiguo #ops) cae al hub.
+       Va al final del script: showView() necesita todos los let de arriba ya declarados.
+       ============================================================ */
+    const VIEW_LABEL = { paia: 'PAIA', grid: 'Grid Interlink' };
+    let currentView = 'cockpit';
+
+    function viewFromHash() {
+      const h = location.hash.slice(1);
+      return h === 'paia' || h === 'grid' ? h : 'cockpit';
+    }
+
+    function renderBreadcrumb(view) {
+      const tail = VIEW_LABEL[view];
+      document.getElementById('opBreadcrumb').innerHTML =
+        '<a href="/pages/dashboard.html">Systems</a><span class="sep">/</span>'
+        + (tail
+          ? `<a href="#cockpit">ØPHS</a><span class="sep">/</span><span class="active">${tail}</span>`
+          : '<span class="active">ØPHS</span>');
+      document.title = tail ? `SYSTEMS · ØPHS · ${tail}` : 'SYSTEMS · ØPHS';
+    }
+
+    function showView(view) {
+      currentView = view;
+      gridVisible = view === 'grid';
+      document.getElementById('panelCockpit').hidden = view !== 'cockpit';
+      document.getElementById('panelGrid').hidden = view !== 'grid';
+      document.getElementById('panelPaia').hidden = view !== 'paia';
+      // PAIA es una sección del Cockpit: su pestaña sigue activa mientras se está dentro.
+      const activeTab = view === 'grid' ? 'grid' : 'cockpit';
+      document.querySelectorAll('.op-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === activeTab));
+      renderBreadcrumb(view);
+      if (machineViewer) machineViewer.setActive(view === 'paia'); // panel fuera de vista: no se gasta GPU renderizando
+      if (machineFeed) machineFeed.setActive(view === 'paia');     // ni se simula telemetría que nadie ve
+      if (view === 'grid') refreshGrid();
+      if (view === 'paia') openMachineViewer();
+    }
+
+    document.querySelectorAll('.op-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        if (viewFromHash() !== tab.dataset.tab) location.hash = tab.dataset.tab;
+      });
+    });
+    window.addEventListener('hashchange', () => showView(viewFromHash()));
+    showView(viewFromHash());
   </script>
 </body>
 </html>
