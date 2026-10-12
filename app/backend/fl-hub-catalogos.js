@@ -424,6 +424,7 @@ export const PORTALES = [
   { key: 'hfn', label: 'Hacienda Foral de Navarra', url: 'https://www.navarra.es/es/hacienda' },
   { key: 'borme', label: 'BORME · último boletín', url: 'https://www.boe.es/diario_borme/' },
   { key: 'dgt', label: 'Consultas de la Dirección General de Tributos', url: 'https://petete.tributos.hacienda.gob.es/consultas/' },
+  { key: 'csv_abogacia', label: 'Verificación CSV · Abogacía Española', url: 'https://www.abogacia.es/repositorio/csv/' },
 ];
 
 export const DGT_CONSULTA_URL = 'https://petete.tributos.hacienda.gob.es/consultas/';
