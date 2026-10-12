@@ -15,3 +15,5 @@ tmp_*.json
 *.db-shm
 dist/
 k8s/02-secrets.yaml
+__pycache__/
+*.pyc
