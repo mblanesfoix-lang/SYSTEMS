@@ -22,8 +22,8 @@
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-top: 2px solid var(--accent-red);
-      margin-bottom: 28px;
-      padding: 32px 36px;
+      margin-bottom: 32px;
+      padding: 40px 44px;
     }
     .sen-badge {
       display: inline-flex; align-items: center; gap: 8px;
@@ -49,23 +49,35 @@
       font-size: 0.88rem; color: var(--text-muted); max-width: 620px; line-height: 1.65; margin: 0;
     }
 
+    /* ── Resumen en claro: lo primero que se lee, antes de cualquier tabla ── */
+    .sen-summary {
+      display: flex; align-items: center; gap: 16px; padding: 22px 26px;
+      background: var(--bg-card); border: 1px solid var(--border-mid);
+      border-left: 4px solid var(--accent-green2); margin-bottom: 24px;
+    }
+    .sen-summary.attention { border-left-color: var(--accent-amber); }
+    .sen-summary.alert { border-left-color: var(--accent-red); }
+    .sen-summary__icon { font-size: 1.8rem; line-height: 1; flex-shrink: 0; }
+    .sen-summary__title { font-size: 1.05rem; font-weight: 700; color: var(--text-primary); margin: 0 0 4px; }
+    .sen-summary__text { font-size: 0.86rem; color: var(--text-muted); margin: 0; line-height: 1.55; }
+
     .kpi-grid {
       display: grid; grid-template-columns: repeat(5, 1fr); gap: 0;
-      border: 1px solid var(--border-mid); margin-bottom: 24px; background: var(--bg-card);
+      border: 1px solid var(--border-mid); margin-bottom: 32px; background: var(--bg-card);
     }
     @media (max-width: 1000px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
     @media (max-width: 480px) { .kpi-grid { grid-template-columns: 1fr; } .kpi-cell { border-right: none !important; } }
     @media (max-width: 1000px) { .kpi-cell:nth-child(2n) { border-right: none; } }
     .kpi-cell {
-      padding: 20px 22px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
+      padding: 26px 24px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
       position: relative; min-width: 0;
     }
     .kpi-cell:last-child { border-right: none; }
     .kpi-cell.alert { background: rgba(216,3,0,0.03); }
     .kpi-cell.alert::before { content: ''; position: absolute; top: 0; left: 0; width: 3px; height: 100%; background: var(--accent-red); }
     .kpi-label {
-      font-family: var(--font-mono); font-size: 0.55rem; letter-spacing: 0.03em;
-      color: var(--text-muted); margin-bottom: 10px;
+      font-family: var(--font-mono); font-size: 0.58rem; letter-spacing: 0.03em;
+      color: var(--text-muted); margin-bottom: 12px; cursor: help;
     }
     .kpi-val {
       font-family: var(--font-display); font-size: clamp(1.1rem, 2vw, 1.7rem); font-weight: 800;
@@ -73,22 +85,32 @@
     }
     .kpi-val.danger { color: var(--accent-red); }
     .kpi-val.ok { color: var(--accent-green); }
-    .kpi-unit { font-family: var(--font-mono); font-size: 0.56rem; color: var(--text-dim); margin-top: 6px; }
+    .kpi-unit { font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-dim); margin-top: 8px; }
 
     .sen-panel {
       background: var(--bg-card); border: 1px solid var(--border-mid);
-      border-top: 2px solid var(--text-primary); margin-bottom: 22px; overflow: hidden;
+      border-top: 2px solid var(--text-primary); margin-bottom: 28px; overflow: hidden;
     }
     .panel-header {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 16px 22px; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 10px;
+      padding: 20px 26px; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 10px;
     }
     .panel-title {
-      font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.03em;
+      font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.03em;
       color: var(--text-muted);
     }
+    .panel-subtitle {
+      font-size: 0.78rem; color: var(--text-dim); margin-top: 3px;
+    }
     .panel-badge { font-family: var(--font-mono); font-size: 0.58rem; color: var(--text-dim); }
-    .panel-body { padding: 20px 22px; }
+    .panel-body { padding: 26px; }
+    .panel-intro {
+      font-size: 0.86rem; color: var(--text-muted); margin: 0 0 18px; line-height: 1.7; max-width: 760px;
+    }
+    .panel-intro b { color: var(--text-secondary); font-weight: 600; }
+    .glossary-term {
+      border-bottom: 1px dotted var(--text-dim); cursor: help;
+    }
 
     /* tablas */
     table.sen-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 0.74rem; }
@@ -284,44 +306,58 @@
 
     <div id="errorBox" style="display:none;" class="mole-error"></div>
 
+    <!-- Resumen en claro: primera frase, sin tecnicismos -->
+    <div class="sen-summary reveal" id="senSummary">
+      <div class="sen-summary__icon" id="senSummaryIcon">🟢</div>
+      <div>
+        <p class="sen-summary__title" id="senSummaryTitle">Cargando estado…</p>
+        <p class="sen-summary__text" id="senSummaryText">Comprobando la actividad de la última hora.</p>
+      </div>
+    </div>
+
     <!-- KPIs -->
     <div class="kpi-grid reveal" id="kpiGrid">
       <div class="kpi-cell">
-        <div class="kpi-label">Peticiones · 60min</div>
+        <div class="kpi-label" title="Cada visita a una página o cada consulta que hace el sistema cuenta como una petición. Incluye tus propias pestañas abiertas actualizando datos solas.">Peticiones · 60min</div>
         <div class="kpi-val loading" id="kpiTotal60">...</div>
         <div class="kpi-unit">trafico total registrado</div>
       </div>
       <div class="kpi-cell alert">
-        <div class="kpi-label">Bloqueadas · 60min</div>
+        <div class="kpi-label" title="Peticiones que Sentinel rechazó activamente por parecer sospechosas. Esto es lo único que de verdad merece tu atención en esta fila.">Bloqueadas · 60min</div>
         <div class="kpi-val danger" id="kpiBlocked60">...</div>
         <div class="kpi-unit">rechazadas por Sentinel</div>
       </div>
       <div class="kpi-cell">
-        <div class="kpi-label">Rutas sensibles · 60min</div>
+        <div class="kpi-label" title="Accesos a las zonas más delicadas del sistema (CNMC y datos científicos U-2). No significa que algo vaya mal, solo que se ha mirado ahí.">Rutas sensibles · 60min</div>
         <div class="kpi-val" id="kpiSensitive60">...</div>
         <div class="kpi-unit">CNMC + S-NFI U-2</div>
       </div>
       <div class="kpi-cell">
-        <div class="kpi-label">IPs en cola revision</div>
+        <div class="kpi-label" title="IPs con comportamiento fuera de lo normal que un Admin todavía no ha revisado. Si está en 0, no hay nada pendiente.">IPs en cola revision</div>
         <div class="kpi-val" id="kpiQueue">...</div>
         <div class="kpi-unit">pendientes decision Admin</div>
       </div>
       <div class="kpi-cell">
-        <div class="kpi-label">Cadena forense</div>
+        <div class="kpi-label" title="Cada evento de seguridad queda firmado y encadenado al anterior (como un libro de registro que no se puede alterar sin que se note). 'Integra' significa que nadie ha tocado el historial.">Cadena forense</div>
         <div class="kpi-val" id="kpiChain" style="font-size:0.95rem;">verificando...</div>
-        <div class="kpi-unit" id="kpiChainSub">hash chain + HMAC</div>
+        <div class="kpi-unit" id="kpiChainSub">registro a prueba de manipulación</div>
       </div>
     </div>
 
     <!-- ═══ NAVEGADOR DE TRÁFICO (LIVE) ═══ -->
     <div class="sen-panel">
       <div class="panel-header">
-        <span class="panel-title">Navegador de tráfico · en vivo</span>
+        <div>
+          <span class="panel-title">Navegador de tráfico · en vivo</span>
+          <div class="panel-subtitle">Todo lo que pasa por el sistema, segundo a segundo</div>
+        </div>
         <span class="live-pulse"><span class="live-pulse__dot"></span><span id="liveStatus">en directo · cada 5s</span></span>
       </div>
       <div class="panel-body">
-        <p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 14px;line-height:1.6;">
-          Cada petición que llega al sistema, en tiempo real. Clic en una fila para ver el detalle de esa IP, o bloquéala directamente con el botón de la fila.
+        <p class="panel-intro">
+          Cada petición que llega al sistema, en tiempo real — incluida la tuya, si tienes otra pestaña de SYSTEMS abierta actualizándose sola.
+          La mayoría de estas filas son normales: paneles comprobando que todo sigue en pie. Clic en una fila para ver el detalle de esa IP,
+          o bloquéala directamente con el botón que aparece al pasar el ratón.
         </p>
         <div class="live-toolbar">
           <input type="text" id="liveFilterIp" placeholder="Filtrar por IP">
@@ -362,13 +398,17 @@
     <!-- ═══ PETICIONES IMPORTANTES ═══ -->
     <div class="sen-panel">
       <div class="panel-header">
-        <span class="panel-title">Peticiones importantes · qué está pasando ahora</span>
+        <div>
+          <span class="panel-title">Peticiones importantes · qué está pasando ahora</span>
+          <div class="panel-subtitle">Lo que de verdad merece una mirada, sin ruido de fondo</div>
+        </div>
         <span class="panel-badge" id="reqUpdatedAt">—</span>
       </div>
       <div class="panel-body">
-        <p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 16px;line-height:1.6;">
+        <p class="panel-intro">
           Cada línea es una petición real explicada en lenguaje sencillo: quién, desde dónde, qué intentó y qué hizo Sentinel.
-          Las marcadas en rojo fueron bloqueadas. Puedes bloquear la IP directamente desde aquí.
+          Por defecto solo se muestra lo <b>bloqueado</b> — el tráfico normal (paneles actualizándose, tu propio navegador) queda fuera para no saturar.
+          Puedes bloquear la IP directamente desde aquí.
         </p>
         <div class="filters-row" style="margin-bottom:16px;">
           <select id="reqFilter">
@@ -388,13 +428,19 @@
     <!-- ═══ IPs SOSPECHOSAS ═══ -->
     <div class="sen-panel">
       <div class="panel-header">
-        <span class="panel-title">IPs que han intentado acceder · riesgo y acciones</span>
+        <div>
+          <span class="panel-title">IPs que han intentado acceder · riesgo y acciones</span>
+          <div class="panel-subtitle">Una fila por cada dirección de red distinta que se ha conectado</div>
+        </div>
         <span class="panel-badge" id="queueCount">—</span>
       </div>
       <div class="panel-body">
-        <p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 16px;line-height:1.6;">
-          Sentinel calcula un nivel de riesgo por IP (BAJO / MEDIO / ALTO) según excesos de tasa, intentos fallidos de login y origen geográfico.
-          Bloquea para cortar el acceso al instante, o investiga para ver el historial completo antes de decidir.
+        <p class="panel-intro">
+          Una <span class="glossary-term" title="La 'dirección' de red desde la que se conecta un dispositivo — como el remite de una carta. Varias personas detrás del mismo router de oficina comparten la misma IP.">IP</span>
+          es la matrícula de red de quien se conecta. Sentinel calcula un nivel de riesgo (<b>BAJO / MEDIO / ALTO</b>) según
+          exceso de peticiones, intentos fallidos de acceso y ubicación de origen. "Bloquear" corta el acceso al instante;
+          "Investigar" abre el historial completo de esa IP antes de decidir. Si es tuya o de la oficina, márcala "de confianza"
+          y Sentinel dejará de vigilarla.
         </p>
         <div class="manual-block-row" style="margin-bottom:18px;">
           <input type="text" id="manualBlockIp" placeholder="IP a bloquear directamente (ej. 203.0.113.4)" style="flex:1;min-width:200px;background:var(--bg-elevated);border:1px solid var(--border-mid);color:var(--text-primary);font-family:var(--font-mono);font-size:0.78rem;padding:9px 12px;outline:none;border-radius:var(--radius-sm);">
@@ -425,19 +471,23 @@
     <!-- ═══ PROFILING DE COMPORTAMIENTO A LARGO PLAZO (Behavioral Analytics) ═══ -->
     <div class="sen-panel">
       <div class="panel-header">
-        <span class="panel-title">Profiling de comportamiento · patrones de uso por empleado</span>
+        <div>
+          <span class="panel-title">Patrones de uso por empleado</span>
+          <div class="panel-subtitle">No mira solo la IP, mira qué hace cada persona ya dentro del sistema</div>
+        </div>
         <span class="panel-badge" id="behBadge">—</span>
       </div>
       <div class="panel-body">
-        <p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 16px;line-height:1.6;">
-          Sentinel analiza cada petición autenticada, no solo la IP. Frecuencia anormal (5+ informes OPHS en menos de 1h) dispara
-          alerta <b style="color:var(--accent-amber);">NARANJA</b>. Acceso a informes OPHS sin proyecto activo asociado en Rëff bloquea
-          al usuario de forma automática (mesa OPHS y mesa Rëff son independientes en ROLE_MESAS) — el humano decide en la cola de abajo.
+        <p class="panel-intro">
+          Esto vigila el comportamiento de usuarios ya identificados, no solo IPs anónimas. Si alguien pide muchos informes ØPHS
+          en poco tiempo (5 o más en menos de 1 hora), salta una alerta <b style="color:var(--accent-amber);">NARANJA</b> para revisar.
+          Si alguien accede a informes ØPHS sin tener un proyecto activo asociado en Rëff, el sistema lo bloquea solo — el Admin decide
+          si lo desbloquea en la cola de abajo.
         </p>
 
         <div class="panel-title" style="margin-bottom:10px;">Alertas de comportamiento</div>
         <table class="sen-table" style="margin-bottom:22px;">
-          <thead><tr><th>Hora</th><th>Nivel</th><th>Tipo</th><th>Usuario</th><th>Detalle</th></tr></thead>
+          <thead><tr><th>Fecha</th><th>Nivel</th><th>Tipo</th><th>Usuario</th><th>Detalle</th></tr></thead>
           <tbody id="behAlertsBody"></tbody>
         </table>
         <div id="behAlertsEmpty" class="empty-row" style="display:none;">Sin alertas de comportamiento registradas.</div>
@@ -467,7 +517,7 @@
     <div class="sen-panel">
       <div class="panel-body">
         <details class="advanced">
-          <summary>Avanzado · log técnico completo (cadena de hashes)</summary>
+          <summary>Avanzado · log técnico completo, evento por evento (cadena de hashes)</summary>
           <div style="display:flex;align-items:center;gap:10px;font-family:var(--font-mono);font-size:0.74rem;margin-bottom:14px;">
             <div id="chainDot" style="width:9px;height:9px;border-radius:50%;"></div>
             <span id="chainText">verificando...</span>
@@ -503,43 +553,54 @@
     <!-- ═══ RACKS FISICOS · ESTADO DISTRIBUIDO (Volumen 3) ═══ -->
     <div class="sen-panel">
       <div class="panel-header">
-        <span class="panel-title">Racks físicos · estado distribuido (consenso Raft)</span>
+        <div>
+          <span class="panel-title">Servidores físicos · estado de la infraestructura</span>
+          <div class="panel-subtitle">Hoy: un único servidor. Aquí se verá la salud de todos cuando haya más de uno</div>
+        </div>
         <span class="panel-badge" id="rackBadge">—</span>
       </div>
       <div class="panel-body">
-        <p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 16px;line-height:1.6;">
-          Sentinel actúa como hipervisor descentralizado: los puertos parametrizados y los estados de seguridad se replican
-          por consenso Raft en todos los racks. Un rack aislado (sin quorum) no comete escrituras nuevas — exclusión mutua
-          distribuida — pero sigue sirviendo su último estado comprometido (Offline-First).
+        <p class="panel-intro">
+          Cuando S-NFI tenga varios servidores físicos trabajando a la vez, esta sección muestra si todos están de acuerdo entre
+          sí sobre el estado del sistema (qué puertos usar, si hay una alerta de seguridad activa, etc.) — mecanismo técnico
+          llamado <span class="glossary-term" title="Algoritmo de consenso: los servidores se ponen de acuerdo por votación sobre cuál es el estado 'oficial' actual, así ninguno actúa con datos desfasados o contradictorios.">consenso Raft</span>.
+          Si un servidor se queda aislado, deja de escribir cambios nuevos (para no contradecir a los demás) pero sigue
+          respondiendo con la última información confirmada que tenía. Hoy solo hay un servidor activo, así que esto funciona
+          en modo individual.
         </p>
-        <div style="display:flex; gap:22px; flex-wrap:wrap; font-family:var(--font-mono); font-size:0.72rem; margin-bottom:16px;" id="rackStats">
-          <span>rack <b id="rkId">—</b></span>
+        <div style="display:flex; gap:22px; flex-wrap:wrap; font-family:var(--font-mono); font-size:0.72rem; margin-bottom:6px;" id="rackStats">
+          <span>servidor <b id="rkId">—</b></span>
           <span>rol <b id="rkRole">—</b></span>
-          <span>término <b id="rkTerm">—</b></span>
           <span>modo <b id="rkMode">—</b></span>
           <span>quorum <b id="rkQuorum">—</b></span>
-          <span>commit <b id="rkCommit">—</b></span>
-          <span>líder <b id="rkLeader">—</b></span>
         </div>
-        <div id="rackPeersWrap" style="display:none; margin-bottom:16px;">
-          <div class="panel-title" style="margin-bottom:8px;">Malla inter-rack</div>
-          <table class="sen-table">
-            <thead><tr><th>Peer</th><th>Alcanzable</th><th>matchIndex</th><th>Visto</th><th>Último error</th></tr></thead>
-            <tbody id="rackPeersBody"></tbody>
+        <details class="advanced">
+          <summary>Avanzado · detalle técnico del consenso (término, commit, malla, estado replicado)</summary>
+          <div style="display:flex; gap:22px; flex-wrap:wrap; font-family:var(--font-mono); font-size:0.72rem; margin-bottom:16px;">
+            <span>término <b id="rkTerm">—</b></span>
+            <span>commit <b id="rkCommit">—</b></span>
+            <span>líder <b id="rkLeader">—</b></span>
+          </div>
+          <div id="rackPeersWrap" style="display:none; margin-bottom:16px;">
+            <div class="panel-title" style="margin-bottom:8px;">Malla inter-rack</div>
+            <table class="sen-table">
+              <thead><tr><th>Peer</th><th>Alcanzable</th><th>matchIndex</th><th>Visto</th><th>Último error</th></tr></thead>
+              <tbody id="rackPeersBody"></tbody>
+            </table>
+          </div>
+          <div class="panel-title" style="margin-bottom:8px;">Estado replicado (KV comprometido)</div>
+          <table class="sen-table" style="margin-bottom:16px;">
+            <thead><tr><th>Clave</th><th>Valor</th><th>Index</th><th>Actor</th><th>Aplicado</th></tr></thead>
+            <tbody id="rackStateBody"><tr><td colspan="5" class="empty-row">Cargando estado…</td></tr></tbody>
           </table>
-        </div>
-        <div class="panel-title" style="margin-bottom:8px;">Estado replicado (KV comprometido)</div>
-        <table class="sen-table" style="margin-bottom:16px;">
-          <thead><tr><th>Clave</th><th>Valor</th><th>Index</th><th>Actor</th><th>Aplicado</th></tr></thead>
-          <tbody id="rackStateBody"><tr><td colspan="5" class="empty-row">Cargando estado…</td></tr></tbody>
-        </table>
-        <div class="manual-block-row" style="margin-bottom:8px;">
-          <input type="text" id="rackKey" placeholder="clave (ej. security.posture)" style="flex:1;min-width:200px;background:var(--bg-elevated);border:1px solid var(--border-mid);color:var(--text-primary);font-family:var(--font-mono);font-size:0.74rem;padding:9px 12px;outline:none;border-radius:var(--radius-sm);">
-          <input type="text" id="rackValue" placeholder='valor JSON (ej. "reforzado", 5175, true)' style="flex:1;min-width:200px;background:var(--bg-elevated);border:1px solid var(--border-mid);color:var(--text-primary);font-family:var(--font-mono);font-size:0.74rem;padding:9px 12px;outline:none;border-radius:var(--radius-sm);">
-          <button class="btn-mini" id="rackProposeBtn" style="padding:9px 16px;">Proponer al consenso</button>
-          <button class="btn-mini" id="rackVerifyBtn" style="padding:9px 16px;">Verificar log</button>
-        </div>
-        <div id="rackMsg" style="display:none;font-family:var(--font-mono);font-size:0.68rem;"></div>
+          <div class="manual-block-row" style="margin-bottom:8px;">
+            <input type="text" id="rackKey" placeholder="clave (ej. security.posture)" style="flex:1;min-width:200px;background:var(--bg-elevated);border:1px solid var(--border-mid);color:var(--text-primary);font-family:var(--font-mono);font-size:0.74rem;padding:9px 12px;outline:none;border-radius:var(--radius-sm);">
+            <input type="text" id="rackValue" placeholder='valor JSON (ej. "reforzado", 5175, true)' style="flex:1;min-width:200px;background:var(--bg-elevated);border:1px solid var(--border-mid);color:var(--text-primary);font-family:var(--font-mono);font-size:0.74rem;padding:9px 12px;outline:none;border-radius:var(--radius-sm);">
+            <button class="btn-mini" id="rackProposeBtn" style="padding:9px 16px;">Proponer al consenso</button>
+            <button class="btn-mini" id="rackVerifyBtn" style="padding:9px 16px;">Verificar log</button>
+          </div>
+          <div id="rackMsg" style="display:none;font-family:var(--font-mono);font-size:0.68rem;"></div>
+        </details>
       </div>
     </div>
 
@@ -612,6 +673,12 @@
       if (!ts) return '—';
       const d = new Date(ts);
       return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+
+    function fmtDateTime(ts) {
+      if (!ts) return '—';
+      const d = new Date(ts);
+      return d.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
     }
 
     function geoLabel(geo) {
@@ -726,6 +793,8 @@
         const pending = queue.filter(q => q.decision === 'PENDING').length;
         document.getElementById('kpiQueue').textContent = pending;
         document.getElementById('queueCount').textContent = `${rows.length} IPs registradas`;
+        lastPendingCount = pending;
+        updateSummary();
 
         const body = document.getElementById('ipBody');
         const empty = document.getElementById('ipEmpty');
@@ -1035,8 +1104,43 @@
         document.getElementById('kpiTotal60').textContent = total60;
         document.getElementById('kpiBlocked60').textContent = blocked60;
         document.getElementById('kpiSensitive60').textContent = sensitive60;
+        updateSummary({ total60, blocked60 });
       } catch (ex) {
         showError('Error cargando totales: ' + (ex.message || ex));
+      }
+    }
+
+    /* ---- Resumen en claro: una frase, sin tecnicismos ---- */
+    let lastPendingCount = 0;
+    let lastTotal60 = 0;
+    let lastBlocked60 = 0;
+    function updateSummary(data) {
+      if (data) { lastTotal60 = data.total60 ?? 0; lastBlocked60 = data.blocked60 ?? 0; }
+      const box = document.getElementById('senSummary');
+      const icon = document.getElementById('senSummaryIcon');
+      const title = document.getElementById('senSummaryTitle');
+      const text = document.getElementById('senSummaryText');
+      const pending = lastPendingCount;
+      const blocked = lastBlocked60;
+      const total = lastTotal60;
+
+      if (pending > 0) {
+        box.className = 'sen-summary alert';
+        icon.textContent = '🔴';
+        title.textContent = `Hay ${pending} IP${pending === 1 ? '' : 's'} esperando tu decisión`;
+        text.textContent = 'Sentinel detectó actividad fuera de lo normal y no actuó por su cuenta — revisa la tabla de abajo y decide si bloquear o permitir.';
+      } else if (blocked > 0) {
+        box.className = 'sen-summary attention';
+        icon.textContent = '🟠';
+        title.textContent = `Sentinel bloqueó ${blocked} petición${blocked === 1 ? '' : 'es'} en la última hora`;
+        text.textContent = 'Ya está resuelto — no hace falta que hagas nada. Si quieres ver el detalle, está en "Peticiones importantes" más abajo.';
+      } else {
+        box.className = 'sen-summary';
+        icon.textContent = '🟢';
+        title.textContent = 'Todo tranquilo — nada que requiera tu atención';
+        text.textContent = total > 0
+          ? `${total} peticiones en la última hora, todas normales: tus propias pestañas del sistema comprobando que todo funciona.`
+          : 'Sin actividad registrada en la última hora.';
       }
     }
 
@@ -1268,7 +1372,7 @@
         }
         empty.style.display = 'none';
         body.innerHTML = events.map(e => `<tr>
-          <td class="mono">${fmtTime(e.ts)}</td>
+          <td class="mono">${fmtDateTime(e.ts)}</td>
           <td><span class="level-badge ${e.level}">${escapeHtml(e.level)}</span></td>
           <td class="mono">${escapeHtml(e.type)}</td>
           <td class="mono">${escapeHtml(e.user)}</td>

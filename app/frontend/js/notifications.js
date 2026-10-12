@@ -12,6 +12,26 @@ const ORIGIN_NAME = {
   REFF: 'Rëff',
   'SNFI-U2': 'S-NFI U-2',
   'ELVI-RA': 'Elvi-Ra',
+  PACTVM: 'Pactvm Viridi',
+  GRID: 'Grid Interlink',
+  RACK: 'Rack (Raft)',
+  K8S: 'K8s',
+  FL: 'S-NFI F&L',
+  RESILIENCE: 'S-NFI Resilience',
+};
+
+// Pagina de mesa donde el humano resuelve la incidencia de cada origen.
+// SYSTEM/K8S no tienen mesa propia (son del proceso Node en si) -> sin botón.
+const ORIGIN_LINK = {
+  SENTINEL: 'sentinel.html',
+  REFF: 'reff-dashboard.html',
+  'SNFI-U2': 'snfi-u2.html',
+  'ELVI-RA': 'elvi-ra.html',
+  PACTVM: 'pactum-viridi.html',
+  GRID: 'ophs.html#grid',
+  RACK: 'sentinel.html',
+  FL: 'fl.html',
+  RESILIENCE: 'resilience.html',
 };
 
 function simpleTitle(n) {
@@ -108,6 +128,7 @@ export function mountAdminNotifications(navEl) {
             <div class="admin-notif__row"><span class="admin-notif__row-key">Origen</span><span>${escapeHtml(n.origin || 'SYSTEM')}</span></div>
             <div class="admin-notif__row"><span class="admin-notif__row-key">Detalle técnico</span><span class="admin-notif__label">${escapeHtml(n.label)}</span></div>
             ${n.detail ? `<pre class="admin-notif__detail">${escapeHtml(n.detail)}</pre>` : ''}
+            ${ORIGIN_LINK[n.origin] ? `<button class="admin-notif__fix" data-action="fix" data-href="${escapeHtml(ORIGIN_LINK[n.origin])}">Ir a resolver →</button>` : ''}
           </div>
         ` : ''}
       </div>
@@ -151,6 +172,14 @@ export function mountAdminNotifications(navEl) {
       api.notificationDelete(id).catch(() => {});
       items = items.filter(x => x.id !== id);
       render();
+      return;
+    }
+    const fixBtn = e.target.closest('[data-action="fix"]');
+    if (fixBtn) {
+      const item = fixBtn.closest('.admin-notif__item');
+      const id = item.dataset.id;
+      api.notificationRead(id).catch(() => {});
+      window.location.href = fixBtn.dataset.href;
       return;
     }
     const toggleBtn = e.target.closest('[data-action="toggle"]');
