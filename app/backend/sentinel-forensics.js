@@ -551,10 +551,19 @@ export function createSentinelForensics({ mongo, busEmit, ROLE_MESAS = {} }) {
 
   /* ---- Frecuencia anormal: >=5 informes OPHS en <1h por el mismo usuario -> alerta NARANJA ----
      No distingue perfil (PhD u otro): la regla aplica igual a cualquier rol, el jefe
-     puede acotar por perfil mas adelante si se añade ese campo a `users`. */
+     puede acotar por perfil mas adelante si se añade ese campo a `users`. Cooldown de
+     1 alerta por usuario por ventana: sin esto, cada peticion nueva del usuario mientras
+     el contador siga >=5 (ej. el propio panel Cockpit de OPHS haciendo polling automatico
+     de sus KPIs) volvia a disparar una alerta identica — visto en produccion: 30 alertas
+     en 15 minutos del mismo usuario con la pestaña de OPHS simplemente abierta. */
   async function checkFrequencyAnomaly({ user, path, mesa }) {
     if (!user || !isOphsReportPath(path)) return null;
     const since = new Date(Date.now() - OPHS_REPORT_WINDOW_MS);
+    const alreadyAlerted = await mongo.collection('behavior_alerts').findOne({
+      user, type: 'FRECUENCIA_ANORMAL', ts: { $gte: since.toISOString() },
+    });
+    if (alreadyAlerted) return null;
+
     const count = await mongo.collection('forensic_log').countDocuments({
       user, ts: { $gte: since.toISOString() },
       $or: OPHS_REPORT_PREFIXES.map(p => ({ path: { $regex: `^${p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}` } })),
@@ -591,6 +600,12 @@ export function createSentinelForensics({ mongo, busEmit, ROLE_MESAS = {} }) {
     if (!user || !isOphsReportPath(path)) return null;
     const hasReffProject = role === 'admin' || (ROLE_MESAS[role] || []).includes('reff');
     if (hasReffProject) return null;
+
+    // Mismo motivo que checkFrequencyAnomaly: sin este check, un usuario sin mesa 'reff'
+    // que tiene el panel OPHS abierto (polling automatico) generaria una alerta ROJA +
+    // reescritura de user_review_queue en cada peticion, en vez de una sola vez.
+    const already = await mongo.collection('user_review_queue').findOne({ user, decision: 'BLOCKED', autoBlocked: true });
+    if (already) return null;
 
     const alert = await appendBehaviorAlert({
       type: 'EXFILTRACION_SOSPECHOSA', level: 'ROJO', user, role, mesa: mesa || null, path,
