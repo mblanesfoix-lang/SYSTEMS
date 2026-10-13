@@ -37,7 +37,7 @@ import PDFDocument from 'pdfkit';
 import { runAsTenant } from './db/tenant-context.js';
 import { DEFAULT_TENANT_ID } from './db/tenant-registry.js';
 import {
-  ESQUEMAS, ENTIDADES, ENTIDAD_ROUTE, TRANSICIONES_NOTIFICACION, ADMINISTRACIONES, NORMAS, PORTALES,
+  ESQUEMAS, ENTIDADES, ENTIDAD_ROUTE, TRANSICIONES_NOTIFICACION, ADMINISTRACIONES, NORMAS, portalesPara,
   DGT_CONSULTA_URL, validarEntidad, esquemasPublicos,
 } from './fl-hub-catalogos.js';
 import {
@@ -681,7 +681,7 @@ export function mountFlHub(app, {
         administraciones: ADMINISTRACIONES,
         categorias: CATEGORIAS.map(({ key, label }) => ({ key, label })),
         normas: NORMAS,
-        portales: PORTALES,
+        portales: portalesPara(req.user),
         dgt_url: DGT_CONSULTA_URL,
       },
     });

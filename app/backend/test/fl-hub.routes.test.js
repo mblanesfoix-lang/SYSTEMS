@@ -128,6 +128,20 @@ describe('fl-hub.js: Hub fiscal y legal sobre Mongo', { skip: !MONGO_URI && 'MON
     assert.equal(await db.collection('fl_log').countDocuments({ action: 'hub.seed' }), 1);
   });
 
+  test('portal restringido (CBAM): solo lo reciben los usuarios autorizados', async () => {
+    const ver = async (user) => {
+      const res = await fetch(`${baseUrl}/api/fl/hub`, { headers: { 'x-test-user': user } });
+      return (await res.json()).meta.portales;
+    };
+    const marc = await ver('mblanes@s-nficorp.com');
+    assert.ok(marc.some((p) => p.key === 'cbam'));
+    assert.ok(marc.every((p) => !('soloUsuarios' in p)), 'la lista de autorizados no sale al cliente');
+    assert.ok((await ver('nzaroual@s-nfi.com')).some((p) => p.key === 'cbam'));
+    const otro = await ver('gonzalosb@s-nficorp.com');
+    assert.ok(!otro.some((p) => p.key === 'cbam'));
+    assert.ok(otro.some((p) => p.key === 'csv_abogacia'));
+  });
+
   test('guard de mesa: un rol sin acceso recibe 403', async () => {
     const { status } = await call('/api/fl/hub', { role: 'ray' });
     assert.equal(status, 403);

@@ -425,6 +425,19 @@ export const PORTALES = [
   { key: 'borme', label: 'BORME · último boletín', url: 'https://www.boe.es/diario_borme/' },
   { key: 'dgt', label: 'Consultas de la Dirección General de Tributos', url: 'https://petete.tributos.hacienda.gob.es/consultas/' },
   { key: 'csv_abogacia', label: 'Verificación CSV · Abogacía Española', url: 'https://www.abogacia.es/repositorio/csv/' },
+  // soloUsuarios: el enlace solo se sirve a esas sesiones (peticion del usuario, 2026-10-13).
+  {
+    key: 'cbam', label: 'Reglamento (UE) 2023/956 · Ajuste en Frontera por Carbono (CBAM)',
+    url: 'https://www.boe.es/buscar/doc.php?id=DOUE-L-2023-80661',
+    soloUsuarios: ['mblanes@s-nficorp.com', 'nzaroual@s-nfi.com'],
+  },
 ];
+
+/* Portales visibles para un usuario, sin la lista de quien puede verlos. */
+export function portalesPara(usuario) {
+  return PORTALES
+    .filter((p) => !p.soloUsuarios || p.soloUsuarios.includes(usuario))
+    .map(({ soloUsuarios, ...p }) => p);
+}
 
 export const DGT_CONSULTA_URL = 'https://petete.tributos.hacienda.gob.es/consultas/';
