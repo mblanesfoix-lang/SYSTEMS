@@ -180,15 +180,19 @@ export function createSentinelForensics({ mongo, busEmit, ROLE_MESAS = {}, env }
   // Cada entrada toma el último registro (seq + 1, su hash) y el índice único sobre
   // seq (db/mongo.js) arbitra: si otro proceso inserta antes ese seq, el insert falla
   // con clave duplicada y se reintenta sobre la cola nueva. Así nunca hay dos entradas
-  // encadenadas al mismo registro. Dentro del proceso las escrituras van en fila para
-  // no competir entre sí.
-  let appendQueue = Promise.resolve();
+  // encadenadas al mismo registro. Dentro del proceso las escrituras (y el re-sellado)
+  // van en fila para no competir entre sí.
+  let queue = Promise.resolve();
+
+  function enqueue(task) {
+    const result = queue.then(task);
+    queue = result.catch(() => {});
+    return result;
+  }
 
   function appendForensicEntry(fields) {
     const ts = new Date().toISOString();
-    const result = appendQueue.then(() => insertChained(fields, ts));
-    appendQueue = result.catch(() => {});
-    return result;
+    return enqueue(() => insertChained(fields, ts));
   }
 
   async function insertChained(fields, ts) {
@@ -265,7 +269,7 @@ export function createSentinelForensics({ mongo, busEmit, ROLE_MESAS = {}, env }
     let contentMismatch = 0;
     let ops = [];
     const flush = async () => {
-      if (ops.length) await forensicLog().bulkWrite(ops, { ordered: true });
+      if (ops.length) await forensicLog().bulkWrite(ops, { ordered: false });
       ops = [];
     };
     for await (const entry of forensicLog().find().sort({ seq: 1 })) {
@@ -295,11 +299,17 @@ export function createSentinelForensics({ mongo, busEmit, ROLE_MESAS = {}, env }
     return { fixedFrom, resealed, contentMismatch };
   }
 
-  /* ---- re-sellado (Admin): no borra ni modifica el contenido de ningún registro. Repite
-     la pasada si mientras tanto entran escrituras encadenadas a un sello recién sustituido.
-     Queda trazado en la propia cadena (entrada RE-SELLADO firmada con la clave vigente),
-     en cada registro tocado (reanchoredAt, reanchoredBy, sealHistory) y en el bus. ---- */
-  async function reanchorChain(decidedBy, { ip = null } = {}) {
+  /* ---- re-sellado (Admin): no borra ni modifica el contenido de ningún registro. Va en
+     la misma fila que las escrituras del proceso: mientras dura, ninguna entrada nueva se
+     encadena a un sello que se está sustituyendo y un segundo re-sellado espera al primero
+     (que ya la deja íntegra). Repite la pasada por si escribe otro proceso. Queda trazado
+     en la propia cadena (entrada RE-SELLADO firmada con la clave vigente), en cada registro
+     tocado (reanchoredAt, reanchoredBy, sealHistory) y en el bus. ---- */
+  function reanchorChain(decidedBy, options = {}) {
+    return enqueue(() => reanchorExclusive(decidedBy, options));
+  }
+
+  async function reanchorExclusive(decidedBy, { ip = null }) {
     const check = await verifyChain();
     if (check.valid) return { reanchored: false, reason: 'cadena_ya_integra' };
 
@@ -319,10 +329,11 @@ export function createSentinelForensics({ mongo, busEmit, ROLE_MESAS = {}, env }
     const cause = BREAK_CAUSE[check.reason] || check.reason;
     const detail = `${resealed} registro(s) desde el número ${fixedFrom}, causa: ${cause}`
       + (contentMismatch ? `, ${contentMismatch} con contenido distinto de su sello anterior` : '');
-    const trace = await appendForensicEntry({
+    // Directo, no por la fila: este re-sellado la ocupa hasta terminar.
+    const trace = await insertChained({
       ip: ip || 'interno', geo: null, method: 'POST', path: '/api/sentinel/reanchor-chain', mesa: 'sentinel',
       sensitive: false, user: decidedBy, statusCode: null, blocked: false, reason: `${RESEAL_REASON} · ${detail}`,
-    });
+    }, new Date().toISOString());
     const after = await verifyChain();
     busEmit?.({
       id: crypto.randomUUID(), ts: new Date().toISOString(), origin: 'SENTINEL', dest: 'ELVI-RA',

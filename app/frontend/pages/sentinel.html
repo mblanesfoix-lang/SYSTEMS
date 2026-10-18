@@ -1041,17 +1041,26 @@
       }
     }
 
-    document.getElementById('btnReanchor').addEventListener('click', async () => {
-      if (!confirm('Esto re-sella la cadena forense desde el punto roto. El historial no se borra, solo se vuelve a anclar para que pueda verificarse de nuevo. ¿Continuar?')) return;
+    document.getElementById('btnReanchor').addEventListener('click', async (ev) => {
+      if (!confirm('Esto re-sella la cadena forense desde el punto roto. El historial no se borra, solo se vuelve a anclar para que pueda verificarse de nuevo. Con muchos registros puede tardar un par de minutos. ¿Continuar?')) return;
+      const btn = ev.currentTarget;
+      const label = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Re-sellando… no cierres la página';
       try {
         const result = await api.sentinelReanchorChain();
-        toast(!result.reanchored
-          ? 'La cadena ya estaba íntegra'
-          : `Cadena re-sellada desde el registro ${result.fixedFrom} (${result.resealed} registros)`
-            + (result.contentMismatch ? ` · ${result.contentMismatch} con contenido distinto de su sello anterior: revisar` : ''));
+        if (!result.reanchored) toast('La cadena ya estaba íntegra');
+        else {
+          toast(`Cadena re-sellada desde el registro ${result.fixedFrom} (${result.resealed} registros)`
+            + (result.contentMismatch ? ` · ${result.contentMismatch} con contenido distinto de su sello anterior: revisar` : '')
+            + (result.valid ? '' : ' · aún queda un tramo por verificar: vuelve a pulsar'));
+        }
         await loadChain();
       } catch (ex) {
         showError('Error re-sellando cadena: ' + (ex.message || ex));
+      } finally {
+        btn.disabled = false;
+        btn.textContent = label;
       }
     });
 

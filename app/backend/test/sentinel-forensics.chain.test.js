@@ -197,6 +197,38 @@ describe('sentinel-forensics: cadena de hashes forense', { skip: skip && 'MONGO_
     assert.equal(result.valid, true);
   });
 
+  test('escrituras durante el re-sellado: esperan su turno y la cadena queda integra', async () => {
+    const victim = (await entries())[2];
+    await mongo.collection('forensic_log').updateOne({ _id: victim._id }, { $set: { reason: 'MANIPULADO' } });
+
+    const reseal = sentinelB.reanchorChain('admin-test');
+    const writes = [40, 41, 42, 43, 44].map((i) => blockedLogin(sentinelB, i));
+    const [result] = await Promise.all([reseal, ...writes]);
+    assert.equal(result.reanchored, true);
+    assert.equal(result.valid, true);
+    assert.equal((await sentinelB.verifyChain()).valid, true);
+    // Las escrituras pedidas durante el re-sellado se encadenan después de su entrada de traza.
+    const written = await mongo.collection('forensic_log').find({ user: /^intruso4\d@/ }).toArray();
+    assert.equal(written.length, 5);
+    assert.ok(written.every((e) => e.seq > result.traceSeq));
+  });
+
+  test('dos re-sellados a la vez: el segundo espera y encuentra la cadena integra', async () => {
+    const victim = (await entries())[3];
+    await mongo.collection('forensic_log').updateOne({ _id: victim._id }, { $set: { reason: 'MANIPULADO' } });
+    const traces = () => mongo.collection('forensic_log').countDocuments({ reason: /^RE-SELLADO/ });
+    const tracesBefore = await traces();
+
+    const [first, second] = await Promise.all([
+      sentinelB.reanchorChain('admin-1'),
+      sentinelB.reanchorChain('admin-2'),
+    ]);
+    assert.equal(first.reanchored, true);
+    assert.equal(first.valid, true);
+    assert.deepEqual(second, { reanchored: false, reason: 'cadena_ya_integra' });
+    assert.equal(await traces(), tracesBefore + 1);
+  });
+
   test('login exitoso no queda en la cadena forense (solo login_attempts)', async () => {
     const chainBefore = await sentinelB.verifyChain();
     await sentinelB.registerLoginAttempt({ ip: '10.0.0.99', username: 'marc@snficorp.com', ok: true });
