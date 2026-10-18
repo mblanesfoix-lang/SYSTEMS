@@ -611,7 +611,7 @@
   </main>
 
   <script type="module">
-    import { api, getUser, getToken, clearSession, requireAuth, toast } from '/js/api.js';
+    import { api, getUser, getRole, getToken, clearSession, requireAuth, toast } from '/js/api.js';
     import { mountThemeToggle } from '/js/theme.js';
     import { mountAdminNotifications } from '/js/notifications.js';
     requireAuth();
@@ -1033,7 +1033,8 @@
           kpi.className = 'kpi-val danger';
           kpiSub.textContent = `registro ${result.brokenAtSeq} de ${result.totalEntries}`;
           document.getElementById('chainExplanation').textContent = result.explanation || `El registro ${result.brokenAtSeq} no encaja con el anterior.`;
-          box.style.display = (getUser() || '').endsWith('@snficorp.com') ? 'block' : 'none';
+          // Mismo criterio que el servidor para re-sellar: rol Admin.
+          box.style.display = getRole() === 'admin' ? 'block' : 'none';
         }
       } catch (ex) {
         showError('Error verificando cadena: ' + (ex.message || ex));
