@@ -22,7 +22,7 @@ Elvi- Ra no es una simple plataforma o IA, es una fuente de datos para dirigir l
 
 
 Login 1a Fase:
-Cada persona dispone de X acceso a la plataforma, las credenciales están ubicadas en "Elvi-Ra"-"Elvi-Ra Zone"-"Creedenciales"
+Cada persona dispone de X acceso a la plataforma, las credenciales se guardan fuera del proyecto, en el almacenamiento seguro de la empresa
 
 Dashboard 2a Fase:
 Dashboard interactivo para :

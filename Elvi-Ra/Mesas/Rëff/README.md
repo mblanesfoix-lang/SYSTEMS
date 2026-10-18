@@ -31,7 +31,7 @@ npm run dev
 - Servidor: `http://localhost:3001`
 - Cliente: `http://localhost:5173`
 
-La primera vez que arranca, la base de datos se crea en `./data/snfi.db` con el seed de usuarios y agentes.
+Los datos viven en MongoDB (`MONGO_URI`). La primera vez que arranca con la base vacía crea los usuarios iniciales definidos en `REFF_SEED_*_PASSWORD`.
 
 ## Build y produccion
 
