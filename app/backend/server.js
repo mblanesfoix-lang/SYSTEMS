@@ -1,3 +1,4 @@
+import { loadLocalEnvFiles, assertConfig, ConfigError } from './config.js';
 import express from 'express';
 import cors from 'cors';
 import { rateLimit, ipKeyGenerator } from 'express-rate-limit';
@@ -9,18 +10,6 @@ import { connectMongo, closeMongo, getElviraDb, getMongoClient, withTransaction 
 import { createTenantAwareDb, createTenantAwareReffDb } from './db/tenant-context.js';
 import { createSentinelForensics } from './sentinel-forensics.js';
 import { callLLM } from './llm.js';
-
-// Load .env manually for environments that don't use --env-file
-{
-  const envPath = new URL('.env', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1');
-  if (fs.existsSync(envPath)) {
-    const lines = fs.readFileSync(envPath, 'utf8').split('\n');
-    for (const line of lines) {
-      const m = line.match(/^\s*([^#=\s][^=]*?)\s*=\s*(.*?)\s*$/);
-      if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
-    }
-  }
-}
 import { mountElviraCentral } from './elvira-central.js';
 import { mountFinance } from './finance.js';
 import { mountFinanceCompanies } from './finance-companies.js';
@@ -51,6 +40,18 @@ import { mountCnmc } from './routes/cnmc.routes.js';
 import { mountSentinelForensicRoutes } from './routes/sentinel-forensic.routes.js';
 import { mountU2Ree } from './routes/u2-ree.routes.js';
 import { mountReffGuestToken } from './routes/reff-guest.routes.js';
+
+// Lo primero: .env locales (si existen) y validación, antes de conectar a Mongo o montar
+// ninguna mesa. En producción, si falta algo o tiene un formato inválido, el proceso no
+// arranca y lista todos los problemas de una vez; fuera de producción solo avisa.
+loadLocalEnvFiles();
+try {
+  assertConfig();
+} catch (err) {
+  if (!(err instanceof ConfigError)) throw err;
+  console.error(err.message);
+  process.exit(1);
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -632,17 +633,8 @@ app.get('/', (req, res) => res.redirect('/pages/login.html'));
     const REFF_SERVER = path.join(REFF_DIST, 'server');
     const REFF_CLIENT = path.join(REFF_DIST, 'client');
 
-    // Load Rëff .env into process.env (ANTHROPIC_API_KEY, JWT_SECRET)
-    const reffEnv = path.resolve(__dirname, '../../Elvi-Ra/Mesas/Rëff/.env');
-    if (fs.existsSync(reffEnv)) {
-      for (const line of fs.readFileSync(reffEnv, 'utf8').split(/\r?\n/)) {
-        const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-        if (!m) continue;
-        const [, k, v] = m;
-        if (!(k in process.env)) process.env[k] = v.replace(/^["']|["']$/g, '');
-      }
-    }
-
+    // Las variables de Rëff ya están en process.env: llegan por entorno o, en desarrollo,
+    // de su .env local (loadLocalEnvFiles al arrancar).
     const toFileUrl = (p) => 'file:///' + p.replace(/\\/g, '/');
 
     // Rëff comparte el mismo MongoClient/pool que Elvi-Ra — un solo proceso, una sola conexión.

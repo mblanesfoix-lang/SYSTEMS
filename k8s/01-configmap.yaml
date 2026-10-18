@@ -1,22 +1,60 @@
-# Variables NO secretas. Mismo set que docker-compose.yml, sin credenciales.
-# Mismo patron de defaults seguros que ya existe en el codigo (server.js/rack-state.js/cibe-bunker.js).
+# Variables no secretas de elvira-core (y ØPHS). La lista completa y comentada
+# está en app/backend/.env.example; las secretas van en 02-secrets.example.yaml.
+# Rack State: cada réplica del Deployment elvira-core es un rack. Con RACK_PEERS
+# vacío cada pod funciona como rack único (quórum 1); para formar clúster se
+# rellena con las URLs de los pods a través del Service headless
+# (ver 04-elvira-core.yaml) y se define RACK_SHARED_KEY en el Secret.
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: elvira-config
   namespace: elvira
 data:
-  NODE_ENV: "production"
-  PORT: "5173"
-  HOST: "0.0.0.0"
-  MONGO_URI: "mongodb://mongo:27017/elvira"
+  # IA (valores según el proveedor elegido)
   LLM_PROVIDER: "anthropic"
   ANTHROPIC_MODEL: "claude-haiku-4-5-20251001"
   OLLAMA_URL: "http://ollama:11434"
   OLLAMA_MODEL: "llama3:70b"
-  CIBE_MODE: "auto"
-  # Rack State: en k8s cada replica del Deployment elvira-core es un rack.
-  # RACK_PEERS se resuelve via Service headless (ver 04-elvira-core.yaml).
-  # Vacio en Fase 1 = cada pod standalone (quorum 1); activar en Fase 4.
-  RACK_PEERS: ""
+  # LLM_TIMEOUT_MS: ""
+  # >>> bloque generado desde app/backend/config.js (npm run config:sync); no editar a mano
+  # Servidor
+  NODE_ENV: "production"
+  PORT: "5173"
+  HOST: "0.0.0.0"
+  # CORS_ORIGIN: ""
+  # SHUTDOWN_GRACE_MS: ""
+  # SHUTDOWN_HARD_MS: ""
+  # Base de datos
+  MONGO_URI: "mongodb://mongo:27017/elvira"
+  # Fuentes de datos externas
+  # GRID_AUTOSTART: ""
+  # GRID_WORKER_MAX_OLD_MB: ""
+  # GRID_ES_URL: ""
+  # GRID_PT_URL: ""
+  # GRID_FR_URL: ""
+  # GRID_MA_URL: ""
+  # Sentinel
+  # SENTINEL_RISK_COUNTRIES: ""
+  # SENTINEL_EXTRA_SENSITIVE_PATHS: ""
+  # Systems y enlace Twin
+  # SYSTEMS_URL: ""
+  # SYSTEMS_TIMEOUT_MS: ""
   ENABLE_TWIN_PORT: "false"
+  # TWIN_PORT: ""
+  # CIBE Bunker (tokens firmados de Pactvm Viridi)
+  CIBE_MODE: "auto"
+  # CIBE_TOKEN_TTL_S: ""
+  # Rack State (consenso entre racks)
+  # RACK_ID: ""
+  RACK_PEERS: ""
+  # RACK_HEARTBEAT_MS: ""
+  # RACK_ELECTION_MS_MIN: ""
+  # Rëff: correo de reuniones y tareas programadas
+  # SMTP_HOST: ""
+  # SMTP_PORT: ""
+  # SMTP_SECURE: ""
+  # SMTP_USER: ""
+  # MAIL_FROM: ""
+  # MEETING_REMINDER_CRON: ""
+  # WATCH_CRON_SCHEDULE: ""
+  # <<< fin del bloque generado

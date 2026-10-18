@@ -30,7 +30,6 @@ VOLUME ["/app/data"]
 
 ENV NODE_ENV=production
 ENV PORT=3001
-ENV DB_PATH=/app/data/snfi.db
 
 EXPOSE 3001
 

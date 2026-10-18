@@ -11,17 +11,26 @@ if [[ -f "$ENV_FILE" ]]; then
   exit 0
 fi
 
-cp "$ROOT_DIR/app/backend/.env.example" "$ENV_FILE"
+command -v openssl >/dev/null || { echo "Falta openssl: hace falta para generar las claves." >&2; exit 1; }
 
-# Generar el secreto AHORA (un heredoc entre comillas no ejecuta comandos)
-JWT_SECRET_VALUE="$(openssl rand -hex 32 2>/dev/null || echo "change-me-$(date +%s)")"
-{
-  echo ""
-  echo "# Ajustes recomendados para VM Debian / Linux"
-  echo "JWT_SECRET=$JWT_SECRET_VALUE"
-  echo "CORS_ORIGIN=http://127.0.0.1:5173"
-} >> "$ENV_FILE"
+# Sustituye NOMBRE=... si la linea existe; si no, la anade al final.
+set_env() {
+  if grep -q "^$1=" "$ENV_FILE"; then
+    sed -i "s|^$1=.*|$1=$2|" "$ENV_FILE"
+  else
+    printf '%s=%s\n' "$1" "$2" >> "$ENV_FILE"
+  fi
+}
+
+cp "$ROOT_DIR/app/backend/.env.example" "$ENV_FILE"
 chmod 600 "$ENV_FILE"
 
-echo "Archivo de entorno creado en $ENV_FILE"
-echo "Edita los valores (ANTHROPIC_API_KEY, ESIOS_API_KEY, SEED_*_PASSWORD, REFF_SEED_*_PASSWORD) antes de arrancar."
+# Claves propias de esta instalacion. Si se van a migrar datos de otro sistema,
+# SENTINEL_FORENSIC_SECRET y FL_EXPEDIENTE_ENC_KEY deben ser las del origen.
+for name in JWT_SECRET SENTINEL_FORENSIC_SECRET FL_EXPEDIENTE_ENC_KEY; do
+  set_env "$name" "$(openssl rand -hex 32)"
+done
+set_env CORS_ORIGIN "http://127.0.0.1:5173"
+
+echo "Archivo de entorno creado en $ENV_FILE con las claves obligatorias generadas."
+echo "Antes del primer arranque, rellena las contrasenas iniciales (SEED_*_PASSWORD y REFF_SEED_*_PASSWORD) y las opciones que uses (ver comentarios del archivo)."

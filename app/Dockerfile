@@ -1,7 +1,8 @@
 # Build context: raíz del repo (necesita app/ y Elvi-Ra/Mesas/Rëff/)
 # docker build -f app/Dockerfile -t elvi-ra .
-# docker run -p 5173:5173 -v elvi-ra-data:/app/backend/data \
-#   -e ANTHROPIC_API_KEY=sk-... elvi-ra
+# docker run -p 5173:5173 -v elvi-ra-data:/app/backend/data --env-file .env elvi-ra
+# Variables: app/backend/.env.example. El servidor las valida al arrancar y, si
+# falta una obligatoria, no arranca y las lista todas.
 
 # ── Stage 1: backend principal — instala deps nativas en Linux ────────────────
 # node:20 fuera de soporte desde 2026-04-30 (EOL, nodejs.org/en/about/previous-releases);
@@ -63,9 +64,6 @@ ENV PORT=5173
 # manifest k8s (1536Mi) y con el memory de docker-compose — deja margen para
 # stacks nativos/buffers fuera del heap de V8 (GridFS, worker threads U2/Grid).
 ENV NODE_OPTIONS="--max-old-space-size=1200"
-# Coolify env vars requeridas:
-#   ANTHROPIC_API_KEY   — sk-ant-...
-#   ANTHROPIC_MODEL     — claude-haiku-4-5-20251001 (default si no se define)
 
 EXPOSE 5173
 

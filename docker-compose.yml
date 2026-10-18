@@ -1,23 +1,13 @@
-version: "3.9"
-
 # ─────────────────────────────────────────────────────────────────────────────
-# ELVI-RA · Stack soberano
+# SYSTEMS · stack de despliegue
 # Despliegue: Coolify → "Docker Compose" → apunta a este archivo.
 #
-# Variables de entorno requeridas (panel Coolify o archivo .env):
-#   ANTHROPIC_API_KEY   — sk-ant-... (obligatorio si LLM_PROVIDER=anthropic)
-#   JWT_SECRET          — openssl rand -hex 32  (obligatorio)
-#   SEED_*_PASSWORD     — SEED_MARC/NOUR/RAY/AMIR/GONZALO_PASSWORD (obligatorio en
-#                         PRIMER arranque con volumen elvira-data vacío; sin ellas
-#                         no se crea ningún usuario y no hay login posible)
-#   REFF_SEED_*_PASSWORD— REFF_SEED_MARC/NOUR/AMIR/GONZALO_PASSWORD (idem, usuarios Rëff)
-#   ESIOS_API_KEY       — token ESIOS/REE (opcional, activa endpoints curtailment)
-#   SERPAPI_KEY         — búsqueda web Rëff (opcional)
-#   CORS_ORIGIN         — dominio(s) permitido(s), coma-separados (obligatorio en producción)
-#   NODE_ENV            — production
-#   LLM_PROVIDER        — "anthropic" | "ollama"  (default: anthropic)
-#   OLLAMA_MODEL        — "llama3:70b" | "mistral:7b" (solo si LLM_PROVIDER=ollama)
-#   ANTHROPIC_MODEL     — claude-haiku-4-5-20251001 (optional override)
+# Configuración: la lista completa y comentada de variables está en
+# app/backend/.env.example. Coolify las muestra en su panel; con docker compose
+# a mano van en un .env en la raíz (scripts/setup-env.sh lo crea con las claves
+# ya generadas). Las marcadas ${VAR:?} son obligatorias: sin valor, Coolify no
+# despliega y docker compose se niega a arrancar. Al arrancar, el servidor
+# vuelve a validarlo todo (formato incluido) y lista lo que falte.
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
@@ -68,47 +58,86 @@ services:
       ollama:
         condition: service_started
     environment:
-      NODE_ENV: ${NODE_ENV:-production}
-      PORT: 5173
-      HOST: ${HOST:-0.0.0.0}
-      MONGO_URI: ${MONGO_URI:-mongodb://mongo:27017/elvira}
+      # IA (valores según el proveedor elegido)
       LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
       OLLAMA_URL: http://ollama:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3:70b}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-haiku-4-5-20251001}
-      ESIOS_API_KEY: ${ESIOS_API_KEY:-}
-      SERPAPI_KEY: ${SERPAPI_KEY:-}
-      JWT_SECRET: ${JWT_SECRET:-}
+      LLM_TIMEOUT_MS: ${LLM_TIMEOUT_MS:-}
+      # >>> bloque generado desde app/backend/config.js (npm run config:sync); no editar a mano
+      # Servidor
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 5173
+      HOST: ${HOST:-0.0.0.0}
       CORS_ORIGIN: ${CORS_ORIGIN:-}
-      # Seed de usuarios (solo primer arranque con datos vacíos)
-      SEED_MARC_PASSWORD: ${SEED_MARC_PASSWORD:-}
+      SHUTDOWN_GRACE_MS: ${SHUTDOWN_GRACE_MS:-}
+      SHUTDOWN_HARD_MS: ${SHUTDOWN_HARD_MS:-}
+      # Base de datos
+      MONGO_URI: ${MONGO_URI:-mongodb://mongo:27017/elvira}
+      # Claves de firma y cifrado
+      JWT_SECRET: ${JWT_SECRET:?}
+      SENTINEL_FORENSIC_SECRET: ${SENTINEL_FORENSIC_SECRET:?}
+      FL_EXPEDIENTE_ENC_KEY: ${FL_EXPEDIENTE_ENC_KEY:?}
+      # Usuarios iniciales (solo primer arranque con la base vacía)
       SEED_NOUR_PASSWORD: ${SEED_NOUR_PASSWORD:-}
-      SEED_RAY_PASSWORD: ${SEED_RAY_PASSWORD:-}
-      SEED_AMIR_PASSWORD: ${SEED_AMIR_PASSWORD:-}
+      SEED_MARC_PASSWORD: ${SEED_MARC_PASSWORD:-}
       SEED_GONZALO_PASSWORD: ${SEED_GONZALO_PASSWORD:-}
+      SEED_AMIR_PASSWORD: ${SEED_AMIR_PASSWORD:-}
+      SEED_RAY_PASSWORD: ${SEED_RAY_PASSWORD:-}
+      SEED_CELIA_PASSWORD: ${SEED_CELIA_PASSWORD:-}
+      SEED_MAITANE_PASSWORD: ${SEED_MAITANE_PASSWORD:-}
+      SEED_ARKAITZ_PASSWORD: ${SEED_ARKAITZ_PASSWORD:-}
+      SEED_OSCAR_PASSWORD: ${SEED_OSCAR_PASSWORD:-}
       REFF_SEED_MARC_PASSWORD: ${REFF_SEED_MARC_PASSWORD:-}
       REFF_SEED_NOUR_PASSWORD: ${REFF_SEED_NOUR_PASSWORD:-}
       REFF_SEED_AMIR_PASSWORD: ${REFF_SEED_AMIR_PASSWORD:-}
       REFF_SEED_GONZALO_PASSWORD: ${REFF_SEED_GONZALO_PASSWORD:-}
-      # Sentinel / Volumen 3 (opcionales; defaults seguros en código)
-      SENTINEL_FORENSIC_SECRET: ${SENTINEL_FORENSIC_SECRET:-}
+      # Fuentes de datos externas
+      ESIOS_API_KEY: ${ESIOS_API_KEY:-}
+      GRID_AUTOSTART: ${GRID_AUTOSTART:-}
+      GRID_WORKER_MAX_OLD_MB: ${GRID_WORKER_MAX_OLD_MB:-}
+      GRID_ES_URL: ${GRID_ES_URL:-}
+      GRID_PT_URL: ${GRID_PT_URL:-}
+      GRID_FR_URL: ${GRID_FR_URL:-}
+      GRID_MA_URL: ${GRID_MA_URL:-}
+      # Sentinel
+      SENTINEL_RISK_COUNTRIES: ${SENTINEL_RISK_COUNTRIES:-}
+      SENTINEL_EXTRA_SENSITIVE_PATHS: ${SENTINEL_EXTRA_SENSITIVE_PATHS:-}
+      # Systems y enlace Twin
       SYSTEMS_URL: ${SYSTEMS_URL:-}
       SYSTEMS_TOKEN: ${SYSTEMS_TOKEN:-}
+      SYSTEMS_TIMEOUT_MS: ${SYSTEMS_TIMEOUT_MS:-}
+      ENABLE_TWIN_PORT: ${ENABLE_TWIN_PORT:-false}
+      TWIN_PORT: 5174
       TWIN_TOKEN: ${TWIN_TOKEN:-}
+      # CIBE Bunker (tokens firmados de Pactvm Viridi)
       CIBE_MODE: ${CIBE_MODE:-auto}
+      CIBE_TOKEN_TTL_S: ${CIBE_TOKEN_TTL_S:-}
+      CIBE_PRIVATE_KEY_PEM: ${CIBE_PRIVATE_KEY_PEM:-}
+      CIBE_PUBLIC_KEY_PEM: ${CIBE_PUBLIC_KEY_PEM:-}
+      # Rack State (consenso entre racks)
       RACK_ID: ${RACK_ID:-}
       RACK_PEERS: ${RACK_PEERS:-}
       RACK_SHARED_KEY: ${RACK_SHARED_KEY:-}
-      # Puerto interno reservado para Twin Elvi-Ra <-> S-NFI Systems.
-      # ENABLE_TWIN_PORT=true lo activa, pero NO se expone en "ports" abajo
-      # — solo accesible dentro de elvira-net hasta que el Twin exista.
-      ENABLE_TWIN_PORT: ${ENABLE_TWIN_PORT:-false}
-      TWIN_PORT: 5174
+      RACK_HEARTBEAT_MS: ${RACK_HEARTBEAT_MS:-}
+      RACK_ELECTION_MS_MIN: ${RACK_ELECTION_MS_MIN:-}
+      # Rëff: correo de reuniones y tareas programadas
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_SECURE: ${SMTP_SECURE:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      MEETING_REMINDER_CRON: ${MEETING_REMINDER_CRON:-}
+      WATCH_CRON_SCHEDULE: ${WATCH_CRON_SCHEDULE:-}
+      # <<< fin del bloque generado
     volumes:
       - elvira-data:/app/backend/data
     ports:
       - "5173:5173"
+    # Puerto del enlace Twin (ENABLE_TWIN_PORT=true): solo dentro de elvira-net,
+    # nunca publicado en "ports".
     expose:
       - "5174"
     networks:

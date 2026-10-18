@@ -93,11 +93,22 @@ else
   die "No hay codigo: define REPO_URL o ejecuta el script desde un checkout del repo"
 fi
 
-# ── 5. Entorno (.env en la RAIZ del compose) con JWT_SECRET real generado ────
+# ── 5. Entorno (.env en la RAIZ del compose) con las claves obligatorias ─────
 # docker compose interpola ${VAR} desde el .env del directorio del proyecto
 # (APP_DIR), no desde app/backend/.env — el archivo debe vivir en la raiz.
 ENV_FILE="$APP_DIR/.env"
 LEGACY_ENV="$APP_DIR/app/backend/.env"
+REQUIRED_KEYS=(JWT_SECRET SENTINEL_FORENSIC_SECRET FL_EXPEDIENTE_ENC_KEY)
+
+# Sustituye NOMBRE=... si la linea existe; si no, la anade al final.
+set_env() {
+  if grep -q "^$1=" "$ENV_FILE"; then
+    sed -i "s|^$1=.*|$1=$2|" "$ENV_FILE"
+  else
+    printf '%s=%s\n' "$1" "$2" >> "$ENV_FILE"
+  fi
+}
+
 if [[ -f "$ENV_FILE" ]]; then
   log ".env raiz ya existe — no se modifica"
 elif [[ -f "$LEGACY_ENV" ]]; then
@@ -107,16 +118,19 @@ elif [[ -f "$LEGACY_ENV" ]]; then
 else
   log "Creando $ENV_FILE desde app/backend/.env.example"
   cp "$APP_DIR/app/backend/.env.example" "$ENV_FILE"
-  JWT_SECRET_VALUE="$(openssl rand -hex 32)"
-  {
-    echo ""
-    echo "# Generado por provision-debian.sh $(date -u +%FT%TZ)"
-    echo "JWT_SECRET=$JWT_SECRET_VALUE"
-    echo "NODE_ENV=production"
-  } >> "$ENV_FILE"
   chmod 600 "$ENV_FILE"
-  warn "EDITA $ENV_FILE: ANTHROPIC_API_KEY, ESIOS_API_KEY, CORS_ORIGIN, SEED_*_PASSWORD y REFF_SEED_*_PASSWORD"
+  # Claves propias de esta instalacion. Si se van a migrar datos de otro sistema,
+  # SENTINEL_FORENSIC_SECRET y FL_EXPEDIENTE_ENC_KEY deben ser las del origen.
+  for name in "${REQUIRED_KEYS[@]}"; do
+    set_env "$name" "$(openssl rand -hex 32)"
+  done
+  set_env NODE_ENV production
+  warn "EDITA $ENV_FILE: contrasenas iniciales (SEED_*_PASSWORD y REFF_SEED_*_PASSWORD), CORS_ORIGIN y las opciones que uses"
 fi
+# Sin estas claves el servidor no arranca en produccion (las valida al iniciar).
+for name in "${REQUIRED_KEYS[@]}"; do
+  grep -q "^$name=." "$ENV_FILE" || warn "Falta $name en $ENV_FILE: el servidor no arrancara hasta definirla"
+done
 
 # ── 6. Servicio systemd ──────────────────────────────────────────────────────
 log "Servicio systemd elvira.service"

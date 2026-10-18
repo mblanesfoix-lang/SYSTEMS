@@ -18,19 +18,9 @@ cd snfi-agent-system
 npm install
 ```
 
-Configura `.env` usando `.env.example`:
+Copia `.env.example` a `.env` y rellena los valores; el archivo explica cada variable. Integrado en el backend, en producción todo llega por variables de entorno (lista completa en `app/backend/.env.example`).
 
-```env
-ANTHROPIC_API_KEY=sk-ant-...
-ANTHROPIC_MODEL=claude-haiku-4-5-20251001
-JWT_SECRET=change-this-to-a-long-random-secret-before-production
-PORT=3001
-DB_PATH=./data/snfi.db
-NODE_ENV=development
-VITE_API_URL=http://localhost:3001
-```
-
-Importante: no guardes claves reales en el repositorio. Si una clave se ha compartido o copiado por error, rotala en Anthropic.
+Importante: no guardes claves reales en el repositorio. Si una clave se ha compartido o copiado por error, rótala en el servicio que la emitió.
 
 ## Arranque en desarrollo
 
