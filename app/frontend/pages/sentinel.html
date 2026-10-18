@@ -1044,7 +1044,10 @@
       if (!confirm('Esto re-sella la cadena forense desde el punto roto. El historial no se borra, solo se vuelve a anclar para que pueda verificarse de nuevo. ¿Continuar?')) return;
       try {
         const result = await api.sentinelReanchorChain();
-        toast(result.reanchored ? `Cadena re-sellada desde el registro ${result.fixedFrom}` : 'La cadena ya estaba íntegra');
+        toast(!result.reanchored
+          ? 'La cadena ya estaba íntegra'
+          : `Cadena re-sellada desde el registro ${result.fixedFrom} (${result.resealed} registros)`
+            + (result.contentMismatch ? ` · ${result.contentMismatch} con contenido distinto de su sello anterior: revisar` : ''));
         await loadChain();
       } catch (ex) {
         showError('Error re-sellando cadena: ' + (ex.message || ex));

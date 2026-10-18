@@ -51,10 +51,11 @@ export function mountSentinelForensicRoutes(app, { auth, sentinelForensics, busE
     res.json(result);
   });
 
-  /* POST /api/sentinel/reanchor-chain — Admin, re-sella la cadena tras un fallo (no borra historial) */
+  /* POST /api/sentinel/reanchor-chain — Admin, re-sella la cadena con la clave vigente
+     (tras una bifurcación o un cambio de clave); no borra ni modifica el contenido */
   app.post('/api/sentinel/reanchor-chain', auth, async (req, res) => {
     if (req.role !== 'admin') return res.status(403).json({ error: 'admin requerido' });
-    const result = await sentinelForensics.reanchorChain(req.user);
+    const result = await sentinelForensics.reanchorChain(req.user, { ip: req.ip });
     res.json(result);
   });
 

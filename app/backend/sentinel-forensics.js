@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import geoip from 'geoip-lite';
+import { DEV_FORENSIC_SECRET, MIN_SECRET_LENGTH } from './config.js';
 
 /* ============================================================
    SENTINEL · Trazabilidad Forense de IPs
@@ -7,7 +8,36 @@ import geoip from 'geoip-lite';
    Rate limiting dinámico sobre Mongo (sin Redis).
    ============================================================ */
 
-const FORENSIC_SECRET = process.env.SENTINEL_FORENSIC_SECRET || process.env.JWT_SECRET || 'dev-only-secret-cambiar-en-produccion';
+const GENESIS_HASH = '0'.repeat(64);
+const APPEND_ATTEMPTS = 5;
+const RESEAL_ROUNDS = 5;
+const RESEAL_BATCH = 500;
+const RESEAL_REASON = 'RE-SELLADO';
+const BREAK_CAUSE = { hash_mismatch: 'encadenamiento', hmac_mismatch: 'firma' };
+
+/* ---- clave HMAC del registro forense ----
+   Se lee al crear el servicio, no al importar el módulo: server.js carga los .env
+   locales después de evaluar sus imports. Es independiente de JWT_SECRET para poder
+   rotar una sin invalidar la otra. */
+export function resolveForensicSecret(
+  env = { SENTINEL_FORENSIC_SECRET: process.env.SENTINEL_FORENSIC_SECRET, NODE_ENV: process.env.NODE_ENV },
+  logger = console,
+) {
+  const configured = env.SENTINEL_FORENSIC_SECRET;
+  const production = env.NODE_ENV === 'production';
+  if (!configured) {
+    if (production) throw new Error('SENTINEL_FORENSIC_SECRET es obligatoria en producción.');
+    logger.warn('[sentinel-forensics] SENTINEL_FORENSIC_SECRET no está definida: el registro forense se firma con la clave de desarrollo.');
+    return DEV_FORENSIC_SECRET;
+  }
+  if (Buffer.byteLength(configured, 'utf8') < MIN_SECRET_LENGTH) {
+    throw new Error(`SENTINEL_FORENSIC_SECRET debe tener al menos ${MIN_SECRET_LENGTH} bytes.`);
+  }
+  if (production && configured === DEV_FORENSIC_SECRET) {
+    throw new Error('SENTINEL_FORENSIC_SECRET no puede ser la clave de desarrollo en producción.');
+  }
+  return configured;
+}
 
 // Rutas sensibles (rate limit estricto). Ampliable sin tocar código: el jefe
 // añade prefijos extra via env SENTINEL_EXTRA_SENSITIVE_PATHS (separados por coma)
@@ -72,6 +102,9 @@ function humanizeEntry(entry) {
   const where = geoLabel(entry.geo);
   const what = humanizePath(entry.path);
   const who = entry.user ? `el usuario ${entry.user}` : `alguien desde ${entry.ip}`;
+  if (entry.reason?.startsWith(RESEAL_REASON)) {
+    return `${who} re-selló la cadena forense: ${entry.reason.slice(RESEAL_REASON.length).replace(/^\s*·\s*/, '')}.`;
+  }
   if (entry.blocked) {
     if (entry.reason?.startsWith('AUTO-BLOQUEO')) {
       return `${who} (${where}) intentó acceder repetidamente a ${what}. Sentinel detectó un patrón de ataque y bloqueó la IP automáticamente.`;
@@ -133,122 +166,173 @@ function canonical(entry) {
   });
 }
 
-function signHmac(hash) {
-  return crypto.createHmac('sha256', FORENSIC_SECRET).update(hash).digest('hex');
+function chainHash(prevHash, entry) {
+  return crypto.createHash('sha256').update(prevHash + canonical(entry)).digest('hex');
 }
 
-export function createSentinelForensics({ mongo, busEmit, ROLE_MESAS = {} }) {
-  // seq/hash se derivan SIEMPRE de Mongo, nunca de memoria de proceso.
-  // Motivo: en un redeploy con rolling restart (Coolify) el contenedor viejo
-  // sigue vivo unos segundos a la vez que el nuevo ya arranca — dos procesos
-  // distintos escribiendo la misma cadena con su propio lastHash/seqCounter
-  // en memoria garantiza una bifurcación (seq duplicado o hash que no encaja).
-  // Por eso cada append relee la cola real con findOneAndUpdate atómico sobre
-  // un contador en Mongo, y reintenta si otro proceso ganó la carrera.
-  // El contador guarda tambien el hash de la ultima entrada: findOneAndUpdate
-  // es atomico en Mongo, asi que seq+prevHash salen de una unica operacion
-  // indivisible. Ningun otro proceso puede colarse entre "leer el tail" y
-  // "reservar el siguiente seq" porque ya no son dos pasos.
-  async function nextSeqAndPrevHash() {
-    const doc = await mongo.collection('forensic_seq').findOneAndUpdate(
-      { _id: 'counter' },
-      { $inc: { value: 1 } },
-      { upsert: true, returnDocument: 'after' },
-    );
-    return { seq: doc.value, prevHash: doc.lastHash || '0'.repeat(64) };
+export function createSentinelForensics({ mongo, busEmit, ROLE_MESAS = {}, env }) {
+  const secret = resolveForensicSecret(env);
+  const signHmac = (hash) => crypto.createHmac('sha256', secret).update(hash).digest('hex');
+  const forensicLog = () => mongo.collection('forensic_log');
+
+  // seq y prevHash salen siempre de la cola real en Mongo, nunca de memoria: en un
+  // redeploy con rolling restart dos procesos escriben a la vez la misma cadena.
+  // Cada entrada toma el último registro (seq + 1, su hash) y el índice único sobre
+  // seq (db/mongo.js) arbitra: si otro proceso inserta antes ese seq, el insert falla
+  // con clave duplicada y se reintenta sobre la cola nueva. Así nunca hay dos entradas
+  // encadenadas al mismo registro. Dentro del proceso las escrituras van en fila para
+  // no competir entre sí.
+  let appendQueue = Promise.resolve();
+
+  function appendForensicEntry(fields) {
+    const ts = new Date().toISOString();
+    const result = appendQueue.then(() => insertChained(fields, ts));
+    appendQueue = result.catch(() => {});
+    return result;
   }
 
-  async function appendForensicEntry(fields, attempt = 0) {
-    const { seq, prevHash } = await nextSeqAndPrevHash();
-    const entry = {
-      seq,
-      ts: new Date().toISOString(),
-      ip: fields.ip,
-      geo: fields.geo,
-      method: fields.method,
-      path: fields.path,
-      mesa: fields.mesa || null,
-      sensitive: !!fields.sensitive,
-      user: fields.user || null,
-      statusCode: fields.statusCode ?? null,
-      blocked: !!fields.blocked,
-      reason: fields.reason || null,
-      prevHash,
-    };
-    const hash = crypto.createHash('sha256').update(prevHash + canonical(entry)).digest('hex');
-    const hmac = signHmac(hash);
-    const doc = { _id: crypto.randomUUID(), ...entry, hash, hmac };
-    try {
-      await mongo.collection('forensic_log').insertOne(doc);
-    } catch (err) {
-      // seq duplicado: no deberia pasar (el contador es atomico), pero si
-      // ocurre por una anomalia de Mongo, reintenta con seq nuevo en vez de tirar.
-      if (err?.code === 11000 && attempt < 5) return appendForensicEntry(fields, attempt + 1);
-      throw err;
+  async function insertChained(fields, ts) {
+    for (let attempt = 0; attempt < APPEND_ATTEMPTS; attempt += 1) {
+      const tail = await forensicLog().find({}, { projection: { seq: 1, hash: 1 } }).sort({ seq: -1 }).limit(1).next();
+      const entry = {
+        seq: tail ? tail.seq + 1 : 1,
+        ts,
+        ip: fields.ip,
+        geo: fields.geo,
+        method: fields.method,
+        path: fields.path,
+        mesa: fields.mesa || null,
+        sensitive: !!fields.sensitive,
+        user: fields.user || null,
+        statusCode: fields.statusCode ?? null,
+        blocked: !!fields.blocked,
+        reason: fields.reason || null,
+        prevHash: tail ? tail.hash : GENESIS_HASH,
+      };
+      const hash = chainHash(entry.prevHash, entry);
+      const doc = { _id: crypto.randomUUID(), ...entry, hash, hmac: signHmac(hash) };
+      try {
+        await forensicLog().insertOne(doc);
+        return doc;
+      } catch (err) {
+        if (err?.code !== 11000) throw err;
+      }
     }
-    // Encadena el contador al hash recien escrito, solo hacia adelante: si dos
-    // inserts terminan en orden distinto al que reservaron su seq, el de mayor
-    // seq nunca se deja pisar por uno mas antiguo que llegue tarde.
-    await mongo.collection('forensic_seq').updateOne(
-      { _id: 'counter', $or: [{ lastHashSeq: { $exists: false } }, { lastHashSeq: { $lt: seq } }] },
-      { $set: { lastHash: hash, lastHashSeq: seq } },
-    );
-    return doc;
+    throw new Error(`forensic_log: no se pudo encadenar la entrada tras ${APPEND_ATTEMPTS} intentos`);
+  }
+
+  // null si la entrada verifica tras `prev`; si no, el motivo.
+  function breakReason(entry, prev) {
+    const hash = chainHash(prev, entry);
+    if (hash !== entry.hash) return 'hash_mismatch';
+    if (signHmac(hash) !== entry.hmac) return 'hmac_mismatch';
+    return null;
   }
 
   async function verifyChain() {
-    const all = await mongo.collection('forensic_log').find().sort({ seq: 1 }).toArray();
-    let prev = '0'.repeat(64);
-    for (const entry of all) {
-      const expectedHash = crypto.createHash('sha256').update(prev + canonical(entry)).digest('hex');
-      if (expectedHash !== entry.hash) {
+    const totalEntries = await forensicLog().countDocuments();
+    let prev = GENESIS_HASH;
+    for await (const entry of forensicLog().find().sort({ seq: 1 })) {
+      const reason = breakReason(entry, prev);
+      if (reason === 'hash_mismatch') {
         return {
-          valid: false, brokenAtSeq: entry.seq, reason: 'hash_mismatch', totalEntries: all.length,
+          valid: false, brokenAtSeq: entry.seq, reason, totalEntries,
           explanation: `El registro número ${entry.seq} no encaja con el anterior. Suele pasar cuando el servidor se reinicia justo en mitad de un redeploy y dos procesos escriben a la vez. Los registros siguen guardados, pero a partir de aquí la cadena no se puede verificar matemáticamente. Un Admin puede "re-sellar" la cadena para que vuelva a quedar protegida desde ahora.`,
         };
       }
-      const expectedHmac = signHmac(entry.hash);
-      if (expectedHmac !== entry.hmac) {
+      if (reason === 'hmac_mismatch') {
         return {
-          valid: false, brokenAtSeq: entry.seq, reason: 'hmac_mismatch', totalEntries: all.length,
-          explanation: `El registro número ${entry.seq} tiene una firma que no coincide. Esto indica que el dato pudo modificarse fuera de Sentinel. Revisar con prioridad.`,
+          valid: false, brokenAtSeq: entry.seq, reason, totalEntries,
+          explanation: `El registro número ${entry.seq} tiene una firma que no coincide. Esto indica que el dato pudo modificarse fuera de Sentinel. Revisar con prioridad. También ocurre si se ha cambiado la clave de firma: en ese caso, un Admin debe re-sellar la cadena.`,
         };
       }
       prev = entry.hash;
     }
-    return { valid: true, totalEntries: all.length };
+    return { valid: true, totalEntries };
   }
 
-  /* ---- re-sella la cadena desde el punto roto: no borra historial, ----
-     pero re-ancla el hash a partir de aqui para que vuelva a verificar limpio ---- */
-  async function reanchorChain(decidedBy) {
+  /* ---- una pasada de re-sellado: desde el primer registro que no verifica, vuelve a
+     encadenar y firmar con la clave vigente. Solo cambia prevHash, hash y hmac; el sello
+     sustituido se guarda en sealHistory, así que con la clave anterior aún puede
+     comprobarse. contentMismatch cuenta los registros cuyo contenido ya no coincidía con
+     su propio sello: no son una bifurcación ni un cambio de clave y conviene revisarlos. ---- */
+  async function resealPass(decidedBy) {
+    const now = new Date();
+    let prev = GENESIS_HASH;
+    let broken = false;
+    let fixedFrom = null;
+    let resealed = 0;
+    let contentMismatch = 0;
+    let ops = [];
+    const flush = async () => {
+      if (ops.length) await forensicLog().bulkWrite(ops, { ordered: true });
+      ops = [];
+    };
+    for await (const entry of forensicLog().find().sort({ seq: 1 })) {
+      if (!broken && !breakReason(entry, prev)) {
+        prev = entry.hash;
+        continue;
+      }
+      broken = true;
+      const hash = chainHash(prev, entry);
+      const hmac = signHmac(hash);
+      if (entry.prevHash !== prev || entry.hash !== hash || entry.hmac !== hmac) {
+        fixedFrom ??= entry.seq;
+        resealed += 1;
+        if (chainHash(entry.prevHash, entry) !== entry.hash) contentMismatch += 1;
+        ops.push({ updateOne: {
+          filter: { _id: entry._id, hash: entry.hash, hmac: entry.hmac },
+          update: {
+            $set: { prevHash: prev, hash, hmac, reanchoredAt: now, reanchoredBy: decidedBy },
+            $push: { sealHistory: { prevHash: entry.prevHash, hash: entry.hash, hmac: entry.hmac, replacedAt: now, replacedBy: decidedBy } },
+          },
+        } });
+        if (ops.length >= RESEAL_BATCH) await flush();
+      }
+      prev = hash;
+    }
+    await flush();
+    return { fixedFrom, resealed, contentMismatch };
+  }
+
+  /* ---- re-sellado (Admin): no borra ni modifica el contenido de ningún registro. Repite
+     la pasada si mientras tanto entran escrituras encadenadas a un sello recién sustituido.
+     Queda trazado en la propia cadena (entrada RE-SELLADO firmada con la clave vigente),
+     en cada registro tocado (reanchoredAt, reanchoredBy, sealHistory) y en el bus. ---- */
+  async function reanchorChain(decidedBy, { ip = null } = {}) {
     const check = await verifyChain();
     if (check.valid) return { reanchored: false, reason: 'cadena_ya_integra' };
 
-    const all = await mongo.collection('forensic_log').find().sort({ seq: 1 }).toArray();
-    let prev = '0'.repeat(64);
     let fixedFrom = null;
-    for (const entry of all) {
-      const expectedHash = crypto.createHash('sha256').update(prev + canonical(entry)).digest('hex');
-      if (expectedHash !== entry.hash || fixedFrom !== null) {
-        if (fixedFrom === null) fixedFrom = entry.seq;
-        const hash = crypto.createHash('sha256').update(prev + canonical({ ...entry, prevHash: prev })).digest('hex');
-        const hmac = signHmac(hash);
-        await mongo.collection('forensic_log').updateOne(
-          { _id: entry._id },
-          { $set: { prevHash: prev, hash, hmac, reanchoredAt: new Date(), reanchoredBy: decidedBy } },
-        );
-        prev = hash;
-      } else {
-        prev = entry.hash;
-      }
+    let resealed = 0;
+    let contentMismatch = 0;
+    for (let round = 0; round < RESEAL_ROUNDS; round += 1) {
+      const pass = await resealPass(decidedBy);
+      if (!pass.resealed) break;
+      fixedFrom = fixedFrom === null ? pass.fixedFrom : Math.min(fixedFrom, pass.fixedFrom);
+      resealed += pass.resealed;
+      contentMismatch += pass.contentMismatch;
     }
+    // Otro re-sellado simultáneo ya la dejó íntegra.
+    if (!resealed) return { reanchored: false, reason: 'cadena_ya_integra' };
+
+    const cause = BREAK_CAUSE[check.reason] || check.reason;
+    const detail = `${resealed} registro(s) desde el número ${fixedFrom}, causa: ${cause}`
+      + (contentMismatch ? `, ${contentMismatch} con contenido distinto de su sello anterior` : '');
+    const trace = await appendForensicEntry({
+      ip: ip || 'interno', geo: null, method: 'POST', path: '/api/sentinel/reanchor-chain', mesa: 'sentinel',
+      sensitive: false, user: decidedBy, statusCode: null, blocked: false, reason: `${RESEAL_REASON} · ${detail}`,
+    });
+    const after = await verifyChain();
     busEmit?.({
       id: crypto.randomUUID(), ts: new Date().toISOString(), origin: 'SENTINEL', dest: 'ELVI-RA',
-      type: 'event', state: 'INFO', label: `CADENA FORENSE RE-SELLADA · desde seq ${fixedFrom} · por ${decidedBy}`,
-      payload: { fixedFrom, decidedBy },
+      type: 'event', state: 'INFO', label: `CADENA FORENSE RE-SELLADA · ${detail} · por ${decidedBy}`,
+      payload: { fixedFrom, resealed, contentMismatch, cause: check.reason, traceSeq: trace.seq, decidedBy },
     });
-    return { reanchored: true, fixedFrom };
+    return {
+      reanchored: true, fixedFrom, resealed, contentMismatch, cause: check.reason,
+      traceSeq: trace.seq, valid: after.valid,
+    };
   }
 
   /* ---- rate limiting dinámico sobre Mongo (sin Redis) ---- */

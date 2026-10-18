@@ -11,7 +11,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   VARS, OBSOLETE_VARS, PLATFORM_VARS, TOOL_VARS, BUILD_VARS,
-  ConfigError, validateConfig, assertConfig, parseEnvFile, loadEnvFile,
+  ConfigError, validateConfig, assertConfig, parseEnvFile, loadEnvFile, DEV_FORENSIC_SECRET,
 } from '../config.js';
 import { REPO_ROOT, outdatedTargets } from '../scripts/config-sync.js';
 
@@ -87,6 +87,11 @@ describe('config: validación en producción', () => {
   test('un valor de plantilla sin sustituir no se acepta', () => {
     const { errors } = validateConfig({ ...VALID_PRODUCTION, JWT_SECRET: `CAMBIAR-${SECRET}` });
     assert.deepEqual(errors, ['JWT_SECRET: conserva el valor de plantilla, hay que sustituirlo']);
+  });
+
+  test('la clave forense de desarrollo no se acepta', () => {
+    const { errors } = validateConfig({ ...VALID_PRODUCTION, SENTINEL_FORENSIC_SECRET: DEV_FORENSIC_SECRET });
+    assert.deepEqual(errors, ['SENTINEL_FORENSIC_SECRET: es la clave de desarrollo del repositorio, hay que generar una propia']);
   });
 
   test('los mensajes nunca incluyen el valor de una variable', () => {

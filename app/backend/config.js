@@ -18,7 +18,11 @@ export const REFF_ENV_FILE = path.resolve(__dirname, '../../Elvi-Ra/Mesas/Rëff/
 
 /* ---------- formatos: devuelven el motivo del error o null ---------- */
 
-const MIN_SECRET_LENGTH = 32;
+export const MIN_SECRET_LENGTH = 32;
+
+// Clave de firma del registro forense de Sentinel cuando no se define ninguna fuera de
+// producción. Al estar en el repositorio no protege nada: producción la rechaza.
+export const DEV_FORENSIC_SECRET = 'dev-only-secret-cambiar-en-produccion';
 
 const isSet = (v) => v !== undefined && v !== null && v !== '';
 const listOf = (v) => v.split(',').map((s) => s.trim()).filter(Boolean);
@@ -27,6 +31,8 @@ const strongSecret = (v) => {
   if (/\s/.test(v)) return 'no puede contener espacios';
   return v.length >= MIN_SECRET_LENGTH ? null : `debe tener al menos ${MIN_SECRET_LENGTH} caracteres`;
 };
+const forensicSecret = (v) => strongSecret(v)
+  ?? (v === DEV_FORENSIC_SECRET ? 'es la clave de desarrollo del repositorio, hay que generar una propia' : null);
 const hex64 = (v) => (/^[0-9a-fA-F]{64}$/.test(v) ? null : 'deben ser 64 caracteres hexadecimales (32 bytes)');
 const oneOf = (...allowed) => (v) => (allowed.includes(v) ? null : `valores admitidos: ${allowed.join(', ')}`);
 const positiveInt = (v) => (/^\d+$/.test(v) && Number(v) > 0 ? null : 'debe ser un entero positivo');
@@ -116,9 +122,12 @@ export const VARS = [
   // Claves de firma y cifrado
   { name: 'JWT_SECRET', group: 'keys', required: true, secret: true, check: strongSecret, reff: true,
     desc: 'Firma de las sesiones de Rëff', hint: GENERATE_HEX32 },
-  { name: 'SENTINEL_FORENSIC_SECRET', group: 'keys', required: true, secret: true, check: strongSecret,
-    desc: 'Firma del registro forense de Sentinel',
-    hint: `${GENERATE_HEX32}. Cambiarla en un sistema con registro existente exige volver a sellarlo` },
+  { name: 'SENTINEL_FORENSIC_SECRET', group: 'keys', required: true, secret: true, check: forensicSecret,
+    desc: 'Firma del registro forense de Sentinel, independiente de JWT_SECRET',
+    hint: `Mínimo ${MIN_SECRET_LENGTH} bytes. ${GENERATE_HEX32}`
+      + ` o, sin openssl, node -p "require('crypto').randomBytes(32).toString('hex')". `
+      + 'Fuera de producción, si falta, se firma con una clave de desarrollo que producción rechaza. '
+      + 'Cambiarla en un sistema con registro existente exige volver a sellarlo (Sentinel, Re-sellar cadena)' },
   { name: 'FL_EXPEDIENTE_ENC_KEY', group: 'keys', required: true, secret: true, check: hex64,
     desc: 'Cifrado del Expediente Fiscal y Jurídico',
     hint: `${GENERATE_HEX32}. Perderla deja ilegibles los documentos ya cifrados` },
