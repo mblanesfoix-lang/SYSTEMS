@@ -4,7 +4,7 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { MongoClient } from 'mongodb';
-import { rateLimit } from 'express-rate-limit';
+import { rateLimit, ipKeyGenerator } from 'express-rate-limit';
 import { setMongoClient } from './mongo.js';
 import { seedDatabase } from './db.js';
 import authRoutes from './routes/auth.routes.js';
@@ -51,7 +51,7 @@ const apiLimiter = rateLimit({
   limit: 60,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
-  keyGenerator: (req) => req.ip || 'anon',
+  keyGenerator: (req) => req.ip ? ipKeyGenerator(req.ip) : 'anon',
   message: { error: 'Demasiadas peticiones. Intenta de nuevo en un minuto.' },
 });
 

@@ -7,7 +7,7 @@ export default defineConfig({
   root: 'client',
   base: process.env.VITE_BASE_PATH === 'root' ? '/' : '/reff/app/',
   build: {
-    outDir: path.resolve(__dirname, 'dist/client'),
+    outDir: path.resolve(import.meta.dirname, 'dist/client'),
     emptyOutDir: true,
     rollupOptions: {
       output: {
