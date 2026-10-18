@@ -98,9 +98,10 @@ export function startMeetingReminderCron(): void {
   cronStarted = true;
 
   import('node-cron').then(({ default: cron }) => {
-    cron.schedule(CRON_SCHEDULE, () => {
-      runMeetingReminderCycle().catch((err) => console.error('[Rëff][meetings] Ciclo de recordatorio falló:', err));
-    });
+    // noOverlap: un ciclo lento (SMTP colgado) no debe solaparse con el siguiente y duplicar avisos.
+    cron.schedule(CRON_SCHEDULE, () =>
+      runMeetingReminderCycle().catch((err) => console.error('[Rëff][meetings] Ciclo de recordatorio falló:', err)),
+    { name: 'reff-meeting-reminders', noOverlap: true });
     console.log(`[Rëff][meetings] Recordatorio 24h activo (${CRON_SCHEDULE})`);
   }).catch((err) => {
     console.error('[Rëff][meetings] No se pudo cargar node-cron:', err.message);

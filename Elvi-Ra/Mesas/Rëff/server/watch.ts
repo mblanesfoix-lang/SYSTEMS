@@ -147,9 +147,9 @@ export function startWatchCron(): void {
   cronStarted = true;
 
   import('node-cron').then(({ default: cron }) => {
-    cron.schedule(CRON_SCHEDULE, () => {
-      runWatchCycle().catch((err) => console.error('[Rëff][watch] Ciclo cron falló:', err));
-    });
+    cron.schedule(CRON_SCHEDULE, () =>
+      runWatchCycle().catch((err) => console.error('[Rëff][watch] Ciclo cron falló:', err)),
+    { name: 'reff-watch', noOverlap: true });
     console.log(`[Rëff][watch] Cron activo (${CRON_SCHEDULE})`);
   }).catch((err) => {
     console.error('[Rëff][watch] No se pudo cargar node-cron:', err.message);
