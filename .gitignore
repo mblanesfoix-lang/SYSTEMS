@@ -1,12 +1,10 @@
 node_modules/
-.claude/
 *.env
 .env.*
 !.env.vault
 *.log
 app/backend/data/
 Elvi-Ra/Elvi-Ra Zone/BackEnd/Creedenciales.txt
-MEMORY.md
 nul
 tmp_*.json
 *.db

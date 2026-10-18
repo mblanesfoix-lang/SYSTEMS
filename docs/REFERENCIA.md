@@ -1,6 +1,6 @@
 # Referencia de SYSTEMS: doctrina y especificación por mesa
 
-Detalle que NO se carga en cada sesión. [CLAUDE.md](../CLAUDE.md) es el índice corto y manda; aquí está la doctrina completa y la ficha detallada de cada mesa. Buscar por sección con Grep, no leer entero. Al cambiar una mesa o la doctrina, actualizar su sección aquí (y la línea de CLAUDE.md solo si cambia lo que la mesa es). Contenido trasladado de CLAUDE.md el 2026-10-01 sin cambios de fondo; la bitácora fechada está en [ESTADO-HISTORICO.md](ESTADO-HISTORICO.md).
+Doctrina completa y ficha detallada de cada mesa. Buscar por sección, no leer entero. Al cambiar una mesa o la doctrina, actualizar su sección aquí.
 
 ## Modelo Volumen 2 (vigente desde 2026-07-05)
 
@@ -44,7 +44,7 @@ Rëff es el **agente par de Elvi-Ra**. No orquesta: analiza, audita y valida cie
 - **Modelo**: OEM. Cuatro vectores monetización: energía, residuo, dato, control.
 - **Pactvm Viridi**: motor regulador que filtra toda actividad de Elvi-Ra/Rëff y terceros. Cumplimiento EU, EEUU, UK por diseño. También define el estándar de tokenización: kg biomasa = unidad digital kWh (horizonte 2030/2050).
 - **NO es**: startup verde, revendedor maquinaria, gestor residuos clásico, productor biogás, servicios digitales puros.
-- **Fuente verdad completa**: `Elvi-Ra/Elvi-Ra Zone/BackEnd/SNFI Base Conocimiento.txt`
+- **Fuente verdad completa**: base de conocimiento corporativa interna de S-NFI (documento de empresa, fuera del repositorio).
 
 ## Mesas (estado real)
 
