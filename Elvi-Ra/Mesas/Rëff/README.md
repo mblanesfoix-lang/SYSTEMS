@@ -130,10 +130,6 @@ snfi-agent-system/
 
 ## Despliegue
 
-Listo para Railway / Fly.io / Render cambiando variables de entorno. En produccion:
-
-1. Ejecuta `npm run build`.
-2. Define las env vars de `.env.example` en el proveedor.
-3. Ejecuta `npm start`.
+Rëff no se despliega por separado: va integrado en el servidor principal, que lo compila en `app/Dockerfile`, y el conjunto se despliega con Coolify a partir de `docker-compose.yml` (raíz del repositorio). Las variables de producción se definen en el panel de Coolify; la lista completa está en `app/backend/.env.example`.
 
 **Doctrina S-NFI - v1.0 - 2026**
