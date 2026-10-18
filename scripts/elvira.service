@@ -1,5 +1,5 @@
 [Unit]
-Description=Elvi-Ra service
+Description=SYSTEMS (S-NFI)
 After=network.target docker.service
 Requires=docker.service
 

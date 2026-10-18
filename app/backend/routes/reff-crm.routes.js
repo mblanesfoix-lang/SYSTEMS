@@ -51,7 +51,7 @@ function extractJson(text) {
 }
 
 /* ---------- IA search (Claude) ---------- */
-const SYSTEM_PROMPT = `Eres el Agente S-NFI (South Navarre Fresh Innovations) integrado en Elvi-Ra. Tu trabajo: detectar Nodos de Integración Potencial (no "leads").
+const SYSTEM_PROMPT = `Eres el Agente S-NFI (South Navarre Fresh Innovations) integrado en Rëff, la mesa comercial de SYSTEMS. Tu trabajo: detectar Nodos de Integración Potencial (no "leads").
 
 REGLAS DURAS de inclusión:
 - Volumen de residuo orgánico anual > 8 toneladas.
@@ -159,7 +159,7 @@ EJEMPLO de ficha completa correcta (referencia de estilo y profundidad de rellen
 Si no encuentras candidatos reales con datos públicos verificables, devuelve results vacío y explica en resumen. Nunca inventes datos financieros precisos como cifras exactas con decimales no soportados; pero SIEMPRE estima con un número plausible y registra el proxy en "fuentes". Campos numéricos null/0 = error crítico.`;
 
 /* ---------- LinkedIn Finder (IA · sugerencias de contactos) ---------- */
-const LINKEDIN_SYSTEM = `Eres el módulo "LinkedIn Finder" del Agente S-NFI dentro de Elvi-Ra.
+const LINKEDIN_SYSTEM = `Eres el módulo "LinkedIn Finder" del Agente S-NFI dentro de Rëff (SYSTEMS).
 
 Tu tarea: dada una empresa cliente potencial (Nodo S-NFI), proponer perfiles tipo de decision-makers y operadores clave que conviene contactar en LinkedIn para abrir conversación sobre integración S-NFI BioHybrid + Physical AI + gobernanza OPHS.
 
@@ -187,7 +187,7 @@ SALIDA: SOLO JSON válido, sin markdown:
 }`;
 
 /* ---------- Email Creator (IA · plantillas políticas S-NFI) ---------- */
-const EMAIL_SYSTEM = `Eres el módulo "Email Creator" del Agente S-NFI dentro de Elvi-Ra.
+const EMAIL_SYSTEM = `Eres el módulo "Email Creator" del Agente S-NFI dentro de Rëff (SYSTEMS).
 
 Generas correos de outreach corporativo en NOMBRE de South-Navarre Fresh Innovations Corp. (S-NFI), OEM deep-tech de infraestructura industrial modular. Tecnología núcleo: S-NFI BioHybrid (BioGrinder + BioDeshidratador → biopellet 7–8%) + Physical AI + Gobernanza OPHS.
 

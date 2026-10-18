@@ -1,4 +1,4 @@
-# Namespace unico para el ecosistema Elvi-Ra/SYSTEMS.
+# Namespace unico para SYSTEMS (el nombre "elvira" es heredado; no designa a la IA).
 # Fase 1: todo el monolito + Mongo + ØPHS (placeholder) conviven aqui.
 # Fase 4 (horizontal, miles de nodos): namespaces por dominio si hace falta
 # aislar cuotas/RBAC — no se hace ahora, seria sobre-ingenieria para decenas/cientos.

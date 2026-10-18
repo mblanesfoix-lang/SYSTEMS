@@ -46,7 +46,7 @@ services:
     #           count: all
     #           capabilities: [gpu]
 
-  # ── Elvi-Ra · Backend + Frontend principal ─────────────────────────────────
+  # ── SYSTEMS · Backend + Frontend principal (servicio "elvira": nombre heredado) ─
   elvira:
     build:
       context: .
