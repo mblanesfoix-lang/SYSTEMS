@@ -1,0 +1,275 @@
+{
+  "España": [
+    { "city": "Madrid", "lat": 40.4168, "lng": -3.7038 },
+    { "city": "Barcelona", "lat": 41.3851, "lng": 2.1734 },
+    { "city": "Valencia", "lat": 39.4699, "lng": -0.3763 },
+    { "city": "Sevilla", "lat": 37.3891, "lng": -5.9845 },
+    { "city": "Zaragoza", "lat": 41.6488, "lng": -0.8891 },
+    { "city": "Bilbao", "lat": 43.2630, "lng": -2.9350 },
+    { "city": "Pamplona", "lat": 42.8125, "lng": -1.6458 },
+    { "city": "Málaga", "lat": 36.7213, "lng": -4.4214 },
+    { "city": "Murcia", "lat": 37.9922, "lng": -1.1307 },
+    { "city": "Palma de Mallorca", "lat": 39.5696, "lng": 2.6502 },
+    { "city": "Vigo", "lat": 42.2406, "lng": -8.7207 },
+    { "city": "Logroño", "lat": 42.4627, "lng": -2.4449 }
+  ],
+  "Francia": [
+    { "city": "París", "lat": 48.8566, "lng": 2.3522 },
+    { "city": "Marsella", "lat": 43.2965, "lng": 5.3698 },
+    { "city": "Lyon", "lat": 45.7640, "lng": 4.8357 },
+    { "city": "Toulouse", "lat": 43.6047, "lng": 1.4442 },
+    { "city": "Burdeos", "lat": 44.8378, "lng": -0.5792 },
+    { "city": "Nantes", "lat": 47.2184, "lng": -1.5536 },
+    { "city": "Estrasburgo", "lat": 48.5734, "lng": 7.7521 }
+  ],
+  "Portugal": [
+    { "city": "Lisboa", "lat": 38.7223, "lng": -9.1393 },
+    { "city": "Oporto", "lat": 41.1579, "lng": -8.6291 },
+    { "city": "Braga", "lat": 41.5454, "lng": -8.4265 },
+    { "city": "Faro", "lat": 37.0194, "lng": -7.9322 }
+  ],
+  "Alemania": [
+    { "city": "Berlín", "lat": 52.5200, "lng": 13.4050 },
+    { "city": "Múnich", "lat": 48.1351, "lng": 11.5820 },
+    { "city": "Hamburgo", "lat": 53.5511, "lng": 9.9937 },
+    { "city": "Fráncfort", "lat": 50.1109, "lng": 8.6821 },
+    { "city": "Colonia", "lat": 50.9375, "lng": 6.9603 },
+    { "city": "Stuttgart", "lat": 48.7758, "lng": 9.1829 },
+    { "city": "Düsseldorf", "lat": 51.2277, "lng": 6.7735 },
+    { "city": "Leipzig", "lat": 51.3397, "lng": 12.3731 }
+  ],
+  "Italia": [
+    { "city": "Roma", "lat": 41.9028, "lng": 12.4964 },
+    { "city": "Milán", "lat": 45.4642, "lng": 9.1900 },
+    { "city": "Nápoles", "lat": 40.8518, "lng": 14.2681 },
+    { "city": "Turín", "lat": 45.0703, "lng": 7.6869 },
+    { "city": "Bolonia", "lat": 44.4949, "lng": 11.3426 },
+    { "city": "Florencia", "lat": 43.7696, "lng": 11.2558 },
+    { "city": "Venecia", "lat": 45.4408, "lng": 12.3155 }
+  ],
+  "Reino Unido": [
+    { "city": "Londres", "lat": 51.5072, "lng": -0.1276 },
+    { "city": "Mánchester", "lat": 53.4808, "lng": -2.2426 },
+    { "city": "Birmingham", "lat": 52.4862, "lng": -1.8904 },
+    { "city": "Glasgow", "lat": 55.8642, "lng": -4.2518 },
+    { "city": "Edimburgo", "lat": 55.9533, "lng": -3.1883 },
+    { "city": "Leeds", "lat": 53.8008, "lng": -1.5491 },
+    { "city": "Bristol", "lat": 51.4545, "lng": -2.5879 }
+  ],
+  "Países Bajos": [
+    { "city": "Ámsterdam", "lat": 52.3676, "lng": 4.9041 },
+    { "city": "Róterdam", "lat": 51.9244, "lng": 4.4777 },
+    { "city": "La Haya", "lat": 52.0705, "lng": 4.3007 },
+    { "city": "Eindhoven", "lat": 51.4416, "lng": 5.4697 }
+  ],
+  "Bélgica": [
+    { "city": "Bruselas", "lat": 50.8503, "lng": 4.3517 },
+    { "city": "Amberes", "lat": 51.2194, "lng": 4.4025 },
+    { "city": "Gante", "lat": 51.0543, "lng": 3.7174 }
+  ],
+  "Suiza": [
+    { "city": "Zúrich", "lat": 47.3769, "lng": 8.5417 },
+    { "city": "Ginebra", "lat": 46.2044, "lng": 6.1432 },
+    { "city": "Basilea", "lat": 47.5596, "lng": 7.5886 },
+    { "city": "Berna", "lat": 46.9480, "lng": 7.4474 }
+  ],
+  "Austria": [
+    { "city": "Viena", "lat": 48.2082, "lng": 16.3738 },
+    { "city": "Graz", "lat": 47.0707, "lng": 15.4395 },
+    { "city": "Salzburgo", "lat": 47.8095, "lng": 13.0550 }
+  ],
+  "Polonia": [
+    { "city": "Varsovia", "lat": 52.2297, "lng": 21.0122 },
+    { "city": "Cracovia", "lat": 50.0647, "lng": 19.9450 },
+    { "city": "Breslavia", "lat": 51.1079, "lng": 17.0385 },
+    { "city": "Gdansk", "lat": 54.3520, "lng": 18.6466 }
+  ],
+  "Suecia": [
+    { "city": "Estocolmo", "lat": 59.3293, "lng": 18.0686 },
+    { "city": "Gotemburgo", "lat": 57.7089, "lng": 11.9746 },
+    { "city": "Malmö", "lat": 55.6050, "lng": 13.0038 }
+  ],
+  "Noruega": [
+    { "city": "Oslo", "lat": 59.9139, "lng": 10.7522 },
+    { "city": "Bergen", "lat": 60.3913, "lng": 5.3221 },
+    { "city": "Trondheim", "lat": 63.4305, "lng": 10.3951 }
+  ],
+  "Dinamarca": [
+    { "city": "Copenhague", "lat": 55.6761, "lng": 12.5683 },
+    { "city": "Aarhus", "lat": 56.1629, "lng": 10.2039 }
+  ],
+  "Finlandia": [
+    { "city": "Helsinki", "lat": 60.1699, "lng": 24.9384 },
+    { "city": "Tampere", "lat": 61.4978, "lng": 23.7610 }
+  ],
+  "Irlanda": [
+    { "city": "Dublín", "lat": 53.3498, "lng": -6.2603 },
+    { "city": "Cork", "lat": 51.8985, "lng": -8.4756 }
+  ],
+  "Grecia": [
+    { "city": "Atenas", "lat": 37.9838, "lng": 23.7275 },
+    { "city": "Tesalónica", "lat": 40.6401, "lng": 22.9444 }
+  ],
+  "República Checa": [
+    { "city": "Praga", "lat": 50.0755, "lng": 14.4378 },
+    { "city": "Brno", "lat": 49.1951, "lng": 16.6068 }
+  ],
+  "Hungría": [
+    { "city": "Budapest", "lat": 47.4979, "lng": 19.0402 }
+  ],
+  "Rumanía": [
+    { "city": "Bucarest", "lat": 44.4268, "lng": 26.1025 },
+    { "city": "Cluj-Napoca", "lat": 46.7712, "lng": 23.6236 }
+  ],
+  "Bulgaria": [
+    { "city": "Sofía", "lat": 42.6977, "lng": 23.3219 }
+  ],
+  "Croacia": [
+    { "city": "Zagreb", "lat": 45.8150, "lng": 15.9819 },
+    { "city": "Split", "lat": 43.5081, "lng": 16.4402 }
+  ],
+  "Ucrania": [
+    { "city": "Kiev", "lat": 50.4501, "lng": 30.5234 }
+  ],
+  "Estados Unidos": [
+    { "city": "Nueva York", "lat": 40.7128, "lng": -74.0060 },
+    { "city": "Los Ángeles", "lat": 34.0522, "lng": -118.2437 },
+    { "city": "Chicago", "lat": 41.8781, "lng": -87.6298 },
+    { "city": "Houston", "lat": 29.7604, "lng": -95.3698 },
+    { "city": "San Francisco", "lat": 37.7749, "lng": -122.4194 },
+    { "city": "Miami", "lat": 25.7617, "lng": -80.1918 },
+    { "city": "Boston", "lat": 42.3601, "lng": -71.0589 },
+    { "city": "Seattle", "lat": 47.6062, "lng": -122.3321 },
+    { "city": "Austin", "lat": 30.2672, "lng": -97.7431 },
+    { "city": "Denver", "lat": 39.7392, "lng": -104.9903 }
+  ],
+  "Canadá": [
+    { "city": "Toronto", "lat": 43.6532, "lng": -79.3832 },
+    { "city": "Vancouver", "lat": 49.2827, "lng": -123.1207 },
+    { "city": "Montreal", "lat": 45.5019, "lng": -73.5674 },
+    { "city": "Calgary", "lat": 51.0447, "lng": -114.0719 }
+  ],
+  "México": [
+    { "city": "Ciudad de México", "lat": 19.4326, "lng": -99.1332 },
+    { "city": "Guadalajara", "lat": 20.6597, "lng": -103.3496 },
+    { "city": "Monterrey", "lat": 25.6866, "lng": -100.3161 }
+  ],
+  "Brasil": [
+    { "city": "São Paulo", "lat": -23.5505, "lng": -46.6333 },
+    { "city": "Río de Janeiro", "lat": -22.9068, "lng": -43.1729 },
+    { "city": "Brasilia", "lat": -15.7939, "lng": -47.8828 },
+    { "city": "Porto Alegre", "lat": -30.0346, "lng": -51.2177 }
+  ],
+  "Argentina": [
+    { "city": "Buenos Aires", "lat": -34.6037, "lng": -58.3816 },
+    { "city": "Córdoba", "lat": -31.4201, "lng": -64.1888 },
+    { "city": "Rosario", "lat": -32.9468, "lng": -60.6393 }
+  ],
+  "Chile": [
+    { "city": "Santiago", "lat": -33.4489, "lng": -70.6693 },
+    { "city": "Valparaíso", "lat": -33.0472, "lng": -71.6127 }
+  ],
+  "Colombia": [
+    { "city": "Bogotá", "lat": 4.7110, "lng": -74.0721 },
+    { "city": "Medellín", "lat": 6.2442, "lng": -75.5812 }
+  ],
+  "Perú": [
+    { "city": "Lima", "lat": -12.0464, "lng": -77.0428 }
+  ],
+  "Marruecos": [
+    { "city": "Casablanca", "lat": 33.5731, "lng": -7.5898 },
+    { "city": "Rabat", "lat": 34.0209, "lng": -6.8417 },
+    { "city": "Tánger", "lat": 35.7595, "lng": -5.8340 }
+  ],
+  "Argelia": [
+    { "city": "Argel", "lat": 36.7538, "lng": 3.0588 }
+  ],
+  "Túnez": [
+    { "city": "Túnez", "lat": 36.8065, "lng": 10.1815 }
+  ],
+  "Egipto": [
+    { "city": "El Cairo", "lat": 30.0444, "lng": 31.2357 },
+    { "city": "Alejandría", "lat": 31.2001, "lng": 29.9187 }
+  ],
+  "Sudáfrica": [
+    { "city": "Johannesburgo", "lat": -26.2041, "lng": 28.0473 },
+    { "city": "Ciudad del Cabo", "lat": -33.9249, "lng": 18.4241 },
+    { "city": "Durban", "lat": -29.8587, "lng": 31.0218 }
+  ],
+  "Nigeria": [
+    { "city": "Lagos", "lat": 6.5244, "lng": 3.3792 },
+    { "city": "Abuya", "lat": 9.0765, "lng": 7.3986 }
+  ],
+  "Kenia": [
+    { "city": "Nairobi", "lat": -1.2921, "lng": 36.8219 }
+  ],
+  "Turquía": [
+    { "city": "Istambul", "lat": 41.0082, "lng": 28.9784 },
+    { "city": "Ankara", "lat": 39.9334, "lng": 32.8597 },
+    { "city": "Esmirna", "lat": 38.4237, "lng": 27.1428 }
+  ],
+  "Emiratos Árabes Unidos": [
+    { "city": "Dubái", "lat": 25.2048, "lng": 55.2708 },
+    { "city": "Abu Dabi", "lat": 24.4539, "lng": 54.3773 }
+  ],
+  "Arabia Saudí": [
+    { "city": "Riad", "lat": 24.7136, "lng": 46.6753 },
+    { "city": "Jeda", "lat": 21.4858, "lng": 39.1925 }
+  ],
+  "Israel": [
+    { "city": "Tel Aviv", "lat": 32.0853, "lng": 34.7818 },
+    { "city": "Jerusalén", "lat": 31.7683, "lng": 35.2137 }
+  ],
+  "India": [
+    { "city": "Nueva Delhi", "lat": 28.6139, "lng": 77.2090 },
+    { "city": "Bombay", "lat": 19.0760, "lng": 72.8777 },
+    { "city": "Bangalore", "lat": 12.9716, "lng": 77.5946 },
+    { "city": "Chennai", "lat": 13.0827, "lng": 80.2707 }
+  ],
+  "China": [
+    { "city": "Pekín", "lat": 39.9042, "lng": 116.4074 },
+    { "city": "Shanghái", "lat": 31.2304, "lng": 121.4737 },
+    { "city": "Shenzhen", "lat": 22.5431, "lng": 114.0579 },
+    { "city": "Guangzhou", "lat": 23.1291, "lng": 113.2644 },
+    { "city": "Hong Kong", "lat": 22.3193, "lng": 114.1694 }
+  ],
+  "Japón": [
+    { "city": "Tokio", "lat": 35.6762, "lng": 139.6503 },
+    { "city": "Osaka", "lat": 34.6937, "lng": 135.5023 },
+    { "city": "Yokohama", "lat": 35.4437, "lng": 139.6380 }
+  ],
+  "Corea del Sur": [
+    { "city": "Seúl", "lat": 37.5665, "lng": 126.9780 },
+    { "city": "Busan", "lat": 35.1796, "lng": 129.0756 }
+  ],
+  "Singapur": [
+    { "city": "Singapur", "lat": 1.3521, "lng": 103.8198 }
+  ],
+  "Indonesia": [
+    { "city": "Yakarta", "lat": -6.2088, "lng": 106.8456 },
+    { "city": "Surabaya", "lat": -7.2575, "lng": 112.7521 }
+  ],
+  "Vietnam": [
+    { "city": "Hanói", "lat": 21.0278, "lng": 105.8342 },
+    { "city": "Ciudad Ho Chi Minh", "lat": 10.8231, "lng": 106.6297 }
+  ],
+  "Tailandia": [
+    { "city": "Bangkok", "lat": 13.7563, "lng": 100.5018 }
+  ],
+  "Malasia": [
+    { "city": "Kuala Lumpur", "lat": 3.1390, "lng": 101.6869 }
+  ],
+  "Filipinas": [
+    { "city": "Manila", "lat": 14.5995, "lng": 120.9842 }
+  ],
+  "Australia": [
+    { "city": "Sídney", "lat": -33.8688, "lng": 151.2093 },
+    { "city": "Melbourne", "lat": -37.8136, "lng": 144.9631 },
+    { "city": "Brisbane", "lat": -27.4698, "lng": 153.0251 },
+    { "city": "Perth", "lat": -31.9505, "lng": 115.8605 }
+  ],
+  "Nueva Zelanda": [
+    { "city": "Auckland", "lat": -36.8485, "lng": 174.7633 },
+    { "city": "Wellington", "lat": -41.2865, "lng": 174.7762 }
+  ]
+}
