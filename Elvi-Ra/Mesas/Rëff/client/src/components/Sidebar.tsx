@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink } from 'react-router';
 import logoSnfi from '../assets/logo-snfi.png';
 import type { User } from '../lib/api';
 import { clearSession } from '../lib/api';

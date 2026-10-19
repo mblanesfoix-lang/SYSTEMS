@@ -21,7 +21,7 @@ export default defineConfig({
           if (id.includes('react-markdown') || id.includes('remark-gfm')) {
             return 'vendor-markdown';
           }
-          if (id.includes('react-router-dom')) {
+          if (id.includes('react-router')) {
             return 'vendor-router';
           }
         },
