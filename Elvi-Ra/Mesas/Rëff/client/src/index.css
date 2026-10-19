@@ -1,6 +1,23 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+/* Fuentes que usa el reseteo de Tailwind: texto base y bloques de codigo. */
+@theme {
+  --font-sans: Inter, -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+  --default-mono-font-family: 'SF Mono', 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* El reseteo de Tailwind 4 deja el cursor por defecto en los botones y un
+   placeholder semitransparente: se mantiene el aspecto anterior. */
+@layer base {
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: #9ca3af;
+  }
+}
 
 /* ══════════════════════════════════════════════════════════════
    RËFF · Sistema visual unico del departamento.

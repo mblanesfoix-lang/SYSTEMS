@@ -4,7 +4,7 @@ Plataforma de inteligencia agentica de **S-NFI Corp.** Cada usuario accede unica
 
 ## Stack
 
-- **Frontend:** React + Vite + TypeScript + Tailwind CSS
+- **Frontend:** React + Vite + TypeScript + Tailwind CSS 4 (plugin de Vite; el tema se declara en `client/src/index.css`). Navegadores mínimos por Tailwind 4: Chrome 111, Safari 16.4 y Firefox 128
 - **Backend:** Node.js + Express + TypeScript
 - **Auth:** JWT + bcrypt (8h de expiracion)
 - **Storage:** MongoDB (driver oficial `mongodb`, db `reff`; pool compartido con Elvi-Ra en modo integrado)
@@ -123,8 +123,6 @@ snfi-agent-system/
 |-- tsconfig.json
 |-- tsconfig.server.json
 |-- vite.config.ts
-|-- tailwind.config.js
-|-- postcss.config.js
 `-- .env.example
 ```
 
