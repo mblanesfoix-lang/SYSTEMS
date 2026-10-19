@@ -22,6 +22,7 @@
 import crypto from 'node:crypto';
 import express from 'express';
 import { GridFSBucket, ObjectId } from 'mongodb';
+import { appendChained } from './lib/hash-chain.js';
 
 const DOCUMENT_TYPES = [
   'application/pdf',
@@ -49,20 +50,7 @@ function withId(doc) {
   return { id: _id, ...rest };
 }
 
-function canonical(entry) {
-  return JSON.stringify(entry, Object.keys(entry).sort());
-}
-
-async function appendFinanceLog(mongo, entry) {
-  const col = mongo.collection('finance_log');
-  const tail = await col.find().sort({ seq: -1 }).limit(1).next();
-  const seq = tail ? tail.seq + 1 : 1;
-  const prevHash = tail ? tail.hash : '0'.repeat(64);
-  const hash = crypto.createHash('sha256').update(prevHash + canonical({ ...entry, seq })).digest('hex');
-  const doc = { _id: crypto.randomUUID(), ...entry, seq, prevHash, hash, createdAt: new Date().toISOString() };
-  await col.insertOne(doc);
-  return doc;
-}
+const appendFinanceLog = (mongo, entry) => appendChained(mongo, 'finance_log', entry);
 
 function docsBucket(mongo) {
   return new GridFSBucket(mongo, { bucketName: 'finance_company_docs' });

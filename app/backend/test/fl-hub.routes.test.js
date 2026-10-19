@@ -11,7 +11,8 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import { MongoClient } from 'mongodb';
 import express from 'express';
-import { mountFlHub, canonicalV2 } from '../fl-hub.js';
+import { mountFlHub } from '../fl-hub.js';
+import { canonicalV2 } from '../lib/hash-chain.js';
 
 const MONGO_URI = process.env.MONGO_URI;
 const NOW = new Date('2026-10-12T10:00:00Z');

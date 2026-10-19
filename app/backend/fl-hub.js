@@ -45,6 +45,7 @@ import {
 } from './fl-hub-fechas.js';
 import { buildSeed, SEED_KEY } from './fl-hub-seed.js';
 import { createBoletinesSync, CATEGORIAS } from './fl-boletines.js';
+import { appendChained, verifyLog } from './lib/hash-chain.js';
 
 const BOLETINES_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const ALARMAS_INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -59,59 +60,9 @@ const VENTANA_RENOVACION = 30;
    Log inmutable fl_log (hash chain compartida con fl-expediente.js)
    ========================================================================= */
 
-/* Algoritmo heredado: JSON.stringify con la lista de claves de primer nivel
-   como replacer. Se conserva solo para verificar entradas antiguas. */
-function canonicalV1(entry) {
-  return JSON.stringify(entry, Object.keys(entry).sort());
-}
-
-/* Serializacion canonica profunda: claves ordenadas a cualquier nivel. */
-export function canonicalV2(value) {
-  if (Array.isArray(value)) return `[${value.map((v) => canonicalV2(v === undefined ? null : v)).join(',')}]`;
-  if (value && typeof value === 'object') {
-    const keys = Object.keys(value).filter((k) => value[k] !== undefined).sort();
-    return `{${keys.map((k) => `${JSON.stringify(k)}:${canonicalV2(value[k])}`).join(',')}}`;
-  }
-  return JSON.stringify(value === undefined ? null : value);
-}
-
-function sha256(text) {
-  return crypto.createHash('sha256').update(text).digest('hex');
-}
-
-/* Reintenta si otra escritura se adelanta con el mismo seq (indice unico
-   fl_log.seq, creado en db/mongo.js): el Hub y el Expediente escriben en la
-   misma cadena. */
-export async function appendFlLog(mongo, entry) {
-  const col = mongo.collection('fl_log');
-  for (let intento = 0; intento < 5; intento += 1) {
-    const tail = await col.find().sort({ seq: -1 }).limit(1).next();
-    const seq = tail ? tail.seq + 1 : 1;
-    const prevHash = tail ? tail.hash : '0'.repeat(64);
-    const body = { ...entry, canon: 2, seq };
-    const hash = sha256(prevHash + canonicalV2(body));
-    const doc = { _id: crypto.randomUUID(), ...entry, canon: 2, seq, prevHash, hash, createdAt: new Date().toISOString() };
-    try {
-      await col.insertOne(doc);
-      return doc;
-    } catch (err) {
-      if (err?.code !== 11000) throw err;
-    }
-  }
-  throw new Error('fl_log: no se pudo encadenar la entrada tras 5 intentos');
-}
-
-export function verifyChain(entries) {
-  let prev = '0'.repeat(64);
-  for (const entry of entries) {
-    const { _id, seq, prevHash, hash, createdAt, ...rest } = entry;
-    const body = { ...rest, seq };
-    const expected = sha256(prev + (rest.canon === 2 ? canonicalV2(body) : canonicalV1(body)));
-    if (expected !== hash || prevHash !== prev) return { valid: false, totalEntries: entries.length, brokenAtSeq: seq };
-    prev = hash;
-  }
-  return { valid: true, totalEntries: entries.length, brokenAtSeq: null };
-}
+/* El indice unico fl_log.seq (db/mongo.js) hace que el Hub y el Expediente,
+   que escriben en la misma cadena, reintenten si dos escrituras coinciden. */
+const appendFlLog = (mongo, entry) => appendChained(mongo, 'fl_log', entry);
 
 /* =========================================================================
    Utilidades
@@ -694,8 +645,7 @@ export function mountFlHub(app, {
   }));
 
   app.get('/api/fl/log/verify', ...guard, ah(async (req, res) => {
-    const all = await mongo.collection('fl_log').find({}).sort({ seq: 1 }).toArray();
-    res.json(verifyChain(all));
+    res.json(await verifyLog(mongo, 'fl_log'));
   }));
 
   app.get(`/api/fl/historial/${ENTIDAD_ROUTE}/:id`, ...guard, ah(async (req, res) => {

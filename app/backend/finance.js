@@ -20,6 +20,7 @@
 
 import crypto from 'node:crypto';
 import PDFDocument from 'pdfkit';
+import { appendChained, verifyLog } from './lib/hash-chain.js';
 
 /* ---- aritmética monetaria en céntimos (entero), sin coma flotante ---- */
 
@@ -99,21 +100,7 @@ export function projectCashflow(currentBalanceCents, scheduledMovements, horizon
   return points;
 }
 
-function canonical(entry) {
-  return JSON.stringify(entry, Object.keys(entry).sort());
-}
-
-async function appendFinanceLog(mongo, entry) {
-  const col = mongo.collection('finance_log');
-  const tail = await col.find().sort({ seq: -1 }).limit(1).next();
-  const seq = tail ? tail.seq + 1 : 1;
-  const prevHash = tail ? tail.hash : '0'.repeat(64);
-  const canonicalEntry = { ...entry, seq };
-  const hash = crypto.createHash('sha256').update(prevHash + canonical(canonicalEntry)).digest('hex');
-  const doc = { _id: crypto.randomUUID(), ...entry, seq, prevHash, hash, createdAt: new Date().toISOString() };
-  await col.insertOne(doc);
-  return doc;
-}
+const appendFinanceLog = (mongo, entry) => appendChained(mongo, 'finance_log', entry);
 
 /* ---- generadores PDF: 3 informes separados ---- */
 
@@ -890,16 +877,6 @@ export function mountFinance(app, { auth, requireMesa, mongo }) {
   /* ---- integridad del log ---- */
 
   router.get('/api/finance/log/verify', ...guard, async (req, res) => {
-    const all = await mongo.collection('finance_log').find({}).sort({ seq: 1 }).toArray();
-    let prev = '0'.repeat(64);
-    for (const entry of all) {
-      const { _id, seq, prevHash, hash, createdAt, ...rest } = entry;
-      const expectedHash = crypto.createHash('sha256').update(prev + canonical({ ...rest, seq })).digest('hex');
-      if (expectedHash !== hash || prevHash !== prev) {
-        return res.json({ valid: false, totalEntries: all.length, brokenAtSeq: seq });
-      }
-      prev = hash;
-    }
-    res.json({ valid: true, totalEntries: all.length, brokenAtSeq: null });
+    res.json(await verifyLog(mongo, 'finance_log'));
   });
 }
