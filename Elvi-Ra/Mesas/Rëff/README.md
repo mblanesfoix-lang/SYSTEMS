@@ -1,133 +1,84 @@
-# S-NFI Agent System
+# Rëff
 
-Plataforma de inteligencia agentica de **S-NFI Corp.** Cada usuario accede unicamente a los agentes que le corresponden por rol, todos operando bajo la Doctrina S-NFI.
+Mesa comercial de **S-NFI Corp.**: CRM (hojas, empresas, tareas, reuniones y comunicaciones), Herzog, Vigilancia, Consola Maestra de tráfico y Calendario. Rëff analiza y propone; las acciones las autoriza una persona. Doctrina y ficha de la mesa: [docs/REFERENCIA.md](../../../docs/REFERENCIA.md).
 
 ## Stack
 
 - **Frontend:** React + Vite + TypeScript + Tailwind CSS 4 (plugin de Vite; el tema se declara en `client/src/index.css`). Navegadores mínimos por Tailwind 4: Chrome 111, Safari 16.4 y Firefox 128
 - **Backend:** Node.js + Express + TypeScript
-- **Auth:** JWT + bcrypt (8h de expiracion)
-- **Storage:** MongoDB (driver oficial `mongodb`, db `reff`; pool compartido con Elvi-Ra en modo integrado)
-- **IA:** Anthropic SDK (`@anthropic-ai/sdk`) con `ANTHROPIC_MODEL` configurable. Valor por defecto: `claude-haiku-4-5-20251001`
-- **Streaming:** Server-Sent Events (SSE)
+- **Auth:** JWT + bcrypt (8 h de expiración)
+- **Almacenamiento:** MongoDB (driver oficial `mongodb`, db `reff`; en modo integrado comparte el pool con SYSTEMS)
+- **IA:** proveedor configurable (el módulo `server/llm.ts` lee el proveedor y el modelo de las variables de entorno)
 
-## Instalacion
+## Modo integrado (el habitual)
+
+Rëff no se despliega por separado: `app/backend/server.js` monta el build de `dist/` bajo `/reff` y lo compila `app/Dockerfile`. Tras cambiar código de Rëff:
 
 ```bash
-cd snfi-agent-system
+cd "Elvi-Ra/Mesas/Rëff"
 npm install
+npm run build
 ```
 
-Copia `.env.example` a `.env` y rellena los valores; el archivo explica cada variable. Integrado en el backend, en producción todo llega por variables de entorno (lista completa en `app/backend/.env.example`).
+y reiniciar el backend de SYSTEMS (`app/backend`) para que cargue el nuevo `dist/`. El servidor integrado escucha en el puerto 5173.
 
-Importante: no guardes claves reales en el repositorio. Si una clave se ha compartido o copiado por error, rótala en el servicio que la emitió.
-
-## Arranque en desarrollo
+## Modo independiente (solo desarrollo de Rëff)
 
 ```bash
 npm run dev
 ```
 
-- Servidor: `http://localhost:3001`
-- Cliente: `http://localhost:5173`
+Arranca el servidor (`http://localhost:3001`) y el cliente de Vite (`http://localhost:5173`). El cliente usa el puerto 5173, el mismo que el backend integrado: no lanzarlo con ese backend en marcha. Hace falta `MONGO_URI`.
 
-Los datos viven en MongoDB (`MONGO_URI`). La primera vez que arranca con la base vacía crea los usuarios iniciales definidos en `REFF_SEED_*_PASSWORD`.
+Copia `.env.example` a `.env`; el archivo explica cada variable. En producción todo llega por variables de entorno (lista completa en `app/backend/.env.example`). La primera vez que arranca con la base vacía crea los usuarios iniciales definidos en `REFF_SEED_*_PASSWORD`; sin la variable, no se crea ese usuario.
 
-## Build y produccion
+No guardes claves reales en el repositorio. Si una clave se ha compartido o copiado por error, rótala en el servicio que la emitió.
+
+## Producción
 
 ```bash
 npm run build
 npm start
 ```
 
-El servidor sirve el build del cliente desde `/dist/client`.
-
-## Usuarios y agentes
-
-| Usuario | Contrasena inicial | Agentes accesibles |
-|---------|--------------------|--------------------|
-| `nour` | `snfi-admin-2026` | TODOS |
-| `marc` | `snfi-admin-2026` | TODOS |
-| `ray` | `snfi-u2-2026` | U-2 |
-| `malva` | `snfi-iia-2026` | IIA |
-| `clara` | `snfi-finance-2026` | Finance |
-| `herzog` | `snfi-hz-2026` | Herzog |
-| `amir` | `snfi-leads-2026` | S-NFI CRM |
-
-Si tienes un solo agente asignado, el dashboard abre directamente su espacio de trabajo.
-
-## Catalogo de agentes
-
-| ID | Nombre | Categoria | Color |
-|----|--------|-----------|-------|
-| `orchestrator` | Orquestador Central | Sistema | `#c9a84c` |
-| `ophs` | ØPHS Framework | Sistema | `#1e3a5c` |
-| `u2` | S-NFI U-2 | Sistema | `#5b2d8e` |
-| `resilience` | S-NFI Resilience | Operaciones | `#8b1a1a` |
-| `iia` | S-NFI IIA | Operaciones | `#2d6a4f` |
-| `finance` | S-NFI Finance | Finanzas | `#1a4b8c` |
-| `pactum` | Pactum Viridi | Auditoria | `#52b788` |
-| `herzog` | Agente de Auditorias | Auditoria | `#6b0f1a` |
-| `captador` | S-NFI CRM | Comercial | `#d4a017` |
+Con `NODE_ENV=production`, el servidor sirve el build del cliente desde `dist/client`.
 
 ## API
 
+Prefijos montados en `server/index.ts` (en modo integrado cuelgan de `/reff`):
+
 ```text
-POST /api/auth/login                    -> { token, user }
-GET  /api/auth/me                       -> { user }
-POST /api/auth/update-profile           -> { user }
-POST /api/auth/change-password          -> { ok }
-GET  /api/auth/usage                    -> { usage }
-GET  /api/chat/agents                   -> { agents }
-POST /api/chat/:agentId                 -> SSE stream { event: chunk|done|error }
-GET  /api/admin/users-usage             -> { users }
-GET  /api/admin/agents-status           -> { agents }
-POST /api/admin/agents/:agentId/toggle  -> { agentId, enabled }
-GET  /api/health                        -> { status }
+GET  /api/health
+     /api/auth          perfil y cambio de contraseña
+     /api/crm           hojas, empresas, reuniones y comunicaciones
+     /api/geo
+     /api/herzog
+     /api/watch         vigilancia
+     /api/traffic       Consola Maestra de tráfico
 ```
 
-Todas las rutas excepto `login` y `health` requieren `Authorization: Bearer <token>`.
+Todas las rutas excepto `health` requieren `Authorization: Bearer <token>`.
 
 ## Seguridad
 
-- Contrasenas hasheadas con bcrypt (10 rounds).
-- Verificacion de acceso por agente: si el usuario no lo tiene asignado, devuelve `403`.
-- `ANTHROPIC_API_KEY` solo se usa en el servidor.
-- `JWT_SECRET` es obligatorio en produccion.
-- Rate limit: 30 req/min por usuario o IP.
-- JWT con expiracion de 8h. Token expirado: redireccion automatica a `/login`.
+- Contraseñas con hash bcrypt.
+- La clave del proveedor de IA solo se usa en el servidor.
+- `JWT_SECRET` es obligatorio en producción.
+- Límite de 60 peticiones por minuto y por IP en `/api`.
+- JWT con expiración de 8 h. Sin sesión o con la sesión caducada, el cliente vuelve al login de SYSTEMS.
 
 ## Estructura
 
 ```text
-snfi-agent-system/
-|-- server/
-|   |-- index.ts
-|   |-- auth.ts
-|   |-- db.ts
-|   |-- agents.ts
-|   `-- routes/
-|       |-- auth.routes.ts
-|       |-- admin.routes.ts
-|       `-- chat.routes.ts
-|-- client/
-|   |-- index.html
-|   `-- src/
-|       |-- main.tsx
-|       |-- App.tsx
-|       |-- pages/
-|       |-- components/
-|       |-- hooks/
-|       `-- lib/
-|-- package.json
-|-- tsconfig.json
-|-- tsconfig.server.json
-|-- vite.config.ts
-`-- .env.example
+server/
+  index.ts  auth.ts  db.ts  mongo.ts  llm.ts  watch.ts
+  meeting-mailer.ts  meeting-reminders.ts
+  routes/   auth, sheets, companies, meetings, communications,
+            geo, herzog, watch y traffic (*.routes.ts)
+client/
+  index.html
+  src/      main.tsx  App.tsx  index.css  pages/  components/  hooks/  lib/
+scripts/    copy-server-data.mjs
 ```
 
-## Despliegue
-
-Rëff no se despliega por separado: va integrado en el servidor principal, que lo compila en `app/Dockerfile`, y el conjunto se despliega con Coolify a partir de `docker-compose.yml` (raíz del repositorio). Las variables de producción se definen en el panel de Coolify; la lista completa está en `app/backend/.env.example`.
-
-**Doctrina S-NFI - v1.0 - 2026**
+**Doctrina S-NFI**

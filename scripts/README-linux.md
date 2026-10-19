@@ -25,16 +25,17 @@ bash scripts/setup-env.sh
 nano .env
 ```
 
-El archivo vive en la raiz del proyecto (`/opt/elvi-ra/.env`): docker compose interpola sus variables desde ahi.
+El archivo vive en la raiz del proyecto (`/opt/elvi-ra/.env`): docker compose interpola sus variables desde ahi. `setup-env.sh` lo crea a partir de `app/backend/.env.example` y genera las claves obligatorias (`JWT_SECRET`, `SENTINEL_FORENSIC_SECRET` y `FL_EXPEDIENTE_ENC_KEY`).
 
-Variables mínimas:
-- ANTHROPIC_API_KEY (u `LLM_PROVIDER=ollama`)
-- JWT_SECRET
-- SEED_MARC/NOUR/RAY/AMIR/GONZALO_PASSWORD (primer arranque: sin ellas no hay usuarios)
-- REFF_SEED_MARC/NOUR/AMIR/GONZALO_PASSWORD (usuarios Rëff)
-- ESIOS_API_KEY (opcional)
-- NODE_ENV=production
-- CORS_ORIGIN=http://IP:5173
+Antes del primer arranque hay que completar:
+- Contraseñas iniciales `SEED_*_PASSWORD` y `REFF_SEED_*_PASSWORD`: sin ellas no se crean usuarios.
+- `CORS_ORIGIN` con la dirección desde la que se accede (por defecto `http://127.0.0.1:5173`).
+- Proveedor de IA: la clave del proveedor configurado, o `LLM_PROVIDER=ollama` con `OLLAMA_URL` y `OLLAMA_MODEL`. Los nombres exactos de cada variable están en `app/backend/config.js`.
+- `ESIOS_API_KEY` (opcional).
+
+`NODE_ENV` ya queda en `production` y `MONGO_URI` apunta al servicio `mongo` de `docker-compose.yml`. La lista completa de variables, con su explicación, está en `app/backend/.env.example`.
+
+Para una maquina limpia, `scripts/provision-debian.sh` hace los pasos 1 a 4 de forma idempotente.
 
 ## 4. Instalar servicio systemd
 
