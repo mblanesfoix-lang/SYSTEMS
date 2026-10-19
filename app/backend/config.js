@@ -252,6 +252,8 @@ export const PLATFORM_VARS = [
 // Solo para herramientas de línea de comandos; nunca en un .env.
 export const TOOL_VARS = [
   { name: 'ENV_VAULT_KEY', desc: 'clave de descifrado de scripts/env-vault.js; vive en el gestor de secretos de la plataforma' },
+  { name: 'TEST_MONGO_DIR', desc: 'carpeta con el binario y los datos del mongod de pruebas de scripts/test-mongo.js; por defecto ~/mongo-test' },
+  { name: 'TEST_MONGOD_BIN', desc: 'ruta del mongod que usa scripts/test-mongo.js si no está en TEST_MONGO_DIR' },
 ];
 
 // Variables de build del cliente de Rëff: van en el entorno de npm run build, no en un .env.

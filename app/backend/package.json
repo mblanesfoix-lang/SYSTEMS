@@ -14,7 +14,11 @@
     "fresh": "npm run kill-port && npm run dev",
     "config:sync": "node scripts/config-sync.js",
     "config:check": "node scripts/config-sync.js --check",
-    "test": "node --env-file=.env --import ./db/mongo.js --test \"test/**/*.test.js\""
+    "test": "node --env-file=.env --import ./db/mongo.js --test \"test/**/*.test.js\"",
+    "test:mongo:start": "node scripts/test-mongo.js start",
+    "test:mongo:stop": "node scripts/test-mongo.js stop",
+    "test:mongo:status": "node scripts/test-mongo.js status",
+    "test:local": "node scripts/test-local.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
