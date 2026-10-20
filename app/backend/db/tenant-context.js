@@ -13,7 +13,7 @@
  * tenantContext.run({ tenantId }, fn) por cada tenant activo que procesen.
  */
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { getTenantDbSync, getTenantReffDbSync } from './tenant-registry.js';
+import { getTenantDb, getTenantReffDb, getTenantDbSync, getTenantReffDbSync } from './tenant-registry.js';
 
 export const tenantContext = new AsyncLocalStorage();
 
@@ -53,4 +53,23 @@ export function createTenantAwareReffDb() {
 /** Para crons/tareas de fondo que no corren dentro de un request: ejecuta fn con el tenant dado en contexto. */
 export function runAsTenant(tenantId, fn) {
   return tenantContext.run({ tenantId }, fn);
+}
+
+/**
+ * Middleware para rutas publicas (sin sesion): fija en el contexto un tenant concreto,
+ * igual que hace el middleware de sesion con el tenant de cada usuario. Antes resuelve
+ * sus dbs en el registro, porque el Proxy solo usa la variante sincrona. Si el tenant no
+ * esta disponible responde 503 sin dar detalles a quien llama.
+ */
+export function withTenant(tenantId) {
+  return async function tenantForPublicRoute(req, res, next) {
+    try {
+      await getTenantDb(tenantId);
+      await getTenantReffDb(tenantId);
+    } catch (err) {
+      console.error(`[tenant] ruta publica sin tenant disponible (${tenantId}): ${err.message}`);
+      return res.status(503).json({ error: 'servicio no disponible' });
+    }
+    tenantContext.run({ tenantId }, next);
+  };
 }

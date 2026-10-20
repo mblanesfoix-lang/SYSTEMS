@@ -171,7 +171,7 @@ export function mountHerzog(app, { auth, requireMesa, mongo, busEmit, adminNotif
     res.json(files.map(serializeDoc));
   });
 
-  router.post('/api/herzog-central/documents', auth, requireMesa('herzog'), express.raw({ type: DOCUMENT_TYPES, limit: '20mb' }), async (req, res) => {
+  router.post('/api/herzog-central/documents', auth, requireMesa('herzog'), express.raw({ type: DOCUMENT_TYPES, limit: '20mb' }), async (req, res, next) => {
     const contentType = String(req.headers['content-type'] || '');
     if (!DOCUMENT_TYPES.includes(contentType)) {
       return res.status(415).json({ error: 'Formato no permitido. PDF, imagen (JPG/PNG/WebP) o hoja de calculo (CSV/XLS/XLSX).' });
@@ -195,9 +195,14 @@ export function mountHerzog(app, { auth, requireMesa, mongo, busEmit, adminNotif
     upload.on('error', () => {
       if (!res.headersSent) res.status(500).json({ error: 'Error al guardar el documento' });
     });
+    // Escucha de un evento: su fallo no vuelve a la ruta, se pasa a mano al manejador de errores.
     upload.on('finish', async () => {
-      await appendHerzogLog(mongo, { action: 'document.upload', actorId: req.user, detail: { fileId: upload.id.toString(), filename, department } });
-      res.status(201).json({ id: upload.id.toString(), filename, contentType, size: req.body.length, department, uploadedAt });
+      try {
+        await appendHerzogLog(mongo, { action: 'document.upload', actorId: req.user, detail: { fileId: upload.id.toString(), filename, department } });
+        res.status(201).json({ id: upload.id.toString(), filename, contentType, size: req.body.length, department, uploadedAt });
+      } catch (err) {
+        next(err);
+      }
     });
     upload.end(req.body);
   });

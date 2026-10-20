@@ -13,7 +13,7 @@
  */
 
 import crypto from 'node:crypto';
-import { runAsTenant } from './db/tenant-context.js';
+import { runAsTenant, withTenant } from './db/tenant-context.js';
 import { DEFAULT_TENANT_ID } from './db/tenant-registry.js';
 import { appendChained, verifyLog } from './lib/hash-chain.js';
 import { merkleRoot as computeMerkleRoot, MERKLE_VERSION } from './lib/merkle.js';
@@ -167,10 +167,19 @@ function withId(doc) {
 
 const appendPactvmLog = (mongo, entry) => appendChained(mongo, 'pactvm_log', entry);
 
-export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getReffDb, getU2Snapshot }) {
+/**
+ * systemTenantId: tenant con el que la mesa trabaja fuera de una sesion (siembras de
+ * arranque y rutas publicas de verificacion y de invitados VDR). Mientras solo exista el
+ * tenant por defecto, todo certificado y enlace vive en el; con varios tenants, las rutas
+ * publicas tendran que deducirlo del identificador pedido (ver docs/REFERENCIA.md).
+ */
+export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getReffDb, getU2Snapshot, systemTenantId = DEFAULT_TENANT_ID }) {
   const router = app;
   const guard = [auth, requireMesa('pactvm')];
   const adminGuard = [auth, requireMesa('pactvm'), requireAdmin];
+  // Las rutas publicas no tienen sesion de la que sacar el tenant: se fija aqui, igual
+  // que hace auth con el de cada usuario, para que `mongo` resuelva su db.
+  const publicTenant = withTenant(systemTenantId);
   const herzogAudits = () => getReffDb().collection('herzog_audits');
 
   // Desbloqueos publicos con codigo de 6 digitos (verificacion de certificados e
@@ -205,9 +214,9 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getRe
   }
 
   // Seed de boot, fuera de cualquier request: corre explicitamente contra el
-  // tenant por defecto (runAsTenant), nunca contra el mongo tenant-aware
-  // recibido arriba, que exige un request con resolveTenant ya corrido.
-  runAsTenant(DEFAULT_TENANT_ID, () => mongo.collection('pactvm_country_nodes').countDocuments({}).then(async (count) => {
+  // tenant de sistema (runAsTenant); sin contexto, el mongo tenant-aware
+  // recibido arriba no sabe a que db ir.
+  runAsTenant(systemTenantId, () => mongo.collection('pactvm_country_nodes').countDocuments({}).then(async (count) => {
     if (count > 0) return;
     const now = new Date().toISOString();
     await mongo.collection('pactvm_country_nodes').insertMany(SEED_COUNTRY_NODES.map((c) => ({
@@ -221,17 +230,17 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getRe
     })));
   }).catch(() => {}));
 
-  runAsTenant(DEFAULT_TENANT_ID, () => mongo.collection('pactvm_carbon_ratio').countDocuments({ _id: CARBON_RATIO_ID }).then(async (count) => {
+  runAsTenant(systemTenantId, () => mongo.collection('pactvm_carbon_ratio').countDocuments({ _id: CARBON_RATIO_ID }).then(async (count) => {
     if (count > 0) return;
     await mongo.collection('pactvm_carbon_ratio').insertOne(DEFAULT_CARBON_RATIO);
   }).catch(() => {}));
 
-  runAsTenant(DEFAULT_TENANT_ID, () => mongo.collection('pactvm_cert_config').countDocuments({ _id: CERT_CONFIG_ID }).then(async (count) => {
+  runAsTenant(systemTenantId, () => mongo.collection('pactvm_cert_config').countDocuments({ _id: CERT_CONFIG_ID }).then(async (count) => {
     if (count > 0) return;
     await mongo.collection('pactvm_cert_config').insertOne(DEFAULT_CERT_CONFIG);
   }).catch(() => {}));
 
-  runAsTenant(DEFAULT_TENANT_ID, () => mongo.collection('pactvm_planetary_config').countDocuments({ _id: PLANETARY_CONFIG_ID }).then(async (count) => {
+  runAsTenant(systemTenantId, () => mongo.collection('pactvm_planetary_config').countDocuments({ _id: PLANETARY_CONFIG_ID }).then(async (count) => {
     if (count > 0) return;
     await mongo.collection('pactvm_planetary_config').insertOne(DEFAULT_PLANETARY_CONFIG);
   }).catch(() => {}));
@@ -239,7 +248,7 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getRe
   // sin seed: cada pais usa DEFAULT_VDR_ES_CONFIG en memoria (esConfigResolved)
   // hasta que se edite explicitamente desde el panel, ver el PATCH mas abajo.
 
-  runAsTenant(DEFAULT_TENANT_ID, () => mongo.collection('pactvm_planetary_countries').countDocuments({}).then(async (count) => {
+  runAsTenant(systemTenantId, () => mongo.collection('pactvm_planetary_countries').countDocuments({}).then(async (count) => {
     if (count > 0) return;
     const now = new Date().toISOString();
     await mongo.collection('pactvm_planetary_countries').insertMany(SEED_PLANETARY_COUNTRIES.map((c) => ({
@@ -1069,7 +1078,7 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getRe
   // certificado — solo expone estado/hash, nunca datos comerciales del
   // cliente. Doctrina: "cualquier auditor externo (PwC/Deloitte/EY/KPMG o
   // regulador) puede verificar sin credenciales del sistema".
-  app.get('/api/pactvm-verify/:packageId', async (req, res) => {
+  app.get('/api/pactvm-verify/:packageId', publicTenant, async (req, res) => {
     const row = await mongo.collection('pactvm_carbon_verify').findOne({ _id: req.params.packageId });
     // El QR de los certificados apunta aqui: un movil escaneando pide
     // text/html (Safari/Camera de iOS), una llamada programatica pide
@@ -1099,7 +1108,7 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getRe
   // desde la consola, ver POST .../access-code). Sin sesion persistente
   // — el frontend usa esta respuesta directamente para renderizar los
   // datos client-side, nada queda guardado en el navegador del viewer.
-  app.post('/api/pactvm-verify/:packageId/unlock', unlockPerIp, unlockPerTarget, async (req, res) => {
+  app.post('/api/pactvm-verify/:packageId/unlock', unlockPerIp, unlockPerTarget, publicTenant, async (req, res) => {
     const { packageId } = req.params;
     const email = String(req.body?.email || '').trim().toLowerCase();
     const code = String(req.body?.code || '').trim();
@@ -2257,7 +2266,7 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getRe
 
   // Estado del enlace: el invitado lo consulta al abrir, antes de introducir
   // credenciales. No revela nada del contenido, solo si sigue vivo.
-  app.get('/api/vdr-share/:token', async (req, res) => {
+  app.get('/api/vdr-share/:token', publicTenant, async (req, res) => {
     const row = await mongo.collection('pactvm_vdr_shares').findOne({ _id: req.params.token });
     const state = shareState(row);
     if (!state.ok) return res.status(state.reason === 'NOT_FOUND' ? 404 : 410).json({ status: state.reason });
@@ -2266,7 +2275,7 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getRe
 
   // Desbloqueo: correo en la allowlist + codigo correcto. Devuelve el mismo
   // payload que el endpoint autenticado del globo. Sin sesion persistente.
-  app.post('/api/vdr-share/:token/unlock', unlockPerIp, unlockPerTarget, async (req, res) => {
+  app.post('/api/vdr-share/:token/unlock', unlockPerIp, unlockPerTarget, publicTenant, async (req, res) => {
     const row = await mongo.collection('pactvm_vdr_shares').findOne({ _id: req.params.token });
     const state = shareState(row);
     if (!state.ok) return res.status(state.reason === 'NOT_FOUND' ? 404 : 410).json({ status: state.reason });

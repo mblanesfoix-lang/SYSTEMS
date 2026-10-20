@@ -3,32 +3,41 @@
  * e invitados VDR): codigos de acceso hasheados, traza de los intentos fallidos
  * y limite de intentos por IP + objetivo y por objetivo desde cualquier IP.
  *
- * Mongo real de prueba y mountPactvm aislado (sin sentinel-forensics.attach()).
- * Usa su propia db: pactvm.routes.test.js vacia pactvm_log en elvira_test y los
+ * Mongo real de prueba y mountPactvm aislado (sin sentinel-forensics.attach()), con el
+ * acceso a datos por tenant de server.js (Proxy y registro de tenants) sobre un tenant
+ * de prueba con dbs propias: pactvm.routes.test.js vacia pactvm_log en elvira_test y los
  * ficheros de test corren en paralelo. Se salta si no hay MONGO_URI.
  */
-import '../db/mongo.js'; // efecto lateral: DNS publicos para mongodb+srv en este entorno de desarrollo
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { MongoClient } from 'mongodb';
 import express from 'express';
+import { connectMongo, closeMongo, getMongoClient } from '../db/mongo.js';
+import { tenantsCollection, getTenantDb, getTenantReffDb } from '../db/tenant-registry.js';
+import { tenantContext, createTenantAwareDb, createTenantAwareReffDb } from '../db/tenant-context.js';
 import { mountPactvm } from '../pactum-viridi.js';
 
 const MONGO_URI = process.env.MONGO_URI;
 const skip = !MONGO_URI;
+const TENANT = 'tenant_test_pactvm_unlock';
 const DB_NAME = 'elvira_test_pactvm_unlock';
+const REFF_DB_NAME = 'reff_test_pactvm_unlock';
 const FRONT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../frontend');
 
-let client;
 let db;
 let server;
 let baseUrl;
 
-const adminAuth = (req, res, next) => { req.user = 'test-admin'; req.role = 'admin'; next(); };
+// Como el auth real: sesion de admin y tenant fijado en el contexto.
+const adminAuth = (req, res, next) => {
+  req.user = 'test-admin';
+  req.role = 'admin';
+  req.tenantId = TENANT;
+  tenantContext.run({ tenantId: TENANT }, next);
+};
 const requireMesaStub = () => (req, res, next) => next();
 const requireAdminStub = (req, res, next) => (req.role === 'admin' ? next() : res.status(403).json({ error: 'admin requerido' }));
 const sha256 = (s) => crypto.createHash('sha256').update(String(s)).digest('hex');
@@ -64,30 +73,50 @@ const WRONG = '000000'; // randomInt(100000, 999999) nunca emite un codigo que e
 
 describe('pactvm: desbloqueos publicos endurecidos', { skip: skip && 'MONGO_URI no configurada' }, () => {
   before(async () => {
-    client = new MongoClient(MONGO_URI);
-    await client.connect();
+    await connectMongo();
+    const client = getMongoClient();
     db = client.db(DB_NAME);
     await db.dropDatabase();
+    await client.db(REFF_DB_NAME).dropDatabase();
+    await tenantsCollection().deleteOne({ _id: TENANT });
+    await tenantsCollection().insertOne({
+      _id: TENANT,
+      kind: 'internal',
+      displayName: 'Tenant de prueba (desbloqueos Pactvm)',
+      status: 'active',
+      mongo: { mode: 'shared-cluster', uri: null, dbName: DB_NAME, reffDbName: REFF_DB_NAME },
+      createdAt: new Date().toISOString(),
+    });
+    await getTenantDb(TENANT);
+    await getTenantReffDb(TENANT);
 
     const app = express();
     app.set('trust proxy', true);
     app.use(express.json());
+    const reffDb = createTenantAwareReffDb();
     mountPactvm(app, {
       auth: adminAuth,
       requireMesa: requireMesaStub,
       requireAdmin: requireAdminStub,
-      mongo: db,
-      getReffDb: () => client.db('reff'),
+      mongo: createTenantAwareDb(),
+      getReffDb: () => reffDb,
       getU2Snapshot: () => null,
+      systemTenantId: TENANT,
     });
     server = app.listen(0);
     baseUrl = `http://127.0.0.1:${server.address().port}`;
   });
 
   after(async () => {
-    await db.dropDatabase();
-    await client.close();
-    await new Promise((resolve) => server.close(resolve));
+    try {
+      if (server) await new Promise((resolve) => server.close(resolve));
+      const client = getMongoClient();
+      await tenantsCollection().deleteOne({ _id: TENANT });
+      await client.db(DB_NAME).dropDatabase();
+      await client.db(REFF_DB_NAME).dropDatabase();
+    } finally {
+      await closeMongo();
+    }
   });
 
   describe('verificacion de certificados de carbono', () => {

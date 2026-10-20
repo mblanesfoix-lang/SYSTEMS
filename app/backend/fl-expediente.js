@@ -598,7 +598,7 @@ export function mountFlExpediente(app, { auth, requireMesa, mongo, busEmit, admi
     auth,
     requireMesa('fl_expediente'),
     express.raw({ type: DOCUMENT_TYPES, limit: `${MAX_UPLOAD_MB}mb` }),
-    async (req, res) => {
+    async (req, res, next) => {
       const row = await col().findOne({ _id: String(req.params.id) });
       if (!row) return res.status(404).json({ error: 'documento no encontrado' });
 
@@ -646,36 +646,41 @@ export function mountFlExpediente(app, { auth, requireMesa, mongo, busEmit, admi
       upload.on('error', () => {
         if (!res.headersSent) res.status(500).json({ error: 'Error al guardar el archivo' });
       });
+      // Escucha de un evento: su fallo no vuelve a la ruta, se pasa a mano al manejador de errores.
       upload.on('finish', async () => {
-        // Un archivo activo por documento: el anterior queda DESVINCULADO de
-        // la ficha pero NUNCA se purga de GridFS (ver RETENCION) — sigue en
-        // el bucket, cifrado, huerfano pero recuperable a mano si hiciera
-        // falta. Antes se borraba aqui mismo; ese borrado automatico en el
-        // mismo acto que una subida es justo el patron que causo la perdida.
-        const $set = {
-          file_id: upload.id.toString(),
-          file_name: filename,
-          file_size: originalSize,
-          file_type: contentType,
-          file_sha256: sha256,
-          file_iv: encrypted.iv,
-          file_auth_tag: encrypted.authTag,
-          file_uploaded_at: uploadedAt,
-          updatedAt: uploadedAt,
-          updatedBy: req.user,
-        };
-        // Documento que seguia pendiente: al aportar el archivo pasa a
-        // en_tramite para que deje de contar como faltante mientras el humano
-        // fija las fechas.
-        if (row.estado === 'pendiente') $set.estado = 'en_tramite';
-        await col().updateOne({ _id: row._id }, { $set });
-        await appendFlLog(mongo, {
-          action: prevFileId ? 'expediente.archivo.replace' : 'expediente.archivo.upload',
-          actorId: req.user,
-          detail: { docId: row._id, fileId: upload.id.toString(), fileIdAnterior: prevFileId || null, filename, sha256, confidencial: row.confidencial === true },
-        });
-        const updated = await col().findOne({ _id: row._id });
-        res.status(201).json(serializeDoc(updated));
+        try {
+          // Un archivo activo por documento: el anterior queda DESVINCULADO de
+          // la ficha pero NUNCA se purga de GridFS (ver RETENCION) — sigue en
+          // el bucket, cifrado, huerfano pero recuperable a mano si hiciera
+          // falta. Antes se borraba aqui mismo; ese borrado automatico en el
+          // mismo acto que una subida es justo el patron que causo la perdida.
+          const $set = {
+            file_id: upload.id.toString(),
+            file_name: filename,
+            file_size: originalSize,
+            file_type: contentType,
+            file_sha256: sha256,
+            file_iv: encrypted.iv,
+            file_auth_tag: encrypted.authTag,
+            file_uploaded_at: uploadedAt,
+            updatedAt: uploadedAt,
+            updatedBy: req.user,
+          };
+          // Documento que seguia pendiente: al aportar el archivo pasa a
+          // en_tramite para que deje de contar como faltante mientras el humano
+          // fija las fechas.
+          if (row.estado === 'pendiente') $set.estado = 'en_tramite';
+          await col().updateOne({ _id: row._id }, { $set });
+          await appendFlLog(mongo, {
+            action: prevFileId ? 'expediente.archivo.replace' : 'expediente.archivo.upload',
+            actorId: req.user,
+            detail: { docId: row._id, fileId: upload.id.toString(), fileIdAnterior: prevFileId || null, filename, sha256, confidencial: row.confidencial === true },
+          });
+          const updated = await col().findOne({ _id: row._id });
+          res.status(201).json(serializeDoc(updated));
+        } catch (err) {
+          next(err);
+        }
       });
       upload.end(encrypted.ciphertext);
     },
@@ -688,7 +693,7 @@ export function mountFlExpediente(app, { auth, requireMesa, mongo, busEmit, admi
   // de servirlo, nunca persistido en claro. Cada descarga exitosa queda en
   // fl_log (expediente.archivo.download) — auditoria de lectura, no solo de
   // escritura.
-  router.get('/api/fl/expediente/archivos/:fileId', ...guard, cibe.guard('fl.expediente.read'), async (req, res) => {
+  router.get('/api/fl/expediente/archivos/:fileId', ...guard, cibe.guard('fl.expediente.read'), async (req, res, next) => {
     let oid;
     try { oid = new ObjectId(String(req.params.fileId)); } catch { return res.status(400).json({ error: 'Id de archivo invalido' }); }
     const file = await mongo.collection('fl_expediente_files.files').findOne({ _id: oid });
@@ -724,6 +729,7 @@ export function mountFlExpediente(app, { auth, requireMesa, mongo, busEmit, admi
     const stream = filesBucket(mongo).openDownloadStream(oid);
     stream.on('data', (chunk) => chunks.push(chunk));
     stream.on('error', () => { if (!res.headersSent) res.status(500).json({ error: 'Error al leer el archivo' }); });
+    // Escucha de un evento: su fallo no vuelve a la ruta, se pasa a mano al manejador de errores.
     stream.on('end', async () => {
       let plain;
       try {
@@ -731,11 +737,15 @@ export function mountFlExpediente(app, { auth, requireMesa, mongo, busEmit, admi
       } catch (err) {
         return res.status(500).json({ error: `Error al descifrar el archivo: ${err.message}` });
       }
-      await appendFlLog(mongo, {
-        action: 'expediente.archivo.download',
-        actorId: req.user,
-        detail: { docId: file.metadata?.doc_id || null, fileId: String(oid), filename: file.filename },
-      });
+      try {
+        await appendFlLog(mongo, {
+          action: 'expediente.archivo.download',
+          actorId: req.user,
+          detail: { docId: file.metadata?.doc_id || null, fileId: String(oid), filename: file.filename },
+        });
+      } catch (err) {
+        return next(err);
+      }
       res.setHeader('Content-Type', file.metadata?.content_type || 'application/octet-stream');
       res.setHeader('Content-Length', String(plain.length));
       res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(file.filename)}`);

@@ -218,7 +218,7 @@ export function mountFinanceCompanies(app, { auth, requireMesa, mongo }) {
     auth,
     requireMesa('finance'),
     express.raw({ type: DOCUMENT_TYPES, limit: `${MAX_UPLOAD_MB}mb` }),
-    async (req, res) => {
+    async (req, res, next) => {
       const row = await findCompany(req.params.id);
       if (!row) return res.status(404).json({ error: 'empresa no encontrada' });
       const contentType = String(req.headers['content-type'] || '').split(';')[0].trim();
@@ -247,16 +247,21 @@ export function mountFinanceCompanies(app, { auth, requireMesa, mongo }) {
       upload.on('error', () => {
         if (!res.headersSent) res.status(500).json({ error: 'Error al guardar el documento' });
       });
+      // Escucha de un evento: su fallo no vuelve a la ruta, se pasa a mano al manejador de errores.
       upload.on('finish', async () => {
-        await appendFinanceLog(mongo, {
-          action: 'company.document.upload',
-          actorId: req.user,
-          detail: { companyId: row._id, fileId: upload.id.toString(), filename, folder },
-        });
-        res.status(201).json({
-          id: upload.id.toString(), companyId: row._id, filename, contentType,
-          folder, label, size: req.body.length, uploadedBy: req.user, uploadedAt,
-        });
+        try {
+          await appendFinanceLog(mongo, {
+            action: 'company.document.upload',
+            actorId: req.user,
+            detail: { companyId: row._id, fileId: upload.id.toString(), filename, folder },
+          });
+          res.status(201).json({
+            id: upload.id.toString(), companyId: row._id, filename, contentType,
+            folder, label, size: req.body.length, uploadedBy: req.user, uploadedAt,
+          });
+        } catch (err) {
+          next(err);
+        }
       });
       upload.end(req.body);
     },

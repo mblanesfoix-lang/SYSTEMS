@@ -5,6 +5,7 @@ import { rateLimit, ipKeyGenerator } from 'express-rate-limit';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { connectMongo, closeMongo, getElviraDb, getMongoClient, withTransaction } from './db/mongo.js';
 import { createTenantAwareDb, createTenantAwareReffDb } from './db/tenant-context.js';
@@ -43,6 +44,7 @@ import { mountReffGuestToken } from './routes/reff-guest.routes.js';
 import { mountCspReport, ensureCspReportIndexes } from './routes/csp-report.routes.js';
 import { applySecurityHeaders, CSP_REPORT_PATH } from './lib/security-headers.js';
 import { createMountGuard } from './lib/mount-guard.js';
+import { captureAsyncErrors, createErrorHandler } from './lib/async-errors.js';
 
 // Lo primero: .env locales (si existen) y validación, antes de conectar a Mongo o montar
 // ninguna mesa. En producción, si falta algo o tiene un formato inválido, el proceso no
@@ -211,6 +213,10 @@ function requireAdmin(req, res, next) {
   if (req.role !== 'admin') return res.status(403).json({ error: 'admin requerido' });
   next();
 }
+
+// Un error dentro de una ruta async responde 500 por el manejador global en vez de llegar
+// al proceso (lib/async-errors.js). Antes de crear la app: cubre todo lo que se registre.
+captureAsyncErrors(express);
 
 const app = express();
 app.set('trust proxy', 1);
@@ -758,11 +764,21 @@ app.get('/', (req, res) => res.redirect('/pages/login.html'));
    readyz espera a que termine y, si falla, sus rutas responden 503. Prefijos
    publicos para el filtro: el cliente de Rëff usa su propio token, no la
    sesion de Elvi-Ra.
+   Sus rutas cuelgan de un Router registrado aqui, en su orden, aunque se
+   rellene despues: asi quedan delante del manejador global de errores (si se
+   registraran en la app al terminar la carga, quedarian detras y sus fallos
+   no llegarian a el).
    ============================================================ */
+const reffRoutes = express.Router();
+app.use(reffRoutes);
 safeMount('reff', async () => {
   const REFF_DIST = path.resolve(__dirname, '../../Elvi-Ra/Mesas/Rëff/dist');
   const REFF_SERVER = path.join(REFF_DIST, 'server');
   const REFF_CLIENT = path.join(REFF_DIST, 'client');
+
+  // Rëff trae su propia copia de Express: la misma red de seguridad, aplicada antes de
+  // importar sus rutas (se registran al cargarse los modulos).
+  captureAsyncErrors(createRequire(path.join(REFF_SERVER, 'index.js'))('express'));
 
   // Las variables de Rëff ya están en process.env: llegan por entorno o, en desarrollo,
   // de su .env local (loadLocalEnvFiles al arrancar).
@@ -793,31 +809,31 @@ safeMount('reff', async () => {
 
   // JWT de Rëff a partir de la sesión de Elvi-Ra, sin login propio. Exige sesión válida y
   // acceso a la mesa reff; registra también el alias /api/guest-token (routes/reff-guest.routes.js).
-  mountReffGuestToken(app, { auth, requireMesa, signToken, getUserByUsername, mongo });
+  mountReffGuestToken(reffRoutes, { auth, requireMesa, signToken, getUserByUsername, mongo });
 
-  app.get('/reff/api/health', reffHealth);
-  app.use('/reff/api/auth', reffAuthRoutes);
-  app.use('/reff/api/crm',  reffSheetsRoutes);
-  app.use('/reff/api/crm',  reffCompaniesRoutes);
-  app.use('/reff/api/crm',  reffMeetingsRoutes);
-  app.use('/reff/api/crm',  reffCommsRoutes);
-  app.use('/reff/api/geo',  reffGeoRoutes);
-  app.use('/reff/api/herzog', reffHerzogRoutes);
-  app.use('/reff/api/watch', reffWatchRoutes);
-  app.use('/reff/api/traffic', reffTrafficRoutes);
+  reffRoutes.get('/reff/api/health', reffHealth);
+  reffRoutes.use('/reff/api/auth', reffAuthRoutes);
+  reffRoutes.use('/reff/api/crm',  reffSheetsRoutes);
+  reffRoutes.use('/reff/api/crm',  reffCompaniesRoutes);
+  reffRoutes.use('/reff/api/crm',  reffMeetingsRoutes);
+  reffRoutes.use('/reff/api/crm',  reffCommsRoutes);
+  reffRoutes.use('/reff/api/geo',  reffGeoRoutes);
+  reffRoutes.use('/reff/api/herzog', reffHerzogRoutes);
+  reffRoutes.use('/reff/api/watch', reffWatchRoutes);
+  reffRoutes.use('/reff/api/traffic', reffTrafficRoutes);
 
   // Aliases at root /api so Rëff React client (built with base path "/") resolves correctly
   // (/api/guest-token ya lo registra mountReffGuestToken arriba)
-  app.get('/api/reff-health', reffHealth);
-  app.use('/api/auth',   reffAuthRoutes);
-  app.use('/api/crm',    reffSheetsRoutes);
-  app.use('/api/crm',    reffCompaniesRoutes);
-  app.use('/api/crm',    reffMeetingsRoutes);
-  app.use('/api/crm',    reffCommsRoutes);
-  app.use('/api/geo',    reffGeoRoutes);
-  app.use('/api/herzog', reffHerzogRoutes);
-  app.use('/api/watch',  reffWatchRoutes);
-  app.use('/api/traffic', reffTrafficRoutes);
+  reffRoutes.get('/api/reff-health', reffHealth);
+  reffRoutes.use('/api/auth',   reffAuthRoutes);
+  reffRoutes.use('/api/crm',    reffSheetsRoutes);
+  reffRoutes.use('/api/crm',    reffCompaniesRoutes);
+  reffRoutes.use('/api/crm',    reffMeetingsRoutes);
+  reffRoutes.use('/api/crm',    reffCommsRoutes);
+  reffRoutes.use('/api/geo',    reffGeoRoutes);
+  reffRoutes.use('/api/herzog', reffHerzogRoutes);
+  reffRoutes.use('/api/watch',  reffWatchRoutes);
+  reffRoutes.use('/api/traffic', reffTrafficRoutes);
 
   startWatchCron();
   startMeetingReminderCron();
@@ -828,14 +844,14 @@ safeMount('reff', async () => {
     // bajo las claves que espera el cliente React (reff_token / reff_user) y entra al SPA. Sin sesión
     // (o con la sesión caducada) manda al login de Elvi-Ra. El script va en archivo propio porque la CSP
     // no admite scripts en línea.
-    app.get('/reff', (_req, res) => {
+    reffRoutes.get('/reff', (_req, res) => {
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.send('<!doctype html><html><head><meta charset="UTF-8"><title>Rëff</title></head><body>'
         + '<script src="/js/reff-wrapper.js"></script></body></html>');
     });
-    app.use('/reff/app', express.static(REFF_CLIENT));
-    app.use('/assets', express.static(path.join(REFF_CLIENT, 'assets')));
-    app.get('/reff/app/*', (_req, res) => res.sendFile(path.join(REFF_CLIENT, 'index.html')));
+    reffRoutes.use('/reff/app', express.static(REFF_CLIENT));
+    reffRoutes.use('/assets', express.static(path.join(REFF_CLIENT, 'assets')));
+    reffRoutes.get('/reff/app/*', (_req, res) => res.sendFile(path.join(REFF_CLIENT, 'index.html')));
   }
 
   console.log('[Rëff] Integrado en Elvi-Ra bajo /reff');
@@ -844,14 +860,10 @@ safeMount('reff', async () => {
   publicPrefixes: ['/reff', '/api/reff-health', '/api/guest-token', '/api/auth', '/api/crm', '/api/geo', '/api/herzog', '/api/watch', '/api/traffic'],
 });
 
-/* Error handler global — última red. Cualquier excepción no atrapada en una ruta
-   cae aquí; se notifica al Admin además de responder 500 al cliente. */
-app.use((err, req, res, _next) => {
-  console.error('[unhandled route error]', err);
-  adminNotify({ origin: 'SYSTEM', label: `Error no controlado · ${req.method} ${req.path}`, detail: err?.stack || err?.message || String(err), severity: 'error' });
-  if (res.headersSent) return;
-  res.status(500).json({ error: 'Error interno del servidor' });
-});
+/* Error handler global — última red. Cualquier error de una ruta, también de las async
+   (captureAsyncErrors) y de las de Rëff, cae aquí: 500 al cliente y aviso al Admin, uno
+   por ruta y ventana. Los 4xx del cliente (JSON mal formado...) conservan su código. */
+app.use(createErrorHandler({ notify: (notice) => adminNotify(notice) }));
 
 /* ==========================================================================
    K8s · puente entre la deteccion de infraestructura (kubelet) y la capa de
