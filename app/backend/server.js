@@ -719,26 +719,12 @@ app.get('/', (req, res) => res.redirect('/pages/login.html'));
     if (fs.existsSync(REFF_CLIENT)) {
       // Wrapper: usa el token de sesión de Elvi-Ra (elvira_token) para obtener un token de Rëff, lo guarda
       // bajo las claves que espera el cliente React (reff_token / reff_user) y entra al SPA. Sin sesión
-      // (o con la sesión caducada) manda al login de Elvi-Ra.
+      // (o con la sesión caducada) manda al login de Elvi-Ra. El script va en archivo propio porque la CSP
+      // no admite scripts en línea.
       app.get('/reff', (_req, res) => {
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.send(`<!doctype html><html><head><meta charset="UTF-8"><title>Rëff</title></head><body>
-<script>
-(async () => {
-  const elviraToken = localStorage.getItem('elvira_token') || '';
-  if (!elviraToken) { location.replace('/pages/login.html'); return; }
-  try {
-    const r = await fetch('/reff/api/guest-token', { headers: { Authorization: 'Bearer ' + elviraToken } });
-    if (r.status === 401) { location.replace('/pages/login.html'); return; }
-    if (!r.ok) throw new Error('guest-token HTTP ' + r.status);
-    const { token, user } = await r.json();
-    if (token) localStorage.setItem('reff_token', token);
-    if (user) localStorage.setItem('reff_user', JSON.stringify(user));
-  } catch(e) { console.warn('[reff-wrapper] guest-token failed', e); }
-  location.replace('/reff/app/dashboard');
-})();
-</script>
-</body></html>`);
+        res.send('<!doctype html><html><head><meta charset="UTF-8"><title>Rëff</title></head><body>'
+          + '<script src="/js/reff-wrapper.js"></script></body></html>');
       });
       app.use('/reff/app', express.static(REFF_CLIENT));
       app.use('/assets', express.static(path.join(REFF_CLIENT, 'assets')));

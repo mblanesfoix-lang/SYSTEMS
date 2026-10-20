@@ -14,7 +14,7 @@ export function applyStoredTheme() {
 
 // Renders the toggle switch into `container` and wires it up.
 // Call after DOM is ready (the theme itself is already applied pre-paint
-// by the inline head script — this only mounts the visible control).
+// by js/theme-init.js in <head> — this only mounts the visible control).
 // By default the switch is prepended so it lands before sibling controls
 // (user-menu, notification bell) added later in the same container.
 export function mountThemeToggle(container, { prepend = true } = {}) {

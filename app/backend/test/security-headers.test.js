@@ -66,6 +66,8 @@ describe('cabeceras de seguridad en estaticos y API', () => {
     fs.writeFileSync(path.join(staticDir, 'pagina.html'), '<!doctype html><title>t</title>');
     const app = buildApp({ collection: () => ({ bulkWrite: async () => ({}) }) });
     app.use(express.static(staticDir));
+    for (const ruta of ['/reff', '/reff/app/dashboard']) app.get(ruta, (_req, res) => res.send('<!doctype html><title>r</title>'));
+    app.get('/reffx', (_req, res) => res.send('<!doctype html><title>x</title>'));
     ({ server, baseUrl } = await listen(app));
   });
 
@@ -75,16 +77,19 @@ describe('cabeceras de seguridad en estaticos y API', () => {
   });
 
   for (const [tipo, ruta] of [['estatica', '/pagina.html'], ['de API', '/api/ping']]) {
-    test(`respuesta ${tipo}: CSP en Report-Only, antiencuadre, nosniff y referrer`, async () => {
+    test(`respuesta ${tipo}: CSP impuesta, antiencuadre, nosniff y referrer`, async () => {
       const res = await fetch(`${baseUrl}${ruta}`);
       assert.equal(res.status, 200);
-      const csp = res.headers.get('content-security-policy-report-only');
-      assert.ok(csp, 'falta Content-Security-Policy-Report-Only');
-      for (const d of ["default-src 'self'", "script-src 'self'", "object-src 'none'", "frame-ancestors 'self'", `report-uri ${CSP_REPORT_PATH}`]) {
+      const csp = res.headers.get('content-security-policy');
+      assert.ok(csp, 'falta Content-Security-Policy');
+      const directives = new Map(csp.split(';').map((d) => d.trim().split(/\s+/)).map(([name, ...values]) => [name, values]));
+      assert.deepEqual(directives.get('script-src'), ["'self'"], 'script-src no admite nada en linea ni eval');
+      assert.deepEqual(directives.get('script-src-attr'), ["'none'"]);
+      for (const d of ["default-src 'self'", "object-src 'none'", "frame-ancestors 'none'", `report-uri ${CSP_REPORT_PATH}`]) {
         assert.ok(csp.includes(d), `la politica no incluye: ${d}`);
       }
       assert.ok(!csp.includes('upgrade-insecure-requests'));
-      assert.equal(res.headers.get('content-security-policy'), null, 'la politica aun no debe imponerse');
+      assert.equal(res.headers.get('content-security-policy-report-only'), null, 'no debe quedar la politica en modo informe');
       assert.equal(res.headers.get('x-frame-options'), 'SAMEORIGIN');
       assert.equal(res.headers.get('x-content-type-options'), 'nosniff');
       assert.equal(res.headers.get('referrer-policy'), 'no-referrer');
@@ -92,6 +97,13 @@ describe('cabeceras de seguridad en estaticos y API', () => {
       assert.equal(res.headers.get('x-powered-by'), null);
     });
   }
+
+  test("solo Rëff se deja enmarcar, y solo desde el propio origen", async () => {
+    for (const [ruta, esperado] of [['/reff', "'self'"], ['/reff/app/dashboard', "'self'"], ['/reffx', "'none'"], ['/pagina.html', "'none'"]]) {
+      const csp = (await fetch(`${baseUrl}${ruta}`)).headers.get('content-security-policy');
+      assert.ok(csp.includes(`frame-ancestors ${esperado}`), `${ruta}: se esperaba frame-ancestors ${esperado}`);
+    }
+  });
 
   test('HSTS solo cuando la peticion llega por TLS', async () => {
     const plain = await fetch(`${baseUrl}/api/ping`);

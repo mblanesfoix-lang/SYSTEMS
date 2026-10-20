@@ -11,6 +11,9 @@ import '../db/mongo.js'; // efecto lateral: DNS publicos para mongodb+srv en est
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { MongoClient } from 'mongodb';
 import express from 'express';
 import { mountPactvm } from '../pactum-viridi.js';
@@ -18,6 +21,7 @@ import { mountPactvm } from '../pactum-viridi.js';
 const MONGO_URI = process.env.MONGO_URI;
 const skip = !MONGO_URI;
 const DB_NAME = 'elvira_test_pactvm_unlock';
+const FRONT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../frontend');
 
 let client;
 let db;
@@ -87,6 +91,24 @@ describe('pactvm: desbloqueos publicos endurecidos', { skip: skip && 'MONGO_URI 
   });
 
   describe('verificacion de certificados de carbono', () => {
+    test('las tarjetas HTML no llevan script en linea; la restringida carga su archivo', async () => {
+      const html = async (id) => {
+        const res = await fetch(`${baseUrl}/api/pactvm-verify/${id}`, { headers: { Accept: 'text/html' } });
+        return { status: res.status, body: await res.text() };
+      };
+      const inlineScripts = (body) => [...body.matchAll(/<script\b([^>]*)>/gi)].filter(([, attrs]) => !/\ssrc=/.test(attrs));
+      await newPackage('PKG-HTML');
+      const gated = await html('PKG-HTML');
+      assert.equal(gated.status, 200);
+      assert.deepEqual(inlineScripts(gated.body), []);
+      assert.ok(gated.body.includes('<script src="/js/pactvm-verify-gate.js"></script>'));
+      assert.ok(gated.body.includes('data-package-id="PKG-HTML"'));
+      assert.ok(fs.existsSync(path.join(FRONT, 'js', 'pactvm-verify-gate.js')));
+      const missing = await html('PKG-NO-EXISTE');
+      assert.equal(missing.status, 404);
+      assert.deepEqual(inlineScripts(missing.body), []);
+    });
+
     test('el codigo de acceso se guarda hasheado, nunca en claro', async () => {
       await newPackage('PKG-HASH');
       const code = await issueCode('PKG-HASH');
