@@ -15,6 +15,8 @@
 import crypto from 'node:crypto';
 import { runAsTenant } from './db/tenant-context.js';
 import { DEFAULT_TENANT_ID } from './db/tenant-registry.js';
+import { appendChained, verifyLog } from './lib/hash-chain.js';
+import { merkleRoot as computeMerkleRoot, MERKLE_VERSION } from './lib/merkle.js';
 import QRCode from 'qrcode';
 import { rateLimit, ipKeyGenerator } from 'express-rate-limit';
 
@@ -163,21 +165,7 @@ function withId(doc) {
   return { id: _id, ...rest };
 }
 
-function canonical(entry) {
-  return JSON.stringify(entry, Object.keys(entry).sort());
-}
-
-async function appendPactvmLog(mongo, entry) {
-  const col = mongo.collection('pactvm_log');
-  const tail = await col.find().sort({ seq: -1 }).limit(1).next();
-  const seq = tail ? tail.seq + 1 : 1;
-  const prevHash = tail ? tail.hash : '0'.repeat(64);
-  const canonicalEntry = { ...entry, seq };
-  const hash = crypto.createHash('sha256').update(prevHash + canonical(canonicalEntry)).digest('hex');
-  const doc = { _id: crypto.randomUUID(), ...entry, seq, prevHash, hash, createdAt: new Date().toISOString() };
-  await col.insertOne(doc);
-  return doc;
-}
+const appendPactvmLog = (mongo, entry) => appendChained(mongo, 'pactvm_log', entry);
 
 export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getReffDb, getU2Snapshot }) {
   const router = app;
@@ -823,11 +811,9 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getRe
   // Merkle root simplificado: hash de cada registro (hoja) combinados en un
   // unico hash raiz. No es un arbol Merkle completo con pruebas de inclusion
   // (no hay necesidad de probar un registro individual sin revelar los demas
-  // todavia) — es el mismo nivel de rigor que el hash chain de pactvm_log,
-  // aplicado aqui al lote de registros de un paquete concreto.
-  function merkleRootFromRecords(leaves) {
-    const leafHashes = leaves.map((leaf) => crypto.createHash('sha256').update(canonical(leaf)).digest('hex'));
-    return crypto.createHash('sha256').update(leafHashes.join('')).digest('hex');
+  // todavia). La version del algoritmo queda en el certificado (lib/merkle.js).
+  function merkleRootFromRecords(leaves, version = MERKLE_VERSION) {
+    return computeMerkleRoot(leaves, version);
   }
 
   function verificationUrl(req, packageId) {
@@ -1092,6 +1078,7 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getRe
       generatedBy: req.user,
       security: {
         merkleRoot,
+        merkleVersion: MERKLE_VERSION,
         sensorCalibrationChecksum,
         rfc3161Timestamp: new Date().toISOString(),
         verificationUrl: vUrl,
@@ -1120,7 +1107,7 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getRe
       status: 'LISTO_PARA_COTIZACION',
     };
     await mongo.collection('pactvm_carbon_verify').insertOne({
-      _id: packageId, type: 'certificado', period, merkleRoot, status: 'VERIFIED_AND_LOCKED', createdAt: snapshot.generatedAt,
+      _id: packageId, type: 'certificado', period, merkleRoot, merkleVersion: MERKLE_VERSION, status: 'VERIFIED_AND_LOCKED', createdAt: snapshot.generatedAt,
       clientName: rows.length === 1 ? rows[0].clientName : `${rows.length} clientes`,
       recordCount: rows.length,
       co2eTotal: snapshot.totals.co2eTons,
@@ -1155,6 +1142,7 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getRe
       type: row.type,
       period: row.period,
       merkleRoot: row.merkleRoot,
+      merkleVersion: row.merkleVersion ?? 1,
       issuedAt: row.createdAt,
     });
   });
@@ -1197,6 +1185,7 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getRe
       co2eWeightedTotal: row.co2eWeightedTotal,
       dbo5Total: row.dbo5Total,
       merkleRoot: row.merkleRoot,
+      merkleVersion: row.merkleVersion ?? 1,
       issuedAt: row.createdAt,
     });
   });
@@ -1290,6 +1279,7 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getRe
       generatedBy: req.user,
       security: {
         merkleRoot,
+        merkleVersion: MERKLE_VERSION,
         rfc3161Timestamp: new Date().toISOString(),
         verificationUrl: vUrl,
         qrDataUri: await qrDataUri(vUrl),
@@ -1309,7 +1299,7 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getRe
       status: 'LISTO_PARA_COTIZACION',
     };
     await mongo.collection('pactvm_carbon_verify').insertOne({
-      _id: tokenBatchId, type: 'tokenizacion', period, merkleRoot, status: 'VERIFIED_AND_LOCKED', createdAt: snapshot.generatedAt,
+      _id: tokenBatchId, type: 'tokenizacion', period, merkleRoot, merkleVersion: MERKLE_VERSION, status: 'VERIFIED_AND_LOCKED', createdAt: snapshot.generatedAt,
       clientName: rows.length === 1 ? rows[0].clientName : `${rows.length} clientes`,
       recordCount: rows.length,
       co2eTotal: tokens.reduce((s, t) => s + (t.co2eWeightedTons ? t.co2eWeightedTons / (t.gwpFactor || 1) : 0), 0),
@@ -1428,7 +1418,8 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getRe
     // (solo quedo el resumen en detail): se reconstruye con los datos ACTUALES
     // de pactvm_carbon_clients/ratio para poder seguir entregando el PDF, mal
     // marcado explicitamente como reconstruccion (no es el calculo exacto del
-    // momento si el registro se edito despues de emitir/tokenizar).
+    // momento si el registro se edito despues de emitir/tokenizar). Estos
+    // paquetes se emitieron con la version 1 del algoritmo Merkle.
     const period = row.detail?.period;
     if (!period) return res.status(404).json({ error: 'paquete sin snapshot ni periodo recuperable' });
     const query = { period };
@@ -1459,7 +1450,7 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getRe
         cadastralRef: r.cadastralRef || '',
         source: r.source || '',
       }));
-      const merkleRoot = merkleRootFromRecords(records);
+      const merkleRoot = merkleRootFromRecords(records, 1);
       const vUrlCert = verificationUrl(req, row.detail.packageId);
       snapshot = {
         packageId: row.detail.packageId,
@@ -1469,6 +1460,7 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getRe
         generatedBy: row.actorId,
         security: {
           merkleRoot,
+          merkleVersion: 1,
           sensorCalibrationChecksum: crypto.createHash('sha256').update(`${row.detail.packageId}:${merkleRoot}:${ratioDoc.dbo5ToCreditsRatio}`).digest('hex'),
           rfc3161Timestamp: row.createdAt,
           verificationUrl: vUrlCert,
@@ -1515,7 +1507,7 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getRe
         gisLng: r.gisLng ?? null,
         cadastralRef: r.cadastralRef || '',
       }));
-      const merkleRoot = merkleRootFromRecords(tokens);
+      const merkleRoot = merkleRootFromRecords(tokens, 1);
       const vUrlTok = verificationUrl(req, row.detail.tokenBatchId);
       snapshot = {
         tokenBatchId: row.detail.tokenBatchId,
@@ -1525,6 +1517,7 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getRe
         generatedBy: row.actorId,
         security: {
           merkleRoot,
+          merkleVersion: 1,
           rfc3161Timestamp: row.createdAt,
           verificationUrl: vUrlTok,
           qrDataUri: await qrDataUri(vUrlTok),
@@ -2379,16 +2372,6 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getRe
   /* ---- integridad del log ---- */
 
   router.get('/api/pactvm/log/verify', ...guard, async (req, res) => {
-    const all = await mongo.collection('pactvm_log').find({}).sort({ seq: 1 }).toArray();
-    let prev = '0'.repeat(64);
-    for (const entry of all) {
-      const { _id, seq, prevHash, hash, createdAt, ...rest } = entry;
-      const expectedHash = crypto.createHash('sha256').update(prev + canonical({ ...rest, seq })).digest('hex');
-      if (expectedHash !== hash || prevHash !== prev) {
-        return res.json({ valid: false, totalEntries: all.length, brokenAtSeq: seq });
-      }
-      prev = hash;
-    }
-    res.json({ valid: true, totalEntries: all.length, brokenAtSeq: null });
+    res.json(await verifyLog(mongo, 'pactvm_log'));
   });
 }

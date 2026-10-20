@@ -21,6 +21,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { runAsTenant } from './db/tenant-context.js';
 import { DEFAULT_TENANT_ID } from './db/tenant-registry.js';
+import { appendChained, verifyLog } from './lib/hash-chain.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -38,21 +39,7 @@ const DEFAULT_COUNTRIES = [
   { code: 'MA', tso: 'ONEE', label: "Office National de l'Electricite (Maroc)", baseDemandMw: 7200 },
 ];
 
-function canonical(entry) {
-  return JSON.stringify(entry, Object.keys(entry).sort());
-}
-
-async function appendGridLog(mongo, entry) {
-  const col = mongo.collection('grid_log');
-  const tail = await col.find().sort({ seq: -1 }).limit(1).next();
-  const seq = tail ? tail.seq + 1 : 1;
-  const prevHash = tail ? tail.hash : '0'.repeat(64);
-  const canonicalEntry = { ...entry, seq };
-  const hash = crypto.createHash('sha256').update(prevHash + canonical(canonicalEntry)).digest('hex');
-  const doc = { _id: crypto.randomUUID(), ...entry, seq, prevHash, hash, createdAt: new Date().toISOString() };
-  await col.insertOne(doc);
-  return doc;
-}
+const appendGridLog = (mongo, entry) => appendChained(mongo, 'grid_log', entry);
 
 export function mountGridInterlink(app, { auth, requireMesa, mongo, busEmit, adminNotify, cibe }) {
   const AUTOSTART = process.env.GRID_AUTOSTART !== '0';
@@ -374,17 +361,7 @@ export function mountGridInterlink(app, { auth, requireMesa, mongo, busEmit, adm
   }));
 
   app.get('/api/grid/log/verify', ...guard, h(async (req, res) => {
-    const all = await mongo.collection('grid_log').find({}).sort({ seq: 1 }).toArray();
-    let prev = '0'.repeat(64);
-    for (const entry of all) {
-      const { _id, seq, prevHash, hash, createdAt, ...rest } = entry;
-      const expected = crypto.createHash('sha256').update(prev + canonical({ ...rest, seq })).digest('hex');
-      if (expected !== hash || prevHash !== prev) {
-        return res.json({ valid: false, totalEntries: all.length, brokenAtSeq: seq });
-      }
-      prev = hash;
-    }
-    res.json({ valid: true, totalEntries: all.length, brokenAtSeq: null });
+    res.json(await verifyLog(mongo, 'grid_log'));
   }));
 
   // Arranque de boot, fuera de cualquier request: corre explicitamente

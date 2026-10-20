@@ -101,6 +101,7 @@ import express from 'express';
 import { GridFSBucket, ObjectId } from 'mongodb';
 import { runAsTenant } from './db/tenant-context.js';
 import { DEFAULT_TENANT_ID } from './db/tenant-registry.js';
+import { appendChained } from './lib/hash-chain.js';
 
 const ENC_ALGO = 'aes-256-gcm';
 const ENC_IV_LEN = 12;
@@ -283,20 +284,8 @@ function decryptBuffer(ciphertext, ivB64, authTagB64) {
   return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
 }
 
-function canonical(entry) {
-  return JSON.stringify(entry, Object.keys(entry).sort());
-}
-
-async function appendFlLog(mongo, entry) {
-  const col = mongo.collection('fl_log');
-  const tail = await col.find().sort({ seq: -1 }).limit(1).next();
-  const seq = tail ? tail.seq + 1 : 1;
-  const prevHash = tail ? tail.hash : '0'.repeat(64);
-  const hash = crypto.createHash('sha256').update(prevHash + canonical({ ...entry, seq })).digest('hex');
-  const doc = { _id: crypto.randomUUID(), ...entry, seq, prevHash, hash, createdAt: new Date().toISOString() };
-  await col.insertOne(doc);
-  return doc;
-}
+/* Misma cadena fl_log que el Hub (fl-hub.js), que la verifica. */
+const appendFlLog = (mongo, entry) => appendChained(mongo, 'fl_log', entry);
 
 function isValidDate(s) {
   return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s));

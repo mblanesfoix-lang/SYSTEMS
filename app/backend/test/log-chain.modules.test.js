@@ -1,6 +1,6 @@
 /**
  * Cada mesa con log encadenado por hash (Finance, Empresas de Finance, M&A,
- * Puerto Maestro, Herzog Central, S-EAGLE y Resilience) escribe entradas
+ * Puerto Maestro, Herzog Central, S-EAGLE, Resilience, ØPS y Pactvm) escribe entradas
  * canon 2 y su /log/verify acepta tambien las heredadas. Mismo patron que
  * resilience.routes.test.js: cada mesa se monta sobre un Express propio con
  * auth y requireMesa como stubs y una db de pruebas propia. Se salta sin
@@ -18,6 +18,8 @@ import { mountMasterGateway } from '../master-gateway.js';
 import { mountHerzog } from '../herzog.js';
 import { mountSeagle } from '../seagle.js';
 import { mountResilience } from '../resilience.js';
+import { mountOps } from '../ops.js';
+import { mountPactvm } from '../pactum-viridi.js';
 
 const MONGO_URI = process.env.MONGO_URI;
 const GENESIS = '0'.repeat(64);
@@ -95,6 +97,24 @@ const MODULES = [
     action: 'bss_reading.create',
     nested: 'detail.socPct',
   },
+  {
+    name: 'ops',
+    log: 'ops_log',
+    verify: '/api/ops/log/verify',
+    mount: (app, deps) => mountOps(app, deps),
+    write: () => ({ path: '/api/ops/nodes', body: { nodeId: `nodo-${crypto.randomUUID()}` } }),
+    action: 'node.register',
+    nested: 'detail.nodeId',
+  },
+  {
+    name: 'pactvm',
+    log: 'pactvm_log',
+    verify: '/api/pactvm/log/verify',
+    mount: (app, deps) => mountPactvm(app, { ...deps, requireAdmin: (req, res, next) => next(), getReffDb: () => deps.mongo, getU2Snapshot: () => null }),
+    write: { path: '/api/pactvm/policies', body: { name: 'Politica de prueba', category: 'residuo' } },
+    action: 'policy.create',
+    nested: 'detail.name',
+  },
 ];
 
 /* Entrada heredada, escrita como lo hacia cada mesa antes de la serializacion profunda. */
@@ -127,8 +147,9 @@ for (const mod of MODULES) {
     }
 
     async function writeOne() {
-      const res = await call(mod.write.path, { method: 'POST', body: mod.write.body });
-      assert.ok(res.status >= 200 && res.status < 300, `${mod.write.path} respondio ${res.status}`);
+      const write = typeof mod.write === 'function' ? mod.write() : mod.write;
+      const res = await call(write.path, { method: 'POST', body: write.body });
+      assert.ok(res.status >= 200 && res.status < 300, `${write.path} respondio ${res.status}`);
     }
 
     const legacyEntry = (i) => ({ action: 'legacy.create', actorId: 'legacy-user', detail: { n: i, nested: { campo: `valor-${i}` } } });

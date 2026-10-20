@@ -23,6 +23,7 @@
  */
 
 import crypto from 'node:crypto';
+import { appendChained, verifyLog } from './lib/hash-chain.js';
 
 const TOKEN_RE = /^v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 const KEY_SCOPES = ['ophs.command', 'grid.command', 'rack.command', 'fl.expediente.read', '*'];
@@ -33,21 +34,7 @@ function b64url(buf) {
   return Buffer.from(buf).toString('base64url');
 }
 
-function canonical(entry) {
-  return JSON.stringify(entry, Object.keys(entry).sort());
-}
-
-async function appendCibeLog(mongo, entry) {
-  const col = mongo.collection('cibe_log');
-  const tail = await col.find().sort({ seq: -1 }).limit(1).next();
-  const seq = tail ? tail.seq + 1 : 1;
-  const prevHash = tail ? tail.hash : '0'.repeat(64);
-  const canonicalEntry = { ...entry, seq };
-  const hash = crypto.createHash('sha256').update(prevHash + canonical(canonicalEntry)).digest('hex');
-  const doc = { _id: crypto.randomUUID(), ...entry, seq, prevHash, hash, createdAt: new Date().toISOString() };
-  await col.insertOne(doc);
-  return doc;
-}
+const appendCibeLog = (mongo, entry) => appendChained(mongo, 'cibe_log', entry);
 
 export function createCibeBunker({ mongo, busEmit, adminNotify }) {
   const MODE = ['off', 'auto', 'strict'].includes(process.env.CIBE_MODE) ? process.env.CIBE_MODE : 'auto';
@@ -324,16 +311,6 @@ export function mountCibeBunker(app, { auth, requireMesa, mongo, bunker, busEmit
   }));
 
   app.get('/api/pactvm/cibe-bunker/log/verify', ...guard, h(async (req, res) => {
-    const all = await mongo.collection('cibe_log').find({}).sort({ seq: 1 }).toArray();
-    let prev = '0'.repeat(64);
-    for (const entry of all) {
-      const { _id, seq, prevHash, hash, createdAt, ...rest } = entry;
-      const expected = crypto.createHash('sha256').update(prev + canonical({ ...rest, seq })).digest('hex');
-      if (expected !== hash || prevHash !== prev) {
-        return res.json({ valid: false, totalEntries: all.length, brokenAtSeq: seq });
-      }
-      prev = hash;
-    }
-    res.json({ valid: true, totalEntries: all.length, brokenAtSeq: null });
+    res.json(await verifyLog(mongo, 'cibe_log'));
   }));
 }

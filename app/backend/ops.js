@@ -12,6 +12,7 @@
  */
 
 import crypto from 'node:crypto';
+import { appendChained, verifyLog } from './lib/hash-chain.js';
 
 const CIRCUIT_STATES = ['nominal', 'degradado', 'parada', 'mantenimiento'];
 
@@ -28,21 +29,7 @@ function withId(doc) {
   return { id: _id, ...rest };
 }
 
-function canonical(entry) {
-  return JSON.stringify(entry, Object.keys(entry).sort());
-}
-
-async function appendOpsLog(mongo, entry) {
-  const col = mongo.collection('ops_log');
-  const tail = await col.find().sort({ seq: -1 }).limit(1).next();
-  const seq = tail ? tail.seq + 1 : 1;
-  const prevHash = tail ? tail.hash : '0'.repeat(64);
-  const canonicalEntry = { ...entry, seq };
-  const hash = crypto.createHash('sha256').update(prevHash + canonical(canonicalEntry)).digest('hex');
-  const doc = { _id: crypto.randomUUID(), ...entry, seq, prevHash, hash, createdAt: new Date().toISOString() };
-  await col.insertOne(doc);
-  return doc;
-}
+const appendOpsLog = (mongo, entry) => appendChained(mongo, 'ops_log', entry);
 
 export function evalThresholds(reading) {
   const breaches = [];
@@ -211,16 +198,6 @@ export function mountOps(app, { auth, requireMesa, mongo, cibe }) {
   /* ---- integridad del log ---- */
 
   router.get('/api/ops/log/verify', ...guard, async (req, res) => {
-    const all = await mongo.collection('ops_log').find({}).sort({ seq: 1 }).toArray();
-    let prev = '0'.repeat(64);
-    for (const entry of all) {
-      const { _id, seq, prevHash, hash, createdAt, ...rest } = entry;
-      const expectedHash = crypto.createHash('sha256').update(prev + canonical({ ...rest, seq })).digest('hex');
-      if (expectedHash !== hash || prevHash !== prev) {
-        return res.json({ valid: false, totalEntries: all.length, brokenAtSeq: seq });
-      }
-      prev = hash;
-    }
-    res.json({ valid: true, totalEntries: all.length, brokenAtSeq: null });
+    res.json(await verifyLog(mongo, 'ops_log'));
   });
 }

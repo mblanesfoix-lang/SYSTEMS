@@ -23,7 +23,12 @@
  *                    S-NFI Teleco añade el tunel dedicado por debajo)
  *   Sin RACK_PEERS => modo standalone: lider unico con quorum 1 (primer rack).
  *
- * Transporte v1: HTTP JSON firmado HMAC-SHA256 (+ ventana temporal 30s).
+ * Transporte: HTTP JSON firmado HMAC-SHA256 sobre la serializacion canonica
+ * profunda del mensaje completo (entradas incluidas) y la ruta destino. Cada
+ * mensaje lleva version de protocolo (proto), marca temporal (ventana de 30 s)
+ * y nonce de un solo uso; se rechazan los mensajes anteriores al arranque del
+ * rack receptor. Un rack con otra version de protocolo se rechaza: todos los
+ * racks de la malla se actualizan a la vez.
  * Punto de sustitucion prod: cambiar transporte por los tuneles dedicados
  * de S-NFI Teleco sin tocar la logica Raft.
  */
@@ -32,12 +37,18 @@ import crypto from 'node:crypto';
 import os from 'node:os';
 import { runAsTenant } from './db/tenant-context.js';
 import { DEFAULT_TENANT_ID } from './db/tenant-registry.js';
+import { appendChained, canonicalV2, verifyLog } from './lib/hash-chain.js';
 
 const KEY_RE = /^[a-z0-9_.:-]{2,80}$/;
 const MAX_VALUE_BYTES = 2048;
 const RPC_TIMEOUT_MS = 1000;
 const PEER_TS_WINDOW_MS = 30000;
 const PROPOSE_COMMIT_TIMEOUT_MS = 3000;
+const NONCE_RE = /^[a-f0-9]{32}$/;
+const VOTE_PATH = '/api/rack/raft/request-vote';
+const APPEND_PATH = '/api/rack/raft/append-entries';
+
+export const RACK_PROTOCOL_VERSION = 2;
 
 const DEFAULT_STATE = {
   'ports.main': Number(process.env.PORT) || 5173,
@@ -45,25 +56,13 @@ const DEFAULT_STATE = {
   'security.lockdown': false,
 };
 
-function canonical(obj) {
-  return JSON.stringify(obj, Object.keys(obj).sort());
+/* Firma de un mensaje de la malla: cubre la ruta destino y todo el cuerpo a
+   cualquier nivel, asi que un mensaje firmado para una ruta no vale en otra. */
+export function signRackMessage(path, body, key) {
+  return crypto.createHmac('sha256', key).update(canonicalV2({ path, body })).digest('hex');
 }
 
-function hmacOf(body, key) {
-  return crypto.createHmac('sha256', key).update(canonical(body)).digest('hex');
-}
-
-async function appendRackLog(mongo, entry) {
-  const col = mongo.collection('rack_log');
-  const tail = await col.find().sort({ seq: -1 }).limit(1).next();
-  const seq = tail ? tail.seq + 1 : 1;
-  const prevHash = tail ? tail.hash : '0'.repeat(64);
-  const canonicalEntry = { ...entry, seq };
-  const hash = crypto.createHash('sha256').update(prevHash + canonical(canonicalEntry)).digest('hex');
-  const doc = { _id: crypto.randomUUID(), ...entry, seq, prevHash, hash, createdAt: new Date().toISOString() };
-  await col.insertOne(doc);
-  return doc;
-}
+const appendRackLog = (mongo, entry) => appendChained(mongo, 'rack_log', entry);
 
 export function mountRackState(app, { auth, requireMesa, mongo, busEmit, adminNotify, cibe }) {
   const RACK_ID = (process.env.RACK_ID || os.hostname()).slice(0, 60);
@@ -98,6 +97,8 @@ export function mountRackState(app, { auth, requireMesa, mongo, busEmit, adminNo
   let lastLeaderContact = Date.now();
   let partitionNotifiedAt = 0;
   let ready = false;
+  const bootedAt = Date.now();
+  const seenNonces = new Map(); // nonce -> instante en que su ts sale de la ventana
 
   const lastIndex = () => log[log.length - 1].index;
   const lastTerm = () => log[log.length - 1].term;
@@ -221,14 +222,17 @@ export function mountRackState(app, { auth, requireMesa, mongo, busEmit, adminNo
   /* ---------------- RPC cliente ---------------- */
 
   async function rpc(url, path, body) {
-    const payload = { ...body, ts: Date.now() };
+    const payload = { ...body, proto: RACK_PROTOCOL_VERSION, ts: Date.now(), nonce: crypto.randomBytes(16).toString('hex') };
     const res = await fetch(`${url}${path}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Rack-Sig': hmacOf(payload, SHARED_KEY) },
+      headers: { 'Content-Type': 'application/json', 'X-Rack-Sig': signRackMessage(path, payload, SHARED_KEY) },
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(RPC_TIMEOUT_MS),
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      const detail = await res.json().then((b) => b?.error).catch(() => null);
+      throw new Error(`HTTP ${res.status}${detail ? `: ${detail}` : ''}`);
+    }
     return res.json();
   }
 
@@ -244,7 +248,7 @@ export function mountRackState(app, { auth, requireMesa, mongo, busEmit, adminNo
     let votes = 1;
     await Promise.allSettled(PEERS.map(async (url) => {
       try {
-        const resp = await rpc(url, '/api/rack/raft/request-vote', {
+        const resp = await rpc(url, VOTE_PATH, {
           term, candidateId: RACK_ID, lastLogIndex: lastIndex(), lastLogTerm: lastTerm(),
         });
         const s = peerState.get(url);
@@ -269,7 +273,7 @@ export function mountRackState(app, { auth, requireMesa, mongo, busEmit, adminNo
       const prev = entryAt(prevLogIndex) || log[0];
       const entries = log.filter((e) => e.index >= s.nextIndex).slice(0, 50);
       try {
-        const resp = await rpc(url, '/api/rack/raft/append-entries', {
+        const resp = await rpc(url, APPEND_PATH, {
           term: currentTerm, leaderId: RACK_ID,
           prevLogIndex, prevLogTerm: prev.term,
           entries, leaderCommit: commitIndex,
@@ -340,23 +344,45 @@ export function mountRackState(app, { auth, requireMesa, mongo, busEmit, adminNo
 
   /* ---------------- RPC servidor (malla inter-rack, sin sesion) ---------------- */
 
-  function verifyPeer(req, res, next) {
+  function forgetExpiredNonces(now) {
+    for (const [nonce, expiresAt] of seenNonces) {
+      if (expiresAt < now) seenNonces.delete(nonce);
+    }
+  }
+
+  /* Orden: version (error claro a un rack desactualizado), ventana temporal,
+     firma y, solo con firma valida, nonce de un solo uso. */
+  const verifyPeer = (path) => (req, res, next) => {
     if (!SHARED_KEY) return res.status(403).json({ error: 'malla inter-rack deshabilitada (sin RACK_SHARED_KEY)' });
     const body = req.body || {};
-    if (!Number.isFinite(body.ts) || Math.abs(Date.now() - body.ts) > PEER_TS_WINDOW_MS) {
+    if (body.proto !== RACK_PROTOCOL_VERSION) {
+      return res.status(426).json({
+        error: `version de protocolo inter-rack incompatible: recibida ${body.proto ?? 'ninguna'}, esperada ${RACK_PROTOCOL_VERSION}; actualizar todos los racks a la misma version`,
+        expectedProto: RACK_PROTOCOL_VERSION,
+      });
+    }
+    const now = Date.now();
+    if (!Number.isFinite(body.ts) || Math.abs(now - body.ts) > PEER_TS_WINDOW_MS) {
       return res.status(400).json({ error: 'ts fuera de ventana' });
     }
+    if (body.ts < bootedAt) return res.status(400).json({ error: 'mensaje anterior al arranque de este rack' });
+    if (typeof body.nonce !== 'string' || !NONCE_RE.test(body.nonce)) {
+      return res.status(400).json({ error: 'nonce invalido' });
+    }
     const sig = String(req.headers['x-rack-sig'] || '');
-    const expected = hmacOf(body, SHARED_KEY);
+    const expected = signRackMessage(path, body, SHARED_KEY);
     const a = Buffer.from(sig, 'utf8');
     const e = Buffer.from(expected, 'utf8');
     if (a.length !== e.length || !crypto.timingSafeEqual(a, e)) {
       return res.status(401).json({ error: 'firma inter-rack invalida' });
     }
+    forgetExpiredNonces(now);
+    if (seenNonces.has(body.nonce)) return res.status(409).json({ error: 'mensaje repetido (nonce ya usado)' });
+    seenNonces.set(body.nonce, body.ts + PEER_TS_WINDOW_MS);
     next();
-  }
+  };
 
-  app.post('/api/rack/raft/request-vote', verifyPeer, (req, res) => {
+  app.post(VOTE_PATH, verifyPeer(VOTE_PATH), (req, res) => {
     const b = req.body;
     if (b.term > currentTerm) stepDown(b.term, 'termino superior (request-vote)');
     let voteGranted = false;
@@ -373,7 +399,7 @@ export function mountRackState(app, { auth, requireMesa, mongo, busEmit, adminNo
     res.json({ term: currentTerm, voteGranted });
   });
 
-  app.post('/api/rack/raft/append-entries', verifyPeer, (req, res) => {
+  app.post(APPEND_PATH, verifyPeer(APPEND_PATH), (req, res) => {
     const b = req.body;
     if (b.term < currentTerm) return res.json({ term: currentTerm, success: false, matchIndex: 0 });
     if (b.term > currentTerm || role !== 'follower') stepDown(b.term, 'lider legitimo presente');
@@ -424,6 +450,7 @@ export function mountRackState(app, { auth, requireMesa, mongo, busEmit, adminNo
   };
 
   app.get('/api/rack/status', ...guard, (req, res) => {
+    if (!ready) return res.status(503).json({ error: 'rack arrancando' });
     res.json({
       rackId: RACK_ID,
       mode: STANDALONE ? 'standalone' : 'cluster',
@@ -474,17 +501,7 @@ export function mountRackState(app, { auth, requireMesa, mongo, busEmit, adminNo
   }));
 
   app.get('/api/rack/log/verify', ...guard, h(async (req, res) => {
-    const all = await mongo.collection('rack_log').find({}).sort({ seq: 1 }).toArray();
-    let prev = '0'.repeat(64);
-    for (const entry of all) {
-      const { _id, seq, prevHash, hash, createdAt, ...rest } = entry;
-      const expected = crypto.createHash('sha256').update(prev + canonical({ ...rest, seq })).digest('hex');
-      if (expected !== hash || prevHash !== prev) {
-        return res.json({ valid: false, totalEntries: all.length, brokenAtSeq: seq });
-      }
-      prev = hash;
-    }
-    res.json({ valid: true, totalEntries: all.length, brokenAtSeq: null });
+    res.json(await verifyLog(mongo, 'rack_log'));
   }));
 
   /* ---------------- arranque + getter para otros modulos ---------------- */
