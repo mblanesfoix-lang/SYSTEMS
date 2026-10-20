@@ -66,7 +66,7 @@
  *     CIBE_PRIVATE_KEY_PEM) — sin fallback Mongo (retirado 2026-09-20,
  *     directriz explicita: la llave vive estrictamente en variables de
  *     entorno del servidor). Falta o formato invalido = el modulo no monta
- *     (falla alto y claro al arrancar, ver getEncKey()). Un dump de
+ *     y sus rutas responden 503 (ver getEncKey() y safeMount en server.js). Un dump de
  *     Mongo/GridFS sin la clave no revela el contenido de los documentos. IV
  *     aleatorio de 12 bytes por archivo + authTag GCM guardados junto al
  *     fichero (metadata), nunca reutilizados.
@@ -345,9 +345,10 @@ function serializeDoc(doc) {
 }
 
 export function mountFlExpediente(app, { auth, requireMesa, mongo, busEmit, adminNotify, cibe }) {
-  // Fail loud al arrancar: sin clave de cifrado valida en env, este modulo no
-  // se monta. Mejor tumbar el boot del expediente que servirlo sin garantia
-  // real de cifrado (ver getEncKey() y nota SEGURIDAD arriba).
+  // Sin clave de cifrado valida en env este modulo no se monta: lanza antes de
+  // registrar ninguna ruta, server.js lo deja degradado y /api/fl/expediente
+  // responde 503. Nunca se sirve sin garantia real de cifrado (ver getEncKey()
+  // y nota SEGURIDAD arriba).
   getEncKey();
   console.log('[FL/Expediente] Clave de cifrado cargada desde FL_EXPEDIENTE_ENC_KEY (env)');
 

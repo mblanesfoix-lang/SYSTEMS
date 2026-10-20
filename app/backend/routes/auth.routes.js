@@ -143,7 +143,7 @@ export function createAuthMiddleware(mongo, sentinelForensics) {
   };
 }
 
-export function mountAuth(app, { mongo, requireAdmin, ROLE_MESAS, authLimiter, sentinelForensics, busEmit }) {
+export function mountAuth(app, { mongo, requireAdmin, ROLE_MESAS, authLimiter, sentinelForensics, busEmit, listDegraded }) {
   const auth = createAuthMiddleware(mongo, sentinelForensics);
 
   app.post('/api/login', authLimiter, async (req, res) => {
@@ -185,8 +185,10 @@ export function mountAuth(app, { mongo, requireAdmin, ROLE_MESAS, authLimiter, s
   });
 
   app.get('/api/me', auth, (req, res) => res.json({ user: req.user, role: req.role, tenantId: req.tenantId }));
+  // degraded: mesas que no pudieron montarse al arrancar (sus rutas responden 503),
+  // solo las que este rol puede ver.
   app.get('/api/me/permissions', auth, (req, res) => {
-    res.json({ mesas: ROLE_MESAS[req.role] || [] });
+    res.json({ mesas: ROLE_MESAS[req.role] || [], degraded: listDegraded ? listDegraded(req.role) : [] });
   });
 
   app.post('/api/change-password', auth, async (req, res) => {

@@ -42,10 +42,14 @@ import { mountU2Ree } from './routes/u2-ree.routes.js';
 import { mountReffGuestToken } from './routes/reff-guest.routes.js';
 import { mountCspReport, ensureCspReportIndexes } from './routes/csp-report.routes.js';
 import { applySecurityHeaders, CSP_REPORT_PATH } from './lib/security-headers.js';
+import { createMountGuard } from './lib/mount-guard.js';
 
 // Lo primero: .env locales (si existen) y validación, antes de conectar a Mongo o montar
 // ninguna mesa. En producción, si falta algo o tiene un formato inválido, el proceso no
 // arranca y lista todos los problemas de una vez; fuera de producción solo avisa.
+// Es un control de despliegue, no un fallo en caliente: en una actualización el pod nuevo
+// no llega a estar listo y el anterior sigue sirviendo. Por eso aquí se detiene el arranque
+// en lugar de degradar la mesa afectada, como hace safeMount con los fallos al montar.
 loadLocalEnvFiles();
 try {
   assertConfig();
@@ -226,13 +230,20 @@ app.set('trust proxy', 1);
                  apagado: el kubelet no debe matar un pod que esta drenando).
      /api/readyz 200 solo si Mongo responde en <2s, Rack State tiene rol, la
                  integracion Reff ya termino de cargar y no hay apagado en curso.
-                 503 saca el pod del Service sin reiniciarlo.
+                 503 saca el pod del Service sin reiniciarlo. Informa del estado
+                 de cada mesa (checks.mesas) y sigue en 200 aunque haya mesas
+                 degradadas: sacar el pod dejaria sin servicio tambien a auth,
+                 Sentinel y las mesas sanas. Las criticas no llegan a degradarse
+                 (detienen el arranque) y el Admin recibe aviso de las demas.
+     /api/health  sonda del healthcheck de docker-compose; vive aqui y no
+                 dentro de la integracion Reff, para que un fallo de Reff no
+                 marque el contenedor como caido.
      /api/ophs/readyz  mismo criterio de infraestructura, namespaced para cuando
                  ØPHS se separe a su propio Deployment (hoy comparte proceso).
 ========================================================================== */
 let rackState = null;      // asignado al montar Rack State (mas abajo)
-let reffState = 'loading'; // 'loading' | 'mounted' | 'failed' (integracion Reff, mas abajo)
 let shuttingDown = false;  // true desde SIGTERM: readyz pasa a 503 y el kubelet drena el trafico
+const REFF_READY_STATE = { pending: 'loading', ok: 'mounted', degraded: 'failed' };
 
 const READYZ_MONGO_TIMEOUT_MS = 2000;
 async function pingMongo() {
@@ -250,8 +261,21 @@ app.get('/api/livez', (_req, res) => {
   res.json({ status: 'ok', service: 'elvira', uptimeSec: Math.floor(process.uptime()) });
 });
 
+app.get('/api/health', (_req, res) => res.json({
+  status: 'ok',
+  service: 'elvira',
+  nodeEnv: process.env.NODE_ENV || 'development',
+  uptimeSec: Math.floor(process.uptime()),
+  mongoConfigured: Boolean(process.env.MONGO_URI),
+}));
+
 app.get('/api/readyz', async (_req, res) => {
-  const checks = { mongo: false, rack: 'n/a', reff: reffState };
+  const checks = {
+    mongo: false,
+    rack: 'n/a',
+    reff: REFF_READY_STATE[mountGuard.state('reff')] || 'loading',
+    mesas: mountGuard.summary(),
+  };
   if (!shuttingDown) {
     try { await pingMongo(); checks.mongo = true; } catch { checks.mongo = false; }
     if (rackState) {
@@ -260,7 +284,8 @@ app.get('/api/readyz', async (_req, res) => {
     }
   }
   const ready = !shuttingDown && checks.mongo === true && checks.rack !== 'unavailable' && checks.reff !== 'loading';
-  res.status(ready ? 200 : 503).json({ ready, shuttingDown, checks, uptimeSec: Math.floor(process.uptime()) });
+  const degraded = mountGuard.degraded().map((unit) => unit.name);
+  res.status(ready ? 200 : 503).json({ ready, shuttingDown, checks, degraded, uptimeSec: Math.floor(process.uptime()) });
 });
 
 app.get('/api/ophs/readyz', async (_req, res) => {
@@ -312,6 +337,21 @@ app.use('/api', apiLimiter);
  */
 let adminNotify, busEmit, busEmitAlert, busEvents, auth, listAdminNotifications, flushBusHistory;
 // (sseClients del bus no se usa fuera de bus.routes.js; se ignora aquí)
+
+/* Arranque aislado (lib/mount-guard.js). Críticas, con { critical: true }: Sentinel,
+   avisos al Admin, bus y auth (el tenant por defecto ya se preparó arriba y también
+   detiene el arranque si falla). El resto de unidades, si fallan al montar, quedan
+   degradadas: 503 en sus prefijos, aviso al Admin y el sistema sigue en pie. */
+const mountGuard = createMountGuard({
+  auth: (req, res, next) => auth(req, res, next),
+  requireMesa,
+  notify: (unit) => busEmitAlert({
+    origin: 'SYSTEM',
+    label: `Mesa degradada · ${unit.label}`,
+    detail: `${unit.reason}. Sus rutas responden 503; el resto del sistema sigue en servicio.`,
+  }),
+});
+const { safeMount } = mountGuard;
 
 /* Captura cualquier caída no controlada del proceso y la sube a notificaciones Admin.
  * Tras una excepción no capturada el estado del proceso queda indefinido (doctrina
@@ -388,23 +428,31 @@ app.use(sentinelLogger);
 // tenant por defecto para TODOS los tenants (no peor que hoy, que ya es
 // global sin tenant) — aislar su hash chain por tenant es trabajo pendiente,
 // no resuelto en este commit.
-const sentinelForensics = createSentinelForensics({ mongo: rawMongo, busEmit: (...args) => busEmit(...args), ROLE_MESAS });
-app.use(sentinelForensics.middleware(mesaForPath));
+const sentinelForensics = await safeMount('sentinel', () => {
+  const forensics = createSentinelForensics({ mongo: rawMongo, busEmit: (...args) => busEmit(...args), ROLE_MESAS });
+  app.use(forensics.middleware(mesaForPath));
+  return forensics;
+}, { label: 'Sentinel', critical: true });
+
+/* ---- Notificaciones Admin (mount temprano: adminNotify es dependencia de sentinelLogger/uncaughtException arriba) ---- */
+({ adminNotify, listAdminNotifications } = await safeMount('notifications', () => mountNotifications(app, {
+  auth: (req, res, next) => auth(req, res, next), requireAdmin, atomicWriteJson, NOTIFICATIONS_FILE,
+}), { label: 'Avisos al Admin', critical: true }));
+
+/* ---- Event Bus (mount temprano: busEmit es dependencia compartida por ~10 modulos) ---- */
+({ busEvents, busEmit, busEmitAlert, flushBusHistory } = await safeMount('bus', () => mountBus(app, {
+  auth: (req, res, next) => auth(req, res, next),
+  requireAdmin, atomicWriteJson, BUS_HISTORY_FILE, adminNotify,
+}), { label: 'Bus de eventos', critical: true }));
 
 /* ---- Informes CSP del navegador: ruta publica (routes/csp-report.routes.js) ----
    Detras de Sentinel, para que quede en el log forense como cualquier acceso.
+   Despues del bus: si no monta, el aviso al Admin ya tiene por donde salir.
    rawMongo: llegan sin sesion, no hay tenant. */
-await ensureCspReportIndexes(rawMongo);
-mountCspReport(app, { mongo: rawMongo });
-
-/* ---- Notificaciones Admin (mount temprano: adminNotify es dependencia de sentinelLogger/uncaughtException arriba) ---- */
-({ adminNotify, listAdminNotifications } = mountNotifications(app, { auth: (req, res, next) => auth(req, res, next), requireAdmin, atomicWriteJson, NOTIFICATIONS_FILE }));
-
-/* ---- Event Bus (mount temprano: busEmit es dependencia compartida por ~10 modulos) ---- */
-({ busEvents, busEmit, busEmitAlert, flushBusHistory } = mountBus(app, {
-  auth: (req, res, next) => auth(req, res, next),
-  requireAdmin, atomicWriteJson, BUS_HISTORY_FILE, adminNotify,
-}));
+await safeMount('csp-report', async () => {
+  await ensureCspReportIndexes(rawMongo);
+  mountCspReport(app, { mongo: rawMongo });
+}, { label: 'Informes CSP', publicPrefixes: [CSP_REPORT_PATH] });
 
 /* ---------- auth (usuarios/sesiones en Mongo, ver routes/auth.routes.js) ---------- */
 // rawMongo (no el Proxy): login resuelve el tenant DESDE users/sessions, no puede
@@ -416,7 +464,13 @@ mountCspReport(app, { mongo: rawMongo });
 // app.use(path, auth, requireMesa(...)) ejecute SU auth, por orden de
 // registro de Express, y el contexto nunca llegaria a tiempo para esas
 // rutas de negocio (bug real, detectado en pruebas manuales).
-({ auth } = mountAuth(app, { mongo: rawMongo, requireAdmin, ROLE_MESAS, authLimiter, sentinelForensics, busEmit }));
+// listDegraded: /api/me/permissions marca las mesas degradadas que el usuario puede ver.
+const listDegraded = (role) => mountGuard.degraded()
+  .filter((unit) => (unit.mesa ? canAccessMesa(role, unit.mesa) : role === 'admin'))
+  .map(({ name, mesa, label }) => ({ name, mesa, label }));
+({ auth } = await safeMount('auth', () => mountAuth(app, {
+  mongo: rawMongo, requireAdmin, ROLE_MESAS, authLimiter, sentinelForensics, busEmit, listDegraded,
+}), { label: 'Autenticación', critical: true }));
 
 /* ---------- mesa guards ---------- */
 app.use('/api/sheets',    auth, requireMesa('reff'));
@@ -452,11 +506,19 @@ app.use('/api/ophs-cockpit', auth, requireMesa('ophs'));
 app.use('/api/gateway',   auth, requireMesa('gateway'));
 app.use('/api/notif-center', auth, requireMesa('notificaciones'));
 
+/* ---------- mesas degradadas: 503 en sus prefijos ----------
+   Detras de los guards de mesa y delante de todas las mesas, para cortar tambien
+   las rutas que una mesa llegara a registrar antes de fallar al montarse. */
+app.use(mountGuard.gate);
+
 /* ---------- Rëff CRM-adjacent: sheets/companies/search/linkedin/email/overview ---------- */
-const reffCrm = mountReffCrm(app, {
+const reffCrm = await safeMount('reff-crm', () => mountReffCrm(app, {
   auth, mongo, withTransaction, adminNotify,
   readElvira, writeElvira,
   HISTORY_FILE, atomicWriteJson, fs,
+}), {
+  label: 'Rëff · hojas y empresas', mesa: 'reff',
+  prefixes: ['/api/sheets', '/api/companies', '/api/search', '/api/overview', '/api/linkedin', '/api/email'],
 });
 
 /* ==========================================================================
@@ -465,7 +527,11 @@ const reffCrm = mountReffCrm(app, {
    diario (getU2SnapshotToday) lo consumen los closures getU2Snapshot pasados
    a mountPactvm y mountElviraCentral mas abajo.
 ========================================================================== */
-const u2Ree = mountU2Ree(app, { auth, busEmit, busEmitAlert, busEvents, atomicWriteJson, DATA_DIR });
+const u2Ree = await safeMount('snfi-u2', () => mountU2Ree(app, { auth, busEmit, busEmitAlert, busEvents, atomicWriteJson, DATA_DIR }), {
+  label: 'S-NFI U2', mesa: 'snfiu2', prefixes: ['/api/snfi-u2', '/api/u2'],
+});
+// Sin U2, las mesas que leen su snapshot siguen funcionando sin ese dato (ya aceptan null).
+const getU2Snapshot = () => (u2Ree ? u2Ree.getU2SnapshotToday() : null);
 
 /* ==========================================================================
    S-NFI Factory · en desarrollo pendiente (mesa vaciada, ver CLAUDE.md).
@@ -477,9 +543,16 @@ const u2Ree = mountU2Ree(app, { auth, busEmit, busEmitAlert, busEvents, atomicWr
    Tesoreria, flujo caja proyectado, contabilidad analitica, activos reales,
    pasarela cifrada export para asesoria contable externa.
 ========================================================================== */
-mountFinance(app, { auth, requireMesa, mongo });
-mountFinanceCompanies(app, { auth, requireMesa, mongo });
-mountMna(app, { auth, requireMesa, mongo });
+await safeMount('finance', () => mountFinance(app, { auth, requireMesa, mongo }), {
+  label: 'S-NFI Finance', mesa: 'finance', prefixes: ['/api/finance'],
+});
+await safeMount('finance-companies', () => mountFinanceCompanies(app, { auth, requireMesa, mongo }), {
+  label: 'S-NFI Finance · Empresas', mesa: 'finance',
+  prefixes: ['/api/finance/companies', '/api/finance/companies-summary'],
+});
+await safeMount('mna', () => mountMna(app, { auth, requireMesa, mongo }), {
+  label: 'S-NFI M&A', mesa: 'mna', prefixes: ['/api/mna'],
+});
 
 /* ==========================================================================
    CIBE Bunker · modulo bunker de Pactvm Viridi (Instrucciones.txt §3)
@@ -494,8 +567,13 @@ mountMna(app, { auth, requireMesa, mongo });
 // despues dentro de handlers de ruta via closure. Aislar las claves CIBE por
 // tenant (cada tenant su propio par Ed25519) es trabajo pendiente, no
 // resuelto en este commit — limitacion conocida, igual que Sentinel arriba.
-const cibe = createCibeBunker({ mongo: rawMongo, busEmit, adminNotify });
-cibe.ready().catch((err) => console.error('[CIBE] Error de arranque (creacion temprana para F&L):', err.message));
+// Sin bunker, las mesas que exigen token CIBE no se montan (dependsOn: 'cibe'):
+// mejor 503 que servirlas sin esa comprobacion.
+const cibe = await safeMount('cibe', () => {
+  const bunker = createCibeBunker({ mongo: rawMongo, busEmit, adminNotify });
+  bunker.ready().catch((err) => console.error('[CIBE] Error de arranque (creacion temprana para F&L):', err.message));
+  return bunker;
+}, { label: 'CIBE Bunker', mesa: 'pactvm' });
 
 /* ==========================================================================
    S-NFI F&L · Hub fiscal y legal (rehecho 2026-10-12, sustituye a fl.js).
@@ -505,24 +583,31 @@ cibe.ready().catch((err) => console.error('[CIBE] Error de arranque (creacion te
    API de datos abiertos del BOE, cada 6 h). Datos de demostracion marcados
    placeholder hasta que Direccion confirme los reales.
 ========================================================================== */
-mountFlHub(app, { auth, requireMesa, mongo, busEmit, adminNotify });
+await safeMount('fl-hub', () => mountFlHub(app, { auth, requireMesa, mongo, busEmit, adminNotify }), {
+  label: 'S-NFI F&L · Hub fiscal y legal', mesa: 'fl', prefixes: ['/api/fl'],
+});
 /* Expediente Fiscal y Juridico Impecable: catalogo fijo de documentacion
    corporativa (identidad fiscal, PI, dataroom financiero, anclaje comercial)
    con adjuntos en GridFS y motor propio de alerta de caducidad. Modulo aparte,
    mismo log inmutable fl_log, pero guard propio 'fl_expediente' (distinto de
    'fl') por ser documentacion protegida/NDA-B — ver ROLE_MESAS. Archivos
    cifrados en reposo (AES-256-GCM) y descarga detras de token CIBE
-   (scope fl.expediente.read, modo segun CIBE_MODE). */
-mountFlExpediente(app, { auth, requireMesa, mongo, busEmit, adminNotify, cibe });
+   (scope fl.expediente.read, modo segun CIBE_MODE). Sin clave de cifrado
+   valida no monta y sus rutas responden 503: nunca se sirve sin cifrar. */
+await safeMount('fl-expediente', () => mountFlExpediente(app, { auth, requireMesa, mongo, busEmit, adminNotify, cibe }), {
+  label: 'Expediente Fiscal y Jurídico', mesa: 'fl_expediente', prefixes: ['/api/fl/expediente'], dependsOn: ['cibe'],
+});
 
 /* ==========================================================================
    Pactvm Viridi · guardian doctrinal, cientifico y de cumplimiento bio-ambiental
    Certificado CIBE, politicas medioambientales, condiciones de acceso, lectura
    de auditorias Herzog (db 'reff', sin escritura).
 ========================================================================== */
-mountPactvm(app, {
-  auth, requireMesa, requireAdmin, mongo, getReffDb,
-  getU2Snapshot: () => u2Ree.getU2SnapshotToday(),
+await safeMount('pactvm', () => mountPactvm(app, {
+  auth, requireMesa, requireAdmin, mongo, getReffDb, getU2Snapshot,
+}), {
+  label: 'Pactvm Viridi', mesa: 'pactvm',
+  prefixes: ['/api/pactvm'], publicPrefixes: ['/api/pactvm-verify', '/api/vdr-share'],
 });
 
 /* ==========================================================================
@@ -530,7 +615,9 @@ mountPactvm(app, {
    de red electrica / eventos sistemicos. Manda senal a Elvi-Ra (busEmit +
    adminNotify), nunca ejecuta accion fisica (Regla de Oro).
 ========================================================================== */
-mountResilience(app, { auth, requireMesa, mongo, busEmit, adminNotify });
+await safeMount('resilience', () => mountResilience(app, { auth, requireMesa, mongo, busEmit, adminNotify }), {
+  label: 'S-NFI Resilience', mesa: 'resilience', prefixes: ['/api/resilience'],
+});
 
 /* ==========================================================================
    Herzog (Central) · bunker receptor de toda la informacion/datos de SYSTEMS.
@@ -538,14 +625,18 @@ mountResilience(app, { auth, requireMesa, mongo, busEmit, adminNotify });
    solo telemetria fisica OPS/PAIA). Transversal: cualquier departamento
    pide/guarda informacion aqui (metricas, documentos, notas).
 ========================================================================== */
-mountHerzog(app, { auth, requireMesa, mongo, busEmit, adminNotify, getU2Snapshot: () => u2Ree.getU2SnapshotToday() });
+await safeMount('herzog-central', () => mountHerzog(app, { auth, requireMesa, mongo, busEmit, adminNotify, getU2Snapshot }), {
+  label: 'Herzog Central', mesa: 'herzog', prefixes: ['/api/herzog-central'],
+});
 
 /* ==========================================================================
    S-EAGLE · Rëff Core Engine, mesa 5. Revisa la informacion que Herzog
    retiene: verificar/corregir/compartir. Mapa mundi portales (apartado 1)
    reutiliza Gob Share en frontend, sin backend propio. Ver seagle.js.
 ========================================================================== */
-mountSeagle(app, { auth, requireMesa, mongo });
+await safeMount('seagle', () => mountSeagle(app, { auth, requireMesa, mongo }), {
+  label: 'S-EAGLE', mesa: 'seagle', prefixes: ['/api/seagle'],
+});
 
 /* ==========================================================================
    Puerto Maestro (Master Gateway) · auditoria activa y control de trafico
@@ -555,7 +646,9 @@ mountSeagle(app, { auth, requireMesa, mongo });
    cualquier mesa con permiso 'gateway' (Regla de Oro: el ser humano
    autoriza).
 ========================================================================== */
-mountMasterGateway(app, { auth, requireMesa, requireAdmin, mongo });
+await safeMount('gateway', () => mountMasterGateway(app, { auth, requireMesa, requireAdmin, mongo }), {
+  label: 'Puerto Maestro', mesa: 'gateway', prefixes: ['/api/gateway'],
+});
 
 /* ==========================================================================
    Consola de Notificaciones · mesa transversal admin-only. Unifica lectura
@@ -563,8 +656,10 @@ mountMasterGateway(app, { auth, requireMesa, requireAdmin, mongo });
    Consola Maestra) en una sola vista, con acciones 1-clic sobre traffic
    detrás de requireAdmin real. Ver notification-center.js.
 ========================================================================== */
-mountNotificationCenter(app, { auth, requireMesa, requireAdmin, listAdminNotifications, getReffDb });
-await ensureNotificationCenterIndexes();
+await safeMount('notif-center', async () => {
+  mountNotificationCenter(app, { auth, requireMesa, requireAdmin, listAdminNotifications, getReffDb });
+  await ensureNotificationCenterIndexes();
+}, { label: 'Centro de Notificaciones', mesa: 'notificaciones', prefixes: ['/api/notif-center'] });
 
 /* ==========================================================================
    CIBE Bunker · rutas de administracion (mesa pactvm) + endpoint externo
@@ -572,7 +667,10 @@ await ensureNotificationCenterIndexes();
    mountFlHub/mountFlExpediente, que ya la necesitan) — aqui solo se montan
    las rutas HTTP del bunker sobre esa misma instancia.
 ========================================================================== */
-mountCibeBunker(app, { auth, requireMesa, mongo, bunker: cibe, busEmit });
+await safeMount('cibe-bunker', () => mountCibeBunker(app, { auth, requireMesa, mongo, bunker: cibe, busEmit }), {
+  label: 'CIBE Bunker · administración', mesa: 'pactvm',
+  prefixes: ['/api/pactvm/cibe-bunker'], publicPrefixes: ['/api/cibe'], dependsOn: ['cibe'],
+});
 
 /* ==========================================================================
    OPHS Framework · OPS (telemetria) + PAIA (analitica predictiva) + Cockpit
@@ -580,9 +678,15 @@ mountCibeBunker(app, { auth, requireMesa, mongo, bunker: cibe, busEmit });
    (fusiona OPS+PAIA+Herzog+Sentinel). Doctrina: solo lectura/propuesta, la
    autoridad de ejecucion sigue siendo de cada dominio.
 ========================================================================== */
-mountOps(app, { auth, requireMesa, mongo, cibe });
-mountPaia(app, { auth, requireMesa, mongo, llmLimiter });
-mountOphsCockpit(app, { auth, requireMesa, mongo, getReffDb });
+await safeMount('ops', () => mountOps(app, { auth, requireMesa, mongo, cibe }), {
+  label: 'ØPS', mesa: 'ophs', prefixes: ['/api/ops'], dependsOn: ['cibe'],
+});
+await safeMount('paia', () => mountPaia(app, { auth, requireMesa, mongo, llmLimiter }), {
+  label: 'PAIA', mesa: 'ophs', prefixes: ['/api/paia'],
+});
+await safeMount('ophs-cockpit', () => mountOphsCockpit(app, { auth, requireMesa, mongo, getReffDb }), {
+  label: 'Cockpit ØPHS', mesa: 'ophs', prefixes: ['/api/ophs-cockpit'],
+});
 
 /* ==========================================================================
    Rack State · estado distribuido entre racks fisicos (Instrucciones.txt §1)
@@ -590,49 +694,57 @@ mountOphsCockpit(app, { auth, requireMesa, mongo, getReffDb });
    parametrizados y estados de seguridad. Sin quorum: escrituras bloqueadas,
    lecturas Offline-First del ultimo estado comprometido. Mesa sentinel.
 ========================================================================== */
-rackState = mountRackState(app, { auth, requireMesa, mongo, busEmit, adminNotify, cibe });
+rackState = await safeMount('rack', () => mountRackState(app, { auth, requireMesa, mongo, busEmit, adminNotify, cibe }), {
+  label: 'Rack State', mesa: 'sentinel', prefixes: ['/api/rack'], dependsOn: ['cibe'],
+});
 
 /* ==========================================================================
    Grid Interlink · redes electricas transnacionales (Instrucciones.txt §2)
    Grid Abstraction Layer: un worker thread sandboxed (resourceLimits) por
    pais (REE/REN/RTE/ONEE). El colapso de un TSO no toca a los demas. Mesa ophs.
 ========================================================================== */
-mountGridInterlink(app, { auth, requireMesa, mongo, busEmit, adminNotify, cibe });
+await safeMount('grid', () => mountGridInterlink(app, { auth, requireMesa, mongo, busEmit, adminNotify, cibe }), {
+  label: 'Grid Interlink', mesa: 'ophs', prefixes: ['/api/grid'], dependsOn: ['cibe'],
+});
 
 /* K8s · sondas /api/livez, /api/readyz y /api/ophs/readyz: ver el bloque al principio de este archivo (justo tras crear `app`). */
 
 /* ==========================================================================
    ELVI-RA · puentes mock (Sentinel/Herzog) + OPHS scoring + T'Controler
 ========================================================================== */
-mountElviraBridges(app, {
+await safeMount('elvira-bridges', () => mountElviraBridges(app, {
   auth, mongo, busEmit, busEvents,
   readElvira, writeElvira,
-});
+}), { label: 'Elvi-Ra · puentes y scoring', mesa: 'elvira', prefixes: ['/api/elvira'] });
 
 /* ==========================================================================
    CNMC · Embudo Legal + Buscador hibrido (numeracionyoperadores.cnmc.es + LLM)
 ========================================================================== */
-mountCnmc(app, {
+await safeMount('cnmc', () => mountCnmc(app, {
   auth, mongo, busEmit, busEvents, adminNotify,
   readElvira, writeElvira,
   callLLMTracked: reffCrm.callLLMTracked, extractJson: reffCrm.extractJson,
-});
+}), { label: 'CNMC', mesa: 'elvira', prefixes: ['/api/elvira/cnmc'], dependsOn: ['reff-crm'] });
 
 /* ==========================================================================
    SENTINEL · Trazabilidad forense de IPs (wrappers finos sobre sentinel-forensics.js)
 ========================================================================== */
-mountSentinelForensicRoutes(app, { auth, sentinelForensics, busEmit, busEvents });
+await safeMount('sentinel-routes', () => mountSentinelForensicRoutes(app, { auth, sentinelForensics, busEmit, busEvents }), {
+  label: 'Sentinel · trazabilidad forense', critical: true,
+});
 
 /* ============================================================
    ELVI-RA · CENTRAL (Volumen 2)
    Chat conocedor del sistema + acciones con consentimiento humano
    + mock del puerto OPHS/Systems (/api/ophs/*)
    ============================================================ */
-mountElviraCentral(app, {
+await safeMount('elvira-central', () => mountElviraCentral(app, {
   auth, requireMesa, mongo, getReffDb,
   callLLM, trackTokens: reffCrm.trackTokens, busEmit, adminNotify,
-  readElvira, cibe, llmLimiter,
-  getU2Snapshot: () => u2Ree.getU2SnapshotToday(),
+  readElvira, cibe, llmLimiter, getU2Snapshot,
+}), {
+  label: 'Elvi-Ra Central', mesa: 'elvira',
+  prefixes: ['/api/elvira/central', '/api/ophs'], dependsOn: ['reff-crm', 'cibe'],
 });
 
 /* ---------- static frontend ---------- */
@@ -642,102 +754,95 @@ app.get('/', (req, res) => res.redirect('/pages/login.html'));
 /* ============================================================
    RËFF · Mesa de trabajo integrada
    Monta el servidor compilado de Rëff bajo /reff/api
-   y sirve su cliente React bajo /reff
+   y sirve su cliente React bajo /reff. Carga en segundo plano (sin await):
+   readyz espera a que termine y, si falla, sus rutas responden 503. Prefijos
+   publicos para el filtro: el cliente de Rëff usa su propio token, no la
+   sesion de Elvi-Ra.
    ============================================================ */
-(async () => {
-  try {
-    const REFF_DIST = path.resolve(__dirname, '../../Elvi-Ra/Mesas/Rëff/dist');
-    const REFF_SERVER = path.join(REFF_DIST, 'server');
-    const REFF_CLIENT = path.join(REFF_DIST, 'client');
+safeMount('reff', async () => {
+  const REFF_DIST = path.resolve(__dirname, '../../Elvi-Ra/Mesas/Rëff/dist');
+  const REFF_SERVER = path.join(REFF_DIST, 'server');
+  const REFF_CLIENT = path.join(REFF_DIST, 'client');
 
-    // Las variables de Rëff ya están en process.env: llegan por entorno o, en desarrollo,
-    // de su .env local (loadLocalEnvFiles al arrancar).
-    const toFileUrl = (p) => 'file:///' + p.replace(/\\/g, '/');
+  // Las variables de Rëff ya están en process.env: llegan por entorno o, en desarrollo,
+  // de su .env local (loadLocalEnvFiles al arrancar).
+  const toFileUrl = (p) => 'file:///' + p.replace(/\\/g, '/');
 
-    // Rëff comparte el mismo MongoClient/pool que Elvi-Ra — un solo proceso, una sola conexión.
-    const { setMongoClient } = await import(toFileUrl(path.join(REFF_SERVER, 'mongo.js')));
-    await setMongoClient(getMongoClient());
+  // Rëff comparte el mismo MongoClient/pool que Elvi-Ra — un solo proceso, una sola conexión.
+  const { setMongoClient } = await import(toFileUrl(path.join(REFF_SERVER, 'mongo.js')));
+  await setMongoClient(getMongoClient());
 
-    const { seedDatabase, getUserByUsername } = await import(toFileUrl(path.join(REFF_SERVER, 'db.js')));
-    await seedDatabase();
+  const { seedDatabase, getUserByUsername } = await import(toFileUrl(path.join(REFF_SERVER, 'db.js')));
+  await seedDatabase();
 
-    const { signToken } = await import(toFileUrl(path.join(REFF_SERVER, 'auth.js')));
+  const { signToken } = await import(toFileUrl(path.join(REFF_SERVER, 'auth.js')));
 
-    const { default: reffAuthRoutes }      = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'auth.routes.js')));
-    const { default: reffSheetsRoutes }    = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'sheets.routes.js')));
-    const { default: reffCompaniesRoutes } = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'companies.routes.js')));
-    const { default: reffGeoRoutes }       = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'geo.routes.js')));
-    const { default: reffHerzogRoutes }    = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'herzog.routes.js')));
-    const { default: reffWatchRoutes }     = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'watch.routes.js')));
-    const { default: reffTrafficRoutes }   = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'traffic.routes.js')));
-    const { default: reffMeetingsRoutes }  = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'meetings.routes.js')));
-    const { default: reffCommsRoutes }     = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'communications.routes.js')));
-    const { startWatchCron }               = await import(toFileUrl(path.join(REFF_SERVER, 'watch.js')));
-    const { startMeetingReminderCron }     = await import(toFileUrl(path.join(REFF_SERVER, 'meeting-reminders.js')));
+  const { default: reffAuthRoutes }      = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'auth.routes.js')));
+  const { default: reffSheetsRoutes }    = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'sheets.routes.js')));
+  const { default: reffCompaniesRoutes } = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'companies.routes.js')));
+  const { default: reffGeoRoutes }       = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'geo.routes.js')));
+  const { default: reffHerzogRoutes }    = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'herzog.routes.js')));
+  const { default: reffWatchRoutes }     = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'watch.routes.js')));
+  const { default: reffTrafficRoutes }   = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'traffic.routes.js')));
+  const { default: reffMeetingsRoutes }  = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'meetings.routes.js')));
+  const { default: reffCommsRoutes }     = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'communications.routes.js')));
+  const { startWatchCron }               = await import(toFileUrl(path.join(REFF_SERVER, 'watch.js')));
+  const { startMeetingReminderCron }     = await import(toFileUrl(path.join(REFF_SERVER, 'meeting-reminders.js')));
 
-    const reffHealth = (_req, res) => res.json({ status: 'ok', service: 'reff', env: process.env.NODE_ENV || 'development' });
+  const reffHealth = (_req, res) => res.json({ status: 'ok', service: 'reff', env: process.env.NODE_ENV || 'development' });
 
-    // JWT de Rëff a partir de la sesión de Elvi-Ra, sin login propio. Exige sesión válida y
-    // acceso a la mesa reff; registra también el alias /api/guest-token (routes/reff-guest.routes.js).
-    mountReffGuestToken(app, { auth, requireMesa, signToken, getUserByUsername, mongo });
+  // JWT de Rëff a partir de la sesión de Elvi-Ra, sin login propio. Exige sesión válida y
+  // acceso a la mesa reff; registra también el alias /api/guest-token (routes/reff-guest.routes.js).
+  mountReffGuestToken(app, { auth, requireMesa, signToken, getUserByUsername, mongo });
 
-    app.get('/reff/api/health', reffHealth);
-    app.use('/reff/api/auth', reffAuthRoutes);
-    app.use('/reff/api/crm',  reffSheetsRoutes);
-    app.use('/reff/api/crm',  reffCompaniesRoutes);
-    app.use('/reff/api/crm',  reffMeetingsRoutes);
-    app.use('/reff/api/crm',  reffCommsRoutes);
-    app.use('/reff/api/geo',  reffGeoRoutes);
-    app.use('/reff/api/herzog', reffHerzogRoutes);
-    app.use('/reff/api/watch', reffWatchRoutes);
-    app.use('/reff/api/traffic', reffTrafficRoutes);
+  app.get('/reff/api/health', reffHealth);
+  app.use('/reff/api/auth', reffAuthRoutes);
+  app.use('/reff/api/crm',  reffSheetsRoutes);
+  app.use('/reff/api/crm',  reffCompaniesRoutes);
+  app.use('/reff/api/crm',  reffMeetingsRoutes);
+  app.use('/reff/api/crm',  reffCommsRoutes);
+  app.use('/reff/api/geo',  reffGeoRoutes);
+  app.use('/reff/api/herzog', reffHerzogRoutes);
+  app.use('/reff/api/watch', reffWatchRoutes);
+  app.use('/reff/api/traffic', reffTrafficRoutes);
 
-    // Aliases at root /api so Rëff React client (built with base path "/") resolves correctly
-    // (/api/guest-token ya lo registra mountReffGuestToken arriba)
-    app.get('/api/health', (_req, res) => res.json({
-      status: 'ok',
-      service: 'elvira',
-      nodeEnv: process.env.NODE_ENV || 'development',
-      uptimeSec: Math.floor(process.uptime()),
-      mongoConfigured: Boolean(process.env.MONGO_URI),
-    }));
-    app.get('/api/reff-health', reffHealth);
-    app.use('/api/auth',   reffAuthRoutes);
-    app.use('/api/crm',    reffSheetsRoutes);
-    app.use('/api/crm',    reffCompaniesRoutes);
-    app.use('/api/crm',    reffMeetingsRoutes);
-    app.use('/api/crm',    reffCommsRoutes);
-    app.use('/api/geo',    reffGeoRoutes);
-    app.use('/api/herzog', reffHerzogRoutes);
-    app.use('/api/watch',  reffWatchRoutes);
-    app.use('/api/traffic', reffTrafficRoutes);
+  // Aliases at root /api so Rëff React client (built with base path "/") resolves correctly
+  // (/api/guest-token ya lo registra mountReffGuestToken arriba)
+  app.get('/api/reff-health', reffHealth);
+  app.use('/api/auth',   reffAuthRoutes);
+  app.use('/api/crm',    reffSheetsRoutes);
+  app.use('/api/crm',    reffCompaniesRoutes);
+  app.use('/api/crm',    reffMeetingsRoutes);
+  app.use('/api/crm',    reffCommsRoutes);
+  app.use('/api/geo',    reffGeoRoutes);
+  app.use('/api/herzog', reffHerzogRoutes);
+  app.use('/api/watch',  reffWatchRoutes);
+  app.use('/api/traffic', reffTrafficRoutes);
 
-    startWatchCron();
-    startMeetingReminderCron();
+  startWatchCron();
+  startMeetingReminderCron();
 
-    // Serve Rëff React client — assets built with base "/" so /assets/* must be mirrored
-    if (fs.existsSync(REFF_CLIENT)) {
-      // Wrapper: usa el token de sesión de Elvi-Ra (elvira_token) para obtener un token de Rëff, lo guarda
-      // bajo las claves que espera el cliente React (reff_token / reff_user) y entra al SPA. Sin sesión
-      // (o con la sesión caducada) manda al login de Elvi-Ra. El script va en archivo propio porque la CSP
-      // no admite scripts en línea.
-      app.get('/reff', (_req, res) => {
-        res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.send('<!doctype html><html><head><meta charset="UTF-8"><title>Rëff</title></head><body>'
-          + '<script src="/js/reff-wrapper.js"></script></body></html>');
-      });
-      app.use('/reff/app', express.static(REFF_CLIENT));
-      app.use('/assets', express.static(path.join(REFF_CLIENT, 'assets')));
-      app.get('/reff/app/*', (_req, res) => res.sendFile(path.join(REFF_CLIENT, 'index.html')));
-    }
-
-    console.log('[Rëff] Integrado en Elvi-Ra bajo /reff');
-    reffState = 'mounted';
-  } catch (err) {
-    console.error('[Rëff] Error al integrar — Rëff no disponible:', err.message);
-    reffState = 'failed';
+  // Serve Rëff React client — assets built with base "/" so /assets/* must be mirrored
+  if (fs.existsSync(REFF_CLIENT)) {
+    // Wrapper: usa el token de sesión de Elvi-Ra (elvira_token) para obtener un token de Rëff, lo guarda
+    // bajo las claves que espera el cliente React (reff_token / reff_user) y entra al SPA. Sin sesión
+    // (o con la sesión caducada) manda al login de Elvi-Ra. El script va en archivo propio porque la CSP
+    // no admite scripts en línea.
+    app.get('/reff', (_req, res) => {
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.send('<!doctype html><html><head><meta charset="UTF-8"><title>Rëff</title></head><body>'
+        + '<script src="/js/reff-wrapper.js"></script></body></html>');
+    });
+    app.use('/reff/app', express.static(REFF_CLIENT));
+    app.use('/assets', express.static(path.join(REFF_CLIENT, 'assets')));
+    app.get('/reff/app/*', (_req, res) => res.sendFile(path.join(REFF_CLIENT, 'index.html')));
   }
-})();
+
+  console.log('[Rëff] Integrado en Elvi-Ra bajo /reff');
+}, {
+  label: 'Rëff', mesa: 'reff',
+  publicPrefixes: ['/reff', '/api/reff-health', '/api/guest-token', '/api/auth', '/api/crm', '/api/geo', '/api/herzog', '/api/watch', '/api/traffic'],
+});
 
 /* Error handler global — última red. Cualquier excepción no atrapada en una ruta
    cae aquí; se notifica al Admin además de responder 500 al cliente. */
@@ -805,18 +910,27 @@ if (IN_K8S) {
 }
 
 /* ==========================================================================
-   FASE 4 · Boot Verification — resumen de servicios al arrancar.
-   Mongo ya es dependencia dura mas arriba (await connectMongo() en linea 78:
-   sin Mongo el proceso ni siquiera llega aqui, no hay "modo degraded" posible
-   para el propio Mongo). Esto es solo VISIBILIDAD sobre servicios secundarios
-   que ya degradan solos por diseño en su propio modulo (mock/fallback ya
-   existente, ver comentarios de cada uno) — no bloquea el arranque, informa.
+   Boot Verification — resumen de servicios al arrancar.
+   Mongo ya es dependencia dura mas arriba (await connectMongo(): sin Mongo el
+   proceso ni siquiera llega aqui, no hay "modo degraded" posible para el
+   propio Mongo), igual que las unidades criticas de safeMount. Esto es solo
+   VISIBILIDAD: servicios secundarios que degradan solos por diseño en su
+   propio modulo (mock/fallback) y mesas que no pudieron montarse (503) — no
+   bloquea el arranque, informa. Rëff carga en segundo plano y avisa aparte.
 ========================================================================== */
 function bootVerification() {
   const checks = [];
   const check = (name, ok, detail) => checks.push({ name, ok, detail });
 
   check('Mongo', true, 'conectado (dependencia dura, ya verificado arriba)');
+  const units = mountGuard.list();
+  const mounted = units.filter((u) => u.state === 'ok').length;
+  const pending = units.filter((u) => u.state === 'pending').map((u) => u.label);
+  check('Mesas', units.every((u) => u.state !== 'degraded'),
+    `${mounted} montadas${pending.length ? `, cargando: ${pending.join(', ')}` : ''}`);
+  for (const u of mountGuard.degraded()) {
+    check(`Mesa · ${u.label}`, false, `degradada, sus rutas responden 503: ${u.reason}`);
+  }
   check('LLM provider', !!process.env.ANTHROPIC_API_KEY || (process.env.LLM_PROVIDER || '').toLowerCase() === 'ollama',
     process.env.ANTHROPIC_API_KEY ? 'anthropic' : (process.env.LLM_PROVIDER || 'sin configurar — llm.js fallara en caliente al primer uso'));
   check('Systems (OPHS real)', !!process.env.SYSTEMS_URL,

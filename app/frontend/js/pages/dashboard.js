@@ -11,12 +11,18 @@ document.getElementById('userTag').textContent = user;
 mountThemeToggle(document.getElementById('navControls'));
 mountAdminNotifications(document.querySelector('nav.nav .row'));
 
+// Partes de cada mesa que no pudieron arrancar (sus rutas responden 503): mesa -> nombres
+const degradedByMesa = new Map();
+
 // Apply domain permissions — hide domain tiles + health cards not accessible
 try {
   const perms = await fetch('/api/me/permissions', {
     headers: { Authorization: `Bearer ${getToken()}` }
   }).then(r => r.json());
   const allowed = new Set(perms.mesas || []);
+  for (const d of perms.degraded || []) {
+    degradedByMesa.set(d.mesa, [...(degradedByMesa.get(d.mesa) || []), d.label]);
+  }
   const domainMesas = { ophs: ['ophs'], reff: ['reff', 'snfiu2'], elvira: ['elvira', 'sentinel'], pactvm: ['pactvm'] };
   // Domain tiles: visible if at least one mesa of the domain is allowed
   document.querySelectorAll('.tile[data-domain]').forEach(el => {
@@ -127,13 +133,18 @@ async function checkMesa(mesa, url, { okLabel = 'operativo', parse } = {}) {
     const ms = Math.round(performance.now() - t0);
     if (!r.ok) {
       let msg = `HTTP ${r.status}`;
-      try { const j = await r.json(); if (j.error) msg = j.error; } catch {}
-      setMesaStatus(mesa, 'bad', 'error', `${url} · ${ms} ms`, msg);
+      let degraded = false;
+      try { const j = await r.json(); if (j.error) msg = j.error; degraded = j.degraded === true; } catch {}
+      if (degraded) setMesaStatus(mesa, 'warn', 'degradada', `${url} · ${ms} ms`, msg);
+      else setMesaStatus(mesa, 'bad', 'error', `${url} · ${ms} ms`, msg);
       return;
     }
     const data = await r.json().catch(() => ({}));
     const extra = parse ? parse(data) : '';
-    setMesaStatus(mesa, 'ok', okLabel, `${ms} ms${extra ? ' · ' + extra : ''}`, '');
+    const detail = `${ms} ms${extra ? ' · ' + extra : ''}`;
+    const partial = degradedByMesa.get(mesa);
+    if (partial) setMesaStatus(mesa, 'warn', 'degradada', detail, `No disponible: ${partial.join(', ')}`);
+    else setMesaStatus(mesa, 'ok', okLabel, detail, '');
   } catch (ex) {
     const ms = Math.round(performance.now() - t0);
     setMesaStatus(mesa, 'bad', 'sin conexión', `${url} · ${ms} ms`, ex.message || 'fallo de red');
