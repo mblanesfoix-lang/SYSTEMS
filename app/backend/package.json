@@ -26,6 +26,7 @@
     "express": "^4.22.3",
     "express-rate-limit": "^8.7.1",
     "geoip-lite": "^2.0.3",
+    "helmet": "^8.3.0",
     "mongodb": "^7.7.0",
     "pdf-parse": "^2.4.5",
     "pdfkit": "^0.19.1",

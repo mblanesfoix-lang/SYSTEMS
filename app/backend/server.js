@@ -40,6 +40,8 @@ import { mountCnmc } from './routes/cnmc.routes.js';
 import { mountSentinelForensicRoutes } from './routes/sentinel-forensic.routes.js';
 import { mountU2Ree } from './routes/u2-ree.routes.js';
 import { mountReffGuestToken } from './routes/reff-guest.routes.js';
+import { mountCspReport, ensureCspReportIndexes } from './routes/csp-report.routes.js';
+import { applySecurityHeaders, CSP_REPORT_PATH } from './lib/security-headers.js';
 
 // Lo primero: .env locales (si existen) y validación, antes de conectar a Mongo o montar
 // ninguna mesa. En producción, si falta algo o tiene un formato inválido, el proceso no
@@ -271,6 +273,11 @@ app.get('/api/ophs/readyz', async (_req, res) => {
   }
 });
 
+/* ---------- cabeceras de seguridad HTTP (lib/security-headers.js) ----------
+   Justo despues de las sondas, que no las necesitan, y antes de todo lo demas:
+   cubren paginas, estaticos, Rëff, API y respuestas de error. */
+applySecurityHeaders(app);
+
 const CORS_ORIGIN = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map((s) => s.trim())
   : null;
@@ -286,6 +293,9 @@ const apiLimiter = rateLimit({
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   keyGenerator: (req) => req.ip ? ipKeyGenerator(req.ip) : 'anon',
+  // Los informes CSP los manda el navegador por su cuenta y tienen limite propio:
+  // no deben gastar el cupo de peticiones del usuario.
+  skip: (req) => req.baseUrl + req.path === CSP_REPORT_PATH,
   message: { error: 'Demasiadas peticiones. Intenta de nuevo en un minuto.' },
 });
 app.use('/api', apiLimiter);
@@ -348,7 +358,8 @@ const llmLimiter = rateLimit({
    Bus = Historial de acciones, no log de tráfico HTTP.
    Solo se registran movimientos reales: métodos mutantes (POST/PUT/PATCH/DELETE)
    y fallos de acceso (401/403). Se descarta GET de polling (dashboard refresh,
-   /api/me, /api/bus/stats, SSE stream, etc) y cualquier 2xx/3xx de lectura. */
+   /api/me, /api/bus/stats, SSE stream, etc) y cualquier 2xx/3xx de lectura.
+   Los informes CSP tampoco son acciones: los envia el navegador solo. */
 const POLLING_PATHS = ['/api/bus/stream', '/api/bus/stats', '/api/bus/history', '/api/bus/'];
 function sentinelLogger(req, res, next) {
   const start = Date.now();
@@ -356,7 +367,7 @@ function sentinelLogger(req, res, next) {
     const isMutation = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method);
     const isAccessFailure = res.statusCode === 401 || res.statusCode === 403;
     if (!isMutation && !isAccessFailure) return;
-    if (POLLING_PATHS.some(p => req.path.startsWith(p))) return;
+    if (POLLING_PATHS.some(p => req.path.startsWith(p)) || req.path === CSP_REPORT_PATH) return;
     const duration = Date.now() - start;
     busEmit({
       id: crypto.randomUUID(), ts: new Date().toISOString(),
@@ -379,6 +390,12 @@ app.use(sentinelLogger);
 // no resuelto en este commit.
 const sentinelForensics = createSentinelForensics({ mongo: rawMongo, busEmit: (...args) => busEmit(...args), ROLE_MESAS });
 app.use(sentinelForensics.middleware(mesaForPath));
+
+/* ---- Informes CSP del navegador: ruta publica (routes/csp-report.routes.js) ----
+   Detras de Sentinel, para que quede en el log forense como cualquier acceso.
+   rawMongo: llegan sin sesion, no hay tenant. */
+await ensureCspReportIndexes(rawMongo);
+mountCspReport(app, { mongo: rawMongo });
 
 /* ---- Notificaciones Admin (mount temprano: adminNotify es dependencia de sentinelLogger/uncaughtException arriba) ---- */
 ({ adminNotify, listAdminNotifications } = mountNotifications(app, { auth: (req, res, next) => auth(req, res, next), requireAdmin, atomicWriteJson, NOTIFICATIONS_FILE }));
@@ -885,6 +902,7 @@ const TWIN_TOKEN = process.env.TWIN_TOKEN;
 
 if (process.env.ENABLE_TWIN_PORT === 'true') {
   const twinApp = express();
+  applySecurityHeaders(twinApp);
 
   // Twin queda bajo la misma vigilancia Sentinel que el resto de puertos:
   // mismo log forense, mismo rate limit, misma cola de revision de IPs.
