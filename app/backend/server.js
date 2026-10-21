@@ -10,7 +10,8 @@ import { fileURLToPath } from 'node:url';
 import { connectMongo, closeMongo, getElviraDb, getMongoClient, withTransaction } from './db/mongo.js';
 import { createTenantAwareDb, createTenantAwareReffDb } from './db/tenant-context.js';
 import { createSentinelForensics } from './sentinel-forensics.js';
-import { callLLM } from './llm.js';
+import { callLlm, llmStatus, setUsageRecorder } from './llm/index.js';
+import { addUsage } from './llm/usage.js';
 import { mountElviraCentral } from './elvira-central.js';
 import { mountFinance } from './finance.js';
 import { mountFinanceCompanies } from './finance-companies.js';
@@ -130,7 +131,13 @@ if (!fs.existsSync(ELVIRA_FILE)) atomicWriteJson(ELVIRA_FILE, {
 
 const { readElvira, writeElvira } = createElviraStore(ELVIRA_FILE, atomicWriteJson);
 
-// LLM provider configured in llm.js via LLM_PROVIDER env var (.env ya cargado arriba)
+// Contabilidad de la IA (T'Controler): toda llamada con usuario, sea de una mesa o de Rëff,
+// se suma aquí con el coste del proveedor que la atendió.
+setUsageRecorder((entry) => {
+  const state = readElvira();
+  addUsage(state.systems, entry);
+  writeElvira(state);
+});
 
 // Multi-tenancy Fase 1: siembra el tenant 'equipo-interno' (apunta a las dbs
 // 'elvira'/'reff' de siempre, cero migracion) antes de sembrar usuarios, que
@@ -387,11 +394,11 @@ const authLimiter = rateLimit({
   message: { error: 'Demasiados intentos de login. Espera 15 minutos.' },
 });
 
-/* FASE 5 (2026-09-20): apiLimiter (120/min/IP) es un techo generico —
- * insuficiente para rutas que llaman callLLM() (coste real en tokens
- * Anthropic + timeout de hasta LLM_TIMEOUT_MS cada una: /api/elvira/central/chat,
- * /api/paia/nodes/:id/insight). Limiter propio, por usuario (no por IP,
- * varios usuarios detrás del mismo NAT/oficina no deben compartir cupo). */
+/* apiLimiter (120/min/IP) es un techo generico, insuficiente para rutas que
+ * llaman a la IA (coste por tokens y hasta LLM_TIMEOUT_MS cada una:
+ * /api/elvira/central/chat, /api/paia/nodes/:id/insight). Limiter propio, por
+ * usuario (no por IP: varios usuarios detrás del mismo NAT/oficina no deben
+ * compartir cupo). */
 const llmLimiter = rateLimit({
   windowMs: 60 * 1000,
   limit: 12,
@@ -521,7 +528,7 @@ app.use(mountGuard.gate);
 /* ---------- Rëff CRM-adjacent: sheets/companies/search/linkedin/email/overview ---------- */
 const reffCrm = await safeMount('reff-crm', () => mountReffCrm(app, {
   auth, mongo, withTransaction, adminNotify,
-  readElvira, writeElvira,
+  readElvira,
   HISTORY_FILE, atomicWriteJson, fs,
 }), {
   label: 'Rëff · hojas y empresas', mesa: 'reff',
@@ -541,7 +548,7 @@ const u2Ree = await safeMount('snfi-u2', () => mountU2Ree(app, { auth, busEmit, 
 const getU2Snapshot = () => (u2Ree ? u2Ree.getU2SnapshotToday() : null);
 
 /* ==========================================================================
-   S-NFI Factory · en desarrollo pendiente (mesa vaciada, ver CLAUDE.md).
+   S-NFI Factory · en desarrollo pendiente (mesa vaciada).
    Guard 'factory' se mantiene reservado; sin rutas backend activas.
 ========================================================================== */
 
@@ -730,7 +737,7 @@ await safeMount('elvira-bridges', () => mountElviraBridges(app, {
 await safeMount('cnmc', () => mountCnmc(app, {
   auth, mongo, busEmit, busEvents, adminNotify,
   readElvira, writeElvira,
-  callLLMTracked: reffCrm.callLLMTracked, extractJson: reffCrm.extractJson,
+  callLlmText: reffCrm.callLlmText, extractJson: reffCrm.extractJson,
 }), { label: 'CNMC', mesa: 'elvira', prefixes: ['/api/elvira/cnmc'], dependsOn: ['reff-crm'] });
 
 /* ==========================================================================
@@ -747,11 +754,11 @@ await safeMount('sentinel-routes', () => mountSentinelForensicRoutes(app, { auth
    ============================================================ */
 await safeMount('elvira-central', () => mountElviraCentral(app, {
   auth, requireMesa, mongo, getReffDb,
-  callLLM, trackTokens: reffCrm.trackTokens, busEmit, adminNotify,
+  callLlm, busEmit, adminNotify,
   readElvira, cibe, llmLimiter, getU2Snapshot,
 }), {
   label: 'Elvi-Ra Central', mesa: 'elvira',
-  prefixes: ['/api/elvira/central', '/api/ophs'], dependsOn: ['reff-crm', 'cibe'],
+  prefixes: ['/api/elvira/central', '/api/ophs'], dependsOn: ['cibe'],
 });
 
 /* ---------- static frontend ---------- */
@@ -796,6 +803,10 @@ safeMount('reff', async () => {
   // Cada token de Rëff vale mientras siga abierta la sesión de Elvi-Ra de la que nació
   // (sesiones en rawMongo, como el login).
   setSessionCheck((sessionId) => isSessionActive(rawMongo, sessionId));
+
+  // Rëff usa el mismo módulo de IA que el resto del proceso: misma configuración y contabilidad.
+  const { setLlmClient } = await import(toFileUrl(path.join(REFF_SERVER, 'llm.js')));
+  setLlmClient({ call: callLlm, status: llmStatus });
 
   const { default: reffAuthRoutes }      = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'auth.routes.js')));
   const { default: reffSheetsRoutes }    = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'sheets.routes.js')));
@@ -947,8 +958,10 @@ function bootVerification() {
   for (const u of mountGuard.degraded()) {
     check(`Mesa · ${u.label}`, false, `degradada, sus rutas responden 503: ${u.reason}`);
   }
-  check('LLM provider', !!process.env.ANTHROPIC_API_KEY || (process.env.LLM_PROVIDER || '').toLowerCase() === 'ollama',
-    process.env.ANTHROPIC_API_KEY ? 'anthropic' : (process.env.LLM_PROVIDER || 'sin configurar — llm.js fallara en caliente al primer uso'));
+  const ai = llmStatus();
+  check('IA', ai.available, ai.available
+    ? `${ai.provider} · ${ai.model}${ai.pricing ? '' : ' · sin tarifa (LLM_PRICE_INPUT_PER_M, LLM_PRICE_OUTPUT_PER_M)'}`
+    : `${ai.reason} — las funciones de IA responden con ese aviso`);
   check('Systems (OPHS real)', !!process.env.SYSTEMS_URL,
     process.env.SYSTEMS_URL ? process.env.SYSTEMS_URL : 'sin configurar — mock local (systems_nodes)');
   check('S-NFI U2 (ESIOS/REE)', !!(process.env.ESIOS_TOKEN || process.env.ESIOS_API_KEY),

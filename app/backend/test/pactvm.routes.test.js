@@ -4,7 +4,7 @@
  * mountPactvm directo sobre Express minimo, sin sentinel-forensics.attach().
  *
  * Alcance: smoke test por sub-mesa (create + read + summary/agregado), no
- * cobertura exhaustiva de cada campo — mesa con 60+ rutas, ver CLAUDE.md.
+ * cobertura exhaustiva de cada campo — mesa con 60+ rutas.
  * Se salta si no hay MONGO_URI configurada.
  */
 import { test, describe, before, after } from 'node:test';

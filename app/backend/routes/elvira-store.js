@@ -2,7 +2,7 @@
  * Elvira JSON store — readElvira()/writeElvira() sobre ELVIRA_FILE.
  *
  * No es una mesa ni expone rutas: es la utilidad de persistencia compartida
- * por reff-crm.routes.js (trackTokens del buscador IA/LinkedIn/Email),
+ * por la contabilidad de la IA (server.js, con llm/usage.js), reff-crm.routes.js,
  * cnmc.routes.js y elvira-bridges.routes.js (todas leen/escriben el mismo
  * data/elvira.json). Se extrae a modulo propio para no duplicar la funcion
  * tres veces ni depender de hoisting entre archivos distintos.

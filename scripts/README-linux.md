@@ -30,7 +30,7 @@ El archivo vive en la raiz del proyecto (`/opt/elvi-ra/.env`): docker compose in
 Antes del primer arranque hay que completar:
 - Contraseñas iniciales `SEED_*_PASSWORD` y `REFF_SEED_*_PASSWORD`: sin ellas no se crean usuarios.
 - `CORS_ORIGIN` con la dirección desde la que se accede (por defecto `http://127.0.0.1:5173`).
-- Proveedor de IA: la clave del proveedor configurado, o `LLM_PROVIDER=ollama` con `OLLAMA_URL` y `OLLAMA_MODEL`. Los nombres exactos de cada variable están en `app/backend/config.js`.
+- IA: `LLM_PROVIDER=local` (servidor de modelos propio) con `LLM_URL` y `LLM_MODEL`, o `LLM_PROVIDER=externo` con `LLM_API_KEY`. Sin IA, sus funciones responden con un aviso y el resto funciona. Explicación de cada variable en `app/backend/.env.example`.
 - `ESIOS_API_KEY` (opcional).
 
 `NODE_ENV` ya queda en `production` y `MONGO_URI` apunta al servicio `mongo` de `docker-compose.yml`. La lista completa de variables, con su explicación, está en `app/backend/.env.example`.

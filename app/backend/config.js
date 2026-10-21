@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { safeEqual } from './lib/safe-compare.js';
+import { PROVIDER_NAMES, providerName, llmStatus, legacyNotices } from './llm/index.js';
 
 /* ============================================================
    Configuración del proceso: inventario único de variables de
@@ -43,6 +44,13 @@ const dataKey = (v) => hex64(v)
   ?? (safeEqual(v.toLowerCase(), DEV_DATA_KEY) ? 'es la clave de desarrollo del repositorio, hay que generar una propia' : null);
 const oneOf = (...allowed) => (v) => (allowed.includes(v) ? null : `valores admitidos: ${allowed.join(', ')}`);
 const positiveInt = (v) => (/^\d+$/.test(v) && Number(v) > 0 ? null : 'debe ser un entero positivo');
+const nonNegativeNumber = (v) => (/^\d+(\.\d+)?$/.test(v) ? null : 'debe ser un número mayor o igual que 0');
+// Producción no admite respuestas simuladas: se tomarían por resultados reales.
+const llmProvider = (v, env) => {
+  const name = providerName(v);
+  if (name === undefined) return `valores admitidos: ${PROVIDER_NAMES.join(', ')}`;
+  return name === 'simulado' && env.NODE_ENV === 'production' ? 'el proveedor simulado no se admite en producción' : null;
+};
 const tcpPort = (v) => (/^\d+$/.test(v) && Number(v) >= 1 && Number(v) <= 65535 ? null : 'debe ser un puerto entre 1 y 65535');
 const mongoUri = (v) => (/^mongodb(\+srv)?:\/\//.test(v) ? null : 'debe empezar por mongodb:// o mongodb+srv://');
 const pemBlock = (v) => (v.includes('-----BEGIN ') ? null : 'debe ser una clave en formato PEM');
@@ -67,13 +75,12 @@ const GENERATE_HEX32 = 'Generar: openssl rand -hex 32';
      required     obligatoria en producción
      requiredIf   { test(env), text }: obligatoria solo en ese caso
      warnIf       { test(env), text }: aviso (nunca error) si falta en ese caso
-     check        formato, se aplica siempre que tenga valor
+     check        formato (valor, entorno), se aplica siempre que tenga valor
      def          valor por defecto que aplica el código (documentación)
      hint         ayuda extra para .env.example
      secret       va al Secret de k8s y nunca lleva valor en los ejemplos
      deploy       valor por defecto en docker-compose y en el ConfigMap
      fixed        valor fijo en docker-compose (no se toma del entorno)
-     manual       se mantiene a mano en docker-compose y k8s (fuera del bloque generado)
      localOnly    solo ejecución local; no aparece en docker-compose ni en k8s
      reff         también la lee Rëff; objeto opcional { desc, def, hint } para su .env.example
 */
@@ -158,21 +165,30 @@ export const VARS = [
   reffSeedVar('REFF_SEED_AMIR_PASSWORD', 'Amir'),
   reffSeedVar('REFF_SEED_GONZALO_PASSWORD', 'Gonzalo'),
 
-  // IA: los valores de despliegue dependen del proveedor y se mantienen a mano
-  { name: 'LLM_PROVIDER', group: 'llm', manual: true, reff: true,
-    desc: 'Proveedor de IA: ollama para el modelo local', def: 'el proveedor externo' },
-  { name: 'LLM_TIMEOUT_MS', group: 'llm', manual: true, check: positiveInt, def: '30000',
-    desc: 'Tiempo máximo de cada llamada a la IA (ms)' },
-  { name: 'ANTHROPIC_API_KEY', group: 'llm', manual: true, secret: true, reff: true,
+  // IA (módulo llm/): el mismo para el backend y Rëff
+  { name: 'LLM_PROVIDER', group: 'llm', check: llmProvider, reff: true,
+    desc: `Proveedor de IA: ${PROVIDER_NAMES.join(', ')}. local es el servidor de modelos propio (Ollama); `
+      + 'simulado da respuestas de prueba sin red y producción no lo admite; externo es el proveedor externo',
+    def: 'sin IA (o externo si hay LLM_API_KEY)',
+    warnIf: { test: (env) => !llmStatus(env).provider, text: 'sin ella, las funciones de IA no responden' } },
+  { name: 'LLM_MODEL', group: 'llm', reff: true,
+    desc: 'Modelo de IA', def: 'el del proveedor (local: llama3:70b)' },
+  { name: 'LLM_URL', group: 'llm', check: httpUrl, reff: true,
+    desc: 'Dirección del servicio de IA', def: 'la del proveedor (local: http://ollama:11434)' },
+  { name: 'LLM_API_KEY', group: 'llm', secret: true, reff: true,
     desc: 'Clave del proveedor de IA externo',
-    hint: 'Sin ella, las funciones de IA del proveedor externo no responden',
-    warnIf: { test: (env) => env.LLM_PROVIDER !== 'ollama', text: 'sin ella, las funciones de IA del proveedor externo no responden' } },
-  { name: 'ANTHROPIC_MODEL', group: 'llm', manual: true, reff: true,
-    desc: 'Modelo del proveedor de IA externo', def: 'el definido en el código' },
-  { name: 'OLLAMA_URL', group: 'llm', manual: true, check: httpUrl, reff: true,
-    desc: 'URL del servidor Ollama', def: 'http://ollama:11434' },
-  { name: 'OLLAMA_MODEL', group: 'llm', manual: true, reff: true,
-    desc: 'Modelo de Ollama', def: 'llama3:70b' },
+    warnIf: {
+      test: (env) => { const s = llmStatus(env); return s.provider === 'externo' && !s.available; },
+      text: 'sin ella, el proveedor externo no responde',
+    } },
+  { name: 'LLM_TIMEOUT_MS', group: 'llm', check: positiveInt, def: '30000',
+    desc: 'Tiempo máximo de cada llamada a la IA (ms); la auditoría Herzog y la vigilancia de Rëff fijan el suyo' },
+  { name: 'LLM_PRICE_INPUT_PER_M', group: 'llm', check: nonNegativeNumber,
+    desc: 'Precio en USD por millón de tokens de entrada, para la contabilidad de consumo',
+    def: 'la tarifa del proveedor y modelo (0 en local y simulado)' },
+  { name: 'LLM_PRICE_OUTPUT_PER_M', group: 'llm', check: nonNegativeNumber,
+    desc: 'Precio en USD por millón de tokens de salida, para la contabilidad de consumo',
+    def: 'la tarifa del proveedor y modelo (0 en local y simulado)' },
 
   // Fuentes de datos externas
   { name: 'ESIOS_API_KEY', group: 'data', secret: true,
@@ -277,7 +293,7 @@ export const OBSOLETE_VARS = [
   { name: 'FOUNDRY_INGRESS_PORT', reason: 'el pipeline de ingesta Lab está retirado' },
   { name: 'SERPAPI_KEY', reason: 'ningún módulo la lee' },
   { name: 'DB_PATH', reason: 'Rëff ya no usa almacenamiento en archivo; todo está en MongoDB' },
-  { name: 'OLLAMA_BASE_URL', reason: 'el nombre vigente es OLLAMA_URL' },
+  { name: 'OLLAMA_BASE_URL', reason: 'el nombre vigente es LLM_URL' },
   { name: 'ESIOS_TOKEN', reason: 'alias heredado; usar ESIOS_API_KEY' },
 ];
 
@@ -319,13 +335,15 @@ export function validateConfig(env = process.env) {
       problems.push(`${v.name}: conserva el valor de plantilla, hay que sustituirlo`);
       continue;
     }
-    const reason = v.check?.(value);
+    const reason = v.check?.(value, env);
     if (reason) problems.push(`${v.name}: ${reason}`);
   }
 
   for (const o of OBSOLETE_VARS) {
     if (isSet(env[o.name])) notices.push(`${o.name}: obsoleta, se ignora (${o.reason})`);
   }
+  // Nombres antiguos de la IA: siguen funcionando mientras se renombran, por eso solo avisan.
+  notices.push(...legacyNotices(env));
 
   return production
     ? { production, errors: problems, warnings: notices }

@@ -14,6 +14,7 @@ import {
   ConfigError, validateConfig, assertConfig, parseEnvFile, loadEnvFile, DEV_FORENSIC_SECRET, DEV_DATA_KEY,
 } from '../config.js';
 import { REPO_ROOT, outdatedTargets } from '../scripts/config-sync.js';
+import { RENAMED_VARS } from '../llm/index.js';
 
 const REQUIRED = VARS.filter((v) => v.required).map((v) => v.name);
 const HEX64 = 'a'.repeat(64);
@@ -25,7 +26,7 @@ const VALID_PRODUCTION = {
   SENTINEL_FORENSIC_SECRET: SECRET,
   FL_EXPEDIENTE_ENC_KEY: HEX64,
   PACTVM_DATA_KEY: 'c'.repeat(64),
-  LLM_PROVIDER: 'ollama',
+  LLM_PROVIDER: 'local',
 };
 const silent = { warn() {} };
 const read = (file) => fs.readFileSync(path.join(REPO_ROOT, file), 'utf8');
@@ -104,6 +105,32 @@ describe('config: validación en producción', () => {
     assert.deepEqual(errors, ['PACTVM_DATA_KEY: deben ser 64 caracteres hexadecimales (32 bytes)']);
   });
 
+  test('IA: proveedor no válido o simulado no se admiten en producción', () => {
+    assert.deepEqual(validateConfig({ ...VALID_PRODUCTION, LLM_PROVIDER: 'otro' }).errors,
+      ['LLM_PROVIDER: valores admitidos: local, simulado, externo']);
+    assert.deepEqual(validateConfig({ ...VALID_PRODUCTION, LLM_PROVIDER: 'simulado' }).errors,
+      ['LLM_PROVIDER: el proveedor simulado no se admite en producción']);
+    assert.deepEqual(validateConfig({ LLM_PROVIDER: 'simulado' }).warnings.filter((w) => w.startsWith('LLM_PROVIDER')), []);
+  });
+
+  test('IA: los nombres antiguos solo avisan, también en producción', () => {
+    const oldUrl = RENAMED_VARS.find((r) => r.replacement === 'LLM_URL' && r.provider === 'local').name;
+    const result = validateConfig({ ...VALID_PRODUCTION, LLM_PROVIDER: 'ollama', [oldUrl]: 'http://ia:11434' });
+    assert.deepEqual(result.errors, []);
+    assert.ok(result.warnings.some((w) => w.startsWith('LLM_PROVIDER: valor antiguo')));
+    assert.ok(result.warnings.some((w) => w.startsWith(`${oldUrl}: nombre antiguo de LLM_URL`)));
+  });
+
+  test('IA: sin proveedor solo avisa; con el externo, falta su clave', () => {
+    const withoutProvider = { ...VALID_PRODUCTION };
+    delete withoutProvider.LLM_PROVIDER;
+    const none = validateConfig(withoutProvider);
+    assert.deepEqual(none.errors, []);
+    assert.ok(none.warnings.includes('LLM_PROVIDER: sin ella, las funciones de IA no responden'));
+    const external = validateConfig({ ...VALID_PRODUCTION, LLM_PROVIDER: 'externo' });
+    assert.ok(external.warnings.includes('LLM_API_KEY: sin ella, el proveedor externo no responde'));
+  });
+
   test('los mensajes nunca incluyen el valor de una variable', () => {
     const leaked = 'valor-que-no-debe-salir-en-el-log';
     try {
@@ -161,18 +188,21 @@ describe('config: .env locales', () => {
   });
 });
 
-// Variables leídas por el código del proceso (backend y Rëff) y del build del cliente de Rëff.
+// Variables leídas por el código del proceso (backend y Rëff) y del build del cliente de Rëff:
+// process.env.X, import.meta.env.X y env.X en los módulos que reciben el entorno como parámetro.
+// config.js se salta porque nombra variables para validarlas, no para usarlas.
 function envNamesInCode() {
   const names = new Set();
   const skip = new Set(['node_modules', 'dist', 'data', 'test', '.git']);
+  const configFile = path.join(REPO_ROOT, 'app/backend/config.js');
   const walk = (dir) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       const abs = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         if (!skip.has(entry.name)) walk(abs);
-      } else if (/\.(js|mjs|ts|tsx)$/.test(entry.name)) {
+      } else if (/\.(js|mjs|ts|tsx)$/.test(entry.name) && abs !== configFile) {
         const src = fs.readFileSync(abs, 'utf8');
-        for (const m of src.matchAll(/(?:process|import\.meta)\.env\.([A-Z][A-Z0-9_]*)/g)) names.add(m[1]);
+        for (const m of src.matchAll(/\benv\.([A-Z][A-Z0-9_]*)/g)) names.add(m[1]);
       }
     }
   };
@@ -187,7 +217,7 @@ describe('config: inventario frente al código', () => {
   const inCode = envNamesInCode();
 
   test('toda variable que lee el código está en el inventario', () => {
-    const known = new Set([...VARS, ...PLATFORM_VARS, ...TOOL_VARS, ...BUILD_VARS, ...OBSOLETE_VARS].map((v) => v.name));
+    const known = new Set([...VARS, ...PLATFORM_VARS, ...TOOL_VARS, ...BUILD_VARS, ...OBSOLETE_VARS, ...RENAMED_VARS].map((v) => v.name));
     assert.deepEqual([...inCode].filter((n) => !known.has(n)).sort(), []);
   });
 

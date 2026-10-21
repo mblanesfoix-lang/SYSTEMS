@@ -5,11 +5,13 @@
  * Incluye: overview agregado, Systems registry, OPHS scoring (Dictamen de
  * Soberanía) + webhook de integración externa, T'Controler (consumo tokens),
  * y los puentes mock de Sentinel/Herzog. Usa el mismo store JSON de Elvira
- * (readElvira/writeElvira) que reff-crm.routes.js y cnmc.routes.js.
+ * (readElvira/writeElvira) que reff-crm.routes.js, cnmc.routes.js y la
+ * contabilidad del módulo de IA.
  */
 
 import crypto from 'node:crypto';
-import { PRICE_INPUT_PER_M, PRICE_OUTPUT_PER_M, ANTHROPIC_MODEL } from '../llm.js';
+import { llmStatus } from '../llm/index.js';
+import { userCostUsd } from '../llm/usage.js';
 
 /* ---------- USD -> EUR exchange rate (cached 1h, frankfurter.app, sin API key) ---------- */
 let exchangeRateCache = { rate: 0.92, fetchedAt: 0 };
@@ -166,15 +168,17 @@ export function mountElviraBridges(app, {
     const tc = state.systems.tcontroler || {};
     const byUser = tc.byUser || {};
     const eurRate = await getUsdToEurRate();
+    const ai = llmStatus();
 
     const users = Object.entries(byUser).map(([user, u]) => {
       const totalTokens = u.inputTokens + u.outputTokens;
-      const costTotalUSD = (u.inputTokens / 1e6) * PRICE_INPUT_PER_M + (u.outputTokens / 1e6) * PRICE_OUTPUT_PER_M;
+      const costTotalUSD = userCostUsd(u, ai.pricing);
       return {
         user,
         calls: u.calls,
         inputTokens: u.inputTokens,
         outputTokens: u.outputTokens,
+        webSearches: u.webSearches || 0,
         totalTokens,
         costTotalUSD,
         costTotalEUR: costTotalUSD * eurRate,
@@ -193,9 +197,17 @@ export function mountElviraBridges(app, {
       return acc;
     }, { calls: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0, costTotalUSD: 0, costTotalEUR: 0 });
 
+    // El coste de cada llamada se guardó con la tarifa de su proveedor; la tarifa
+    // vigente solo valora los tokens que llegaron sin ella.
     res.json({
-      model: ANTHROPIC_MODEL(),
-      pricing: { inputPer1M: PRICE_INPUT_PER_M, outputPer1M: PRICE_OUTPUT_PER_M, usdToEur: eurRate },
+      provider: ai.provider,
+      model: ai.model,
+      pricing: {
+        inputPer1M: ai.pricing?.inputPerM ?? null,
+        outputPer1M: ai.pricing?.outputPerM ?? null,
+        perWebSearch: ai.pricing?.perWebSearch ?? null,
+        usdToEur: eurRate,
+      },
       tokensCap: tc.tokensCap || 0,
       global,
       byUser: users,

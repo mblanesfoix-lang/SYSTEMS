@@ -1,10 +1,9 @@
 import { Router, Request, Response } from 'express';
 import { lookup as dnsLookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
-import Anthropic from '@anthropic-ai/sdk';
 import { getReffDb, nextSeq } from '../mongo.js';
 import { authMiddleware } from '../auth.js';
-import { ANTHROPIC_MODEL, isPlaceholderKey } from '../llm.js';
+import { callLlm, isLlmUnavailable } from '../llm.js';
 
 const router = Router();
 
@@ -16,7 +15,7 @@ const MAX_FETCH_BYTES = 400_000; // límite de descarga cruda
 const MAX_EXTRACTED_CHARS = 6000; // límite de texto extraído por URL, para no disparar el prompt
 const MAX_URLS_PER_AUDIT = 3;
 const MAX_WEB_SEARCH_USES = 6; // tope de búsquedas por auditoría, coste controlado
-const MAX_TOOL_LOOP_ITERATIONS = 8; // corta un bucle pause_turn/tool_use que no converja
+const AUDIT_TIMEOUT_MS = 240_000; // varias rondas de búsqueda web: más margen que una llamada normal a la IA
 
 function isPrivateIp(ip: string): boolean {
   if (ip === '127.0.0.1' || ip === '::1') return true;
@@ -329,9 +328,10 @@ router.post('/audit', async (req: Request, res: Response) => {
   let result: unknown;
   let sources: HerzogSource[];
   try {
-    ({ result, sources } = await runHerzogAudit(userMessage, evalType));
+    ({ result, sources } = await runHerzogAudit(userMessage, evalType, req.user.username));
   } catch (err: any) {
-    return res.status(502).json({ error: err?.message || 'Error al ejecutar la auditoría Herzog' });
+    const status = isLlmUnavailable(err) ? 503 : 502;
+    return res.status(status).json({ error: err?.message || 'Error al ejecutar la auditoría Herzog' });
   }
 
   // El servidor manda sobre pesos, nota global y veredicto — el LLM solo aporta
@@ -360,79 +360,38 @@ interface HerzogSource {
   title: string | null;
 }
 
-// Bucle de herramientas manual: Claude usa web_search (servidor Anthropic, sin
-// coste de red propio) para investigar la empresa, y devuelve el JSON final.
-// No usamos streamLLM (single-shot sin tools) porque este flujo necesita tool_use.
-async function runHerzogAudit(userMessage: string, evalType: EvalType): Promise<{ result: unknown; sources: HerzogSource[] }> {
-  const apiKey = (process.env.ANTHROPIC_API_KEY || '').trim();
-  if (isPlaceholderKey(apiKey)) {
-    throw new Error('Falta configurar una clave real de Anthropic. Revisa ANTHROPIC_API_KEY en .env.');
-  }
-
-  const client = new Anthropic({ apiKey });
-  const tools: Anthropic.Messages.ToolUnion[] = [
-    { type: 'web_search_20250305', name: 'web_search', max_uses: MAX_WEB_SEARCH_USES },
-  ];
-  const messages: Anthropic.Messages.MessageParam[] = [{ role: 'user', content: userMessage }];
-  const sources = new Map<string, HerzogSource>();
-
-  let finalResponse: Anthropic.Messages.Message | null = null;
-  for (let i = 0; i < MAX_TOOL_LOOP_ITERATIONS; i++) {
-    const response = await client.messages.create({
-      model: ANTHROPIC_MODEL,
-      // El reporte de acreditacion (4 categorias + 8 variables + flags +
-      // recomendacion + contacto) no cabe en 4096: se corta a mitad del JSON.
-      max_tokens: 8192,
-      system: buildSystemPrompt(evalType),
-      tools,
-      messages,
-    });
-
-    for (const block of response.content) {
-      if (block.type === 'web_search_tool_result' && Array.isArray(block.content)) {
-        for (const item of block.content) {
-          if (item.type === 'web_search_result' && item.url && !sources.has(item.url)) {
-            sources.set(item.url, { url: item.url, title: item.title ?? null });
-          }
-        }
-      }
-    }
-
-    if (response.stop_reason === 'pause_turn') {
-      messages.push({ role: 'assistant', content: response.content });
-      continue;
-    }
-
-    finalResponse = response;
-    break;
-  }
-
-  if (!finalResponse) {
-    throw new Error('La auditoría Herzog no terminó tras varias rondas de búsqueda — inténtalo de nuevo');
-  }
-
-  const fullText = finalResponse.content
-    .filter((b): b is Anthropic.Messages.TextBlock => b.type === 'text')
-    .map((b) => b.text)
-    .join('');
+// Búsqueda asistida: la IA investiga la empresa en la web (el proveedor resuelve
+// las búsquedas y las rondas que hagan falta) y devuelve el JSON final.
+async function runHerzogAudit(userMessage: string, evalType: EvalType, username: string): Promise<{ result: unknown; sources: HerzogSource[] }> {
+  const llm = await callLlm({
+    system: buildSystemPrompt(evalType),
+    prompt: userMessage,
+    // El reporte de acreditacion (4 categorias + 8 variables + flags +
+    // recomendacion + contacto) no cabe en 4096: se corta a mitad del JSON.
+    maxTokens: 8192,
+    webSearch: { maxUses: MAX_WEB_SEARCH_USES },
+    timeoutMs: AUDIT_TIMEOUT_MS,
+    user: username,
+    operation: 'herzog-audit',
+  });
 
   let result: unknown;
   try {
-    const jsonMatch = fullText.match(/\{[\s\S]*\}/);
-    result = JSON.parse(jsonMatch ? jsonMatch[0] : fullText);
+    const jsonMatch = llm.text.match(/\{[\s\S]*\}/);
+    result = JSON.parse(jsonMatch ? jsonMatch[0] : llm.text);
   } catch {
     // El corte por límite de tokens es el fallo mas probable con el esquema
     // completo del reporte: se distingue del JSON malformado para no mandar al
     // usuario a depurar el prompt cuando lo que falta es presupuesto de salida.
-    console.error('[Herzog] JSON invalido · stop_reason=%s · chars=%d · cola=%j',
-      finalResponse.stop_reason, fullText.length, fullText.slice(-300));
-    if (finalResponse.stop_reason === 'max_tokens') {
+    console.error('[Herzog] JSON invalido · truncado=%s · chars=%d · cola=%j',
+      llm.truncated, llm.text.length, llm.text.slice(-300));
+    if (llm.truncated) {
       throw new Error('La auditoría se cortó por longitud antes de completar el informe — reintenta.');
     }
     throw new Error('La auditoría no devolvió un JSON válido');
   }
 
-  return { result, sources: Array.from(sources.values()) };
+  return { result, sources: llm.sources };
 }
 
 // Busca si la empresa auditada ya existe en el CRM del usuario (por nombre,

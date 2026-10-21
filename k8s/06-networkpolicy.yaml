@@ -62,8 +62,8 @@ spec:
           port: 27017
 ---
 # elvira-core: acepta trafico HTTP desde cualquier origen (es el Service que
-# expone la app) y puede salir a Mongo + DNS + APIs externas (Anthropic,
-# ESIOS, etc. via HTTPS 443).
+# expone la app) y puede salir a Mongo + DNS + APIs externas (proveedor de IA
+# externo, ESIOS, etc. via HTTPS 443).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

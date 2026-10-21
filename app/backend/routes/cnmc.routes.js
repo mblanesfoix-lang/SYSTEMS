@@ -9,12 +9,13 @@
  * (numeracionyoperadores.cnmc.es) para datos de registro actualizados,
  * 2) el LLM enriquece con contexto regulatorio usando esos datos reales.
  *
- * callLLMTracked/extractJson son las mismas utilidades de reff-crm.routes.js
- * (T'Controler/tracking de tokens compartido) — se reciben como dependencia
- * en vez de reimplementarlas.
+ * callLlmText/extractJson son las mismas utilidades de reff-crm.routes.js
+ * (el consumo lo registra el módulo de IA en T'Controler) — se reciben como
+ * dependencia en vez de reimplementarlas.
  */
 
 import crypto from 'node:crypto';
+import { isLlmUnavailable } from '../llm/index.js';
 
 const CNMC_API_BASE = 'https://numeracionyoperadores.cnmc.es';
 
@@ -84,7 +85,7 @@ SALIDA: SOLO JSON válido, sin markdown:
 export function mountCnmc(app, {
   auth, mongo, busEmit, busEvents, adminNotify,
   readElvira, writeElvira,
-  callLLMTracked, extractJson,
+  callLlmText, extractJson,
 }) {
   /* GET /api/elvira/cnmc/documents — lista documentos ingestados */
   app.get('/api/elvira/cnmc/documents', auth, (req, res) => {
@@ -406,7 +407,7 @@ Interpreta estos datos y enriquece con contexto regulatorio adicional (sanciones
 Si hay múltiples resultados, analiza el más relevante o el que coincida mejor con la búsqueda.
 SOLO JSON.`;
 
-      const raw = await callLLMTracked(CNMC_ENRICH_SYSTEM, userPrompt, 3000, req.user, 'cnmc_search');
+      const raw = await callLlmText(CNMC_ENRICH_SYSTEM, userPrompt, 3000, req.user, 'cnmc_search');
       const parsed = extractJson(raw);
 
       // Override registroOficial with verified data if LLM missed it
@@ -442,6 +443,7 @@ SOLO JSON.`;
         ...parsed,
       });
     } catch (ex) {
+      if (isLlmUnavailable(ex)) return res.status(503).json({ error: ex.message });
       console.error('[cnmc/search]', ex);
       adminNotify({ origin: 'REFF', label: 'CNMC búsqueda · fallo', detail: ex.message, severity: 'error' });
       res.status(500).json({ error: ex.message || 'error búsqueda CNMC' });

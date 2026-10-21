@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { getReffDb, nextSeq } from '../mongo.js';
 import { authMiddleware } from '../auth.js';
 import { runWatchCycle, WATCH_CATEGORIES, WatchCompanyDoc, WatchNewsDoc } from '../watch.js';
+import { llmStatus } from '../llm.js';
 
 const router = Router();
 
@@ -115,6 +116,10 @@ router.delete('/news/:id', async (req: Request, res: Response) => {
 
 // Lanza un ciclo de búsqueda inmediato (todas las empresas activas, o una sola si se pasa companyId).
 router.post('/run', async (req: Request, res: Response) => {
+  const ai = llmStatus();
+  if (!ai.webSearch) {
+    return res.status(503).json({ error: ai.reason || 'La búsqueda asistida en la web no está disponible con el proveedor de IA configurado' });
+  }
   const { companyId } = req.body || {};
   runWatchCycle(typeof companyId === 'number' ? companyId : undefined).catch((err) =>
     console.error('[Rëff][watch] Ciclo manual falló:', err),

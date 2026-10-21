@@ -7,7 +7,7 @@
  *
  * Deteccion base: heuristica local (tendencia lineal + desviacion sobre
  * ventana movil), sin coste de API. Insight en lenguaje natural opcional via
- * llm.js (Ollama en produccion = coste cero, Anthropic en dev). Nunca ejecuta
+ * el modulo de IA (llm/index.js; con el servidor de modelos propio, coste cero). Nunca ejecuta
  * nada: solo propone. La decision de intervenir es de Central/humano
  * (doctrina: el humano autoriza, el sistema ejecuta).
  *
@@ -16,7 +16,7 @@
  */
 
 import crypto from 'node:crypto';
-import { callLLM } from './llm.js';
+import { callLlm, isLlmUnavailable } from './llm/index.js';
 import { appendChained, verifyLog } from './lib/hash-chain.js';
 
 const METRICS = ['pressureBar', 'flowLpm', 'tempC', 'rpm'];
@@ -101,7 +101,7 @@ function analyzeReadings(readings) {
 export function mountPaia(app, { auth, requireMesa, mongo, llmLimiter }) {
   const router = app;
   const guard = [auth, requireMesa('ophs')];
-  // limiter especifico solo en la ruta que llama callLLM() — /analyze es
+  // limiter especifico solo en la ruta que llama a la IA — /analyze es
   // estadistica pura, sin coste de IA, no necesita el mismo techo.
   const llmGuard = llmLimiter ? [...guard, llmLimiter] : guard;
 
@@ -155,10 +155,13 @@ export function mountPaia(app, { auth, requireMesa, mongo, llmLimiter }) {
 
     let insight;
     try {
-      const result = await callLLM(systemPrompt, userPrompt, 400);
+      const result = await callLlm({
+        system: systemPrompt, prompt: userPrompt, maxTokens: 400,
+        user: req.user, operation: 'paia-insight',
+      });
       insight = result.text;
     } catch (err) {
-      return res.status(502).json({ error: `PAIA insight no disponible: ${err.message}` });
+      return res.status(isLlmUnavailable(err) ? 503 : 502).json({ error: `PAIA insight no disponible: ${err.message}` });
     }
 
     await appendPaiaLog(mongo, { action: 'insight.generate', actorId: req.user, detail: { nodeId } });

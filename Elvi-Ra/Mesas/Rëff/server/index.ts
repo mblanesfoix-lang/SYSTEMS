@@ -25,9 +25,8 @@ const __dirname = path.dirname(__filename);
 const PORT = Number(process.env.PORT || 3001);
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
-if (!process.env.ANTHROPIC_API_KEY) {
-  console.warn('[Rëff][WARN] ANTHROPIC_API_KEY no está definida en .env — Herzog fallará.');
-}
+// La IA es del backend integrado (app/backend/llm): aquí Herzog y la vigilancia responden que no está disponible.
+console.warn('[Rëff][WARN] Modo independiente sin IA: Herzog y la vigilancia solo funcionan integrados en el backend.');
 
 const MONGO_URI = process.env.MONGO_URI;
 if (!MONGO_URI) {

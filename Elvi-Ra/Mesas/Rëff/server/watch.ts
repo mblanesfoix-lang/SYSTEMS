@@ -1,10 +1,12 @@
 import crypto from 'node:crypto';
-import Anthropic from '@anthropic-ai/sdk';
 import { getReffDb, nextSeq } from './mongo.js';
-import { ANTHROPIC_MODEL, isPlaceholderKey } from './llm.js';
+import { callLlm, llmStatus } from './llm.js';
 
-const ANTHROPIC_KEY = (process.env.ANTHROPIC_API_KEY || '').trim();
 const CRON_SCHEDULE = process.env.WATCH_CRON_SCHEDULE || '0 */6 * * *';
+// Varias búsquedas web por consulta: más margen que una llamada normal a la IA.
+const WATCH_TIMEOUT_MS = 120_000;
+// La vigilancia corre sola, sin usuario: su consumo se imputa al sistema.
+const WATCH_USAGE_USER = 'sistema';
 
 export const WATCH_CATEGORIES = ['residuos_inversion', 'asociaciones', 'novedades'] as const;
 export type WatchCategory = typeof WATCH_CATEGORIES[number];
@@ -68,9 +70,9 @@ function dedupeHash(companyId: number, category: WatchCategory, item: ParsedItem
 }
 
 async function searchCategory(company: WatchCompanyDoc, category: WatchCategory): Promise<void> {
-  if (isPlaceholderKey(ANTHROPIC_KEY)) return;
+  // Sin IA con búsqueda web la vigilancia espera, sin errores, hasta que la haya.
+  if (!llmStatus().webSearch) return;
 
-  const client = new Anthropic({ apiKey: ANTHROPIC_KEY });
   const instruction = CATEGORY_PROMPT[category].replace('{name}', company.name);
 
   const system = `Eres el módulo de vigilancia informativa de Rëff (S-NFI). Usa la herramienta de búsqueda web para encontrar noticias REALES y RECIENTES (últimos 30 días si es posible).
@@ -84,20 +86,17 @@ FECHA: <fecha publicación AAAA-MM-DD o N/A>
 Si no encuentras nada relevante, responde exactamente: TITULAR: Sin novedades`;
 
   try {
-    const result = await client.messages.create({
-      model: ANTHROPIC_MODEL,
-      max_tokens: 1500,
+    const result = await callLlm({
       system,
-      messages: [{ role: 'user', content: instruction }],
-      tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 4 }],
+      prompt: instruction,
+      maxTokens: 1500,
+      webSearch: { maxUses: 4 },
+      timeoutMs: WATCH_TIMEOUT_MS,
+      user: WATCH_USAGE_USER,
+      operation: 'reff-watch',
     });
 
-    const text = result.content
-      .filter((b) => b.type === 'text')
-      .map((b) => (b as { text: string }).text)
-      .join('\n');
-
-    const items = parseItems(text);
+    const items = parseItems(result.parts.join('\n'));
     if (items.length === 0) return;
 
     const db = getReffDb();

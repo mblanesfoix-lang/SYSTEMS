@@ -68,7 +68,7 @@ spec:
                 name: elvira-secrets
           env:
             - name: SYSTEMS_URL
-              value: ""   # jefe: puerto real Systems, ver CLAUDE.md "Puerto Systems real"
+              value: ""   # URL del ØPHS real (docs/ophs-conexion.md)
           readinessProbe:
             httpGet:
               path: /api/ophs/readyz

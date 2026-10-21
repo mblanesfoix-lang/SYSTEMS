@@ -10,12 +10,6 @@ metadata:
   name: elvira-config
   namespace: elvira
 data:
-  # IA (valores según el proveedor elegido)
-  LLM_PROVIDER: "anthropic"
-  ANTHROPIC_MODEL: "claude-haiku-4-5-20251001"
-  OLLAMA_URL: "http://ollama:11434"
-  OLLAMA_MODEL: "llama3:70b"
-  # LLM_TIMEOUT_MS: ""
   # >>> bloque generado desde app/backend/config.js (npm run config:sync); no editar a mano
   # Servidor
   NODE_ENV: "production"
@@ -26,6 +20,13 @@ data:
   # SHUTDOWN_HARD_MS: ""
   # Base de datos
   MONGO_URI: "mongodb://mongo:27017/elvira"
+  # IA
+  # LLM_PROVIDER: ""
+  # LLM_MODEL: ""
+  # LLM_URL: ""
+  # LLM_TIMEOUT_MS: ""
+  # LLM_PRICE_INPUT_PER_M: ""
+  # LLM_PRICE_OUTPUT_PER_M: ""
   # Fuentes de datos externas
   # GRID_AUTOSTART: ""
   # GRID_WORKER_MAX_OLD_MB: ""

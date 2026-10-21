@@ -1,147 +1,79 @@
 /**
- * LLM abstraction layer for Rëff — streaming + single-shot.
- *
- * LLM_PROVIDER = "anthropic" (default) | "ollama"
- * OLLAMA_URL   = http://ollama:11434
- * OLLAMA_MODEL = llama3:70b
+ * Puente de Rëff al módulo de IA del proceso (app/backend/llm). Integrado en el
+ * backend, server.js lo conecta con setLlmClient y Rëff comparte configuración
+ * y contabilidad con el resto de mesas. En modo independiente no hay IA.
  */
 
-import Anthropic from '@anthropic-ai/sdk';
+export interface LlmMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
 
-const PROVIDER      = process.env.LLM_PROVIDER  || 'anthropic';
-const OLLAMA_URL    = process.env.OLLAMA_URL     || 'http://ollama:11434';
-const OLLAMA_MODEL  = process.env.OLLAMA_MODEL   || 'llama3:70b';
-const ANTHROPIC_KEY = (process.env.ANTHROPIC_API_KEY || '').trim();
-export const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001';
+export interface LlmRequest {
+  system: string;
+  prompt?: string;
+  messages?: LlmMessage[];
+  maxTokens?: number;
+  webSearch?: { maxUses: number };
+  timeoutMs?: number;
+  /** Usuario al que se imputa el consumo; sin él no se registra. */
+  user?: string | null;
+  operation?: string;
+}
 
-export interface LLMUsage {
+export interface LlmSource {
+  url: string;
+  title: string | null;
+}
+
+export interface LlmResult {
+  text: string;
+  /** Bloques de texto tal como llegan del proveedor. */
+  parts: string[];
   inputTokens: number;
   outputTokens: number;
+  webSearches: number;
+  sources: LlmSource[];
+  /** La respuesta se cortó por el límite de tokens. */
+  truncated: boolean;
+  provider: string;
+  model: string;
 }
 
-export interface StreamCallbacks {
-  onChunk: (text: string) => void;
-  onDone: (usage: LLMUsage) => void;
-  onError: (err: Error) => void;
-  isClosed: () => boolean;
+export interface LlmStatus {
+  available: boolean;
+  webSearch: boolean;
+  reason: string | null;
 }
 
-export function isPlaceholderKey(key: string): boolean {
-  const n = key.toLowerCase();
-  return !key || key === 'sk-ant-...' || n.includes('tu_clave') || n.includes('your_key') || n.includes('placeholder');
+export interface LlmClient {
+  call: (request: LlmRequest) => Promise<LlmResult>;
+  status: () => LlmStatus;
 }
 
-/**
- * Streaming LLM call. Fires callbacks as chunks arrive.
- */
-export async function streamLLM(
-  systemPrompt: string,
-  messages: Array<{ role: 'user' | 'assistant'; content: string }>,
-  maxTokens: number,
-  callbacks: StreamCallbacks,
-): Promise<void> {
-  if (PROVIDER === 'ollama') {
-    return _streamOllama(systemPrompt, messages, maxTokens, callbacks);
-  }
-  return _streamAnthropic(systemPrompt, messages, maxTokens, callbacks);
+/** Error con el mismo `code` que los del módulo de IA (unavailable, timeout, provider, incomplete). */
+export class LlmUnavailableError extends Error {
+  readonly code = 'unavailable';
 }
 
-async function _streamAnthropic(
-  systemPrompt: string,
-  messages: Array<{ role: 'user' | 'assistant'; content: string }>,
-  maxTokens: number,
-  { onChunk, onDone, onError, isClosed }: StreamCallbacks,
-): Promise<void> {
-  if (isPlaceholderKey(ANTHROPIC_KEY)) {
-    onError(new Error('Falta configurar una clave real de Anthropic. Revisa ANTHROPIC_API_KEY en .env.'));
-    return;
-  }
+const STANDALONE_REASON = 'IA no disponible: Rëff solo la tiene integrado en el backend';
 
-  const client = new Anthropic({ apiKey: ANTHROPIC_KEY });
+let client: LlmClient | null = null;
 
-  try {
-    // Non-streaming call: the SDK's streaming iterator hangs after
-    // `message_start` on this Node/Windows setup, so we request the
-    // full response in one shot and emit it as a single chunk.
-    const result = await client.messages.create({
-      model: ANTHROPIC_MODEL,
-      max_tokens: maxTokens,
-      system: systemPrompt,
-      messages,
-    });
-
-    if (isClosed()) return;
-
-    const fullText = result.content
-      .filter((b) => b.type === 'text')
-      .map((b) => (b as { text: string }).text)
-      .join('');
-
-    if (fullText) onChunk(fullText);
-
-    onDone({
-      inputTokens: result.usage.input_tokens,
-      outputTokens: result.usage.output_tokens,
-    });
-  } catch (err: any) {
-    onError(err instanceof Error ? err : new Error(String(err)));
-  }
+export function setLlmClient(next: LlmClient | null): void {
+  client = next;
 }
 
-async function _streamOllama(
-  systemPrompt: string,
-  messages: Array<{ role: 'user' | 'assistant'; content: string }>,
-  maxTokens: number,
-  { onChunk, onDone, onError, isClosed }: StreamCallbacks,
-): Promise<void> {
-  try {
-    const r = await fetch(`${OLLAMA_URL}/api/chat`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        model: OLLAMA_MODEL,
-        stream: true,
-        options: { num_predict: maxTokens },
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...messages,
-        ],
-      }),
-    });
+export function llmStatus(): LlmStatus {
+  return client ? client.status() : { available: false, webSearch: false, reason: STANDALONE_REASON };
+}
 
-    if (!r.ok || !r.body) {
-      const t = await r.text().catch(() => '');
-      throw new Error(`Ollama ${r.status}: ${t.slice(0, 300)}`);
-    }
+export async function callLlm(request: LlmRequest): Promise<LlmResult> {
+  if (!client) throw new LlmUnavailableError(STANDALONE_REASON);
+  return client.call(request);
+}
 
-    const reader = r.body.getReader();
-    const decoder = new TextDecoder();
-    let inputTokens = 0;
-    let outputTokens = 0;
-
-    while (true) {
-      if (isClosed()) break;
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      const lines = decoder.decode(value, { stream: true }).split('\n');
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        try {
-          const obj = JSON.parse(line);
-          if (obj.message?.content) onChunk(obj.message.content);
-          if (obj.done) {
-            inputTokens  = obj.prompt_eval_count || 0;
-            outputTokens = obj.eval_count        || 0;
-          }
-        } catch {
-          // partial JSON line — skip
-        }
-      }
-    }
-
-    onDone({ inputTokens, outputTokens });
-  } catch (err: any) {
-    onError(err instanceof Error ? err : new Error(String(err)));
-  }
+/** La IA no está configurada o no ofrece lo pedido: aviso de configuración, no avería. */
+export function isLlmUnavailable(err: unknown): boolean {
+  return (err as { code?: unknown } | null)?.code === 'unavailable';
 }

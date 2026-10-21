@@ -1,11 +1,10 @@
 #!/usr/bin/env node
 /**
  * Purga (o solo lista, por defecto) colecciones Mongo huerfanas de mesas
- * eliminadas/rediseñadas. Ver CLAUDE.md seccion "Limpieza estructural" 2026-09-08
- * y "S-NFI F&L: rediseño total" 2026-09-04.
+ * eliminadas o rediseñadas (entre ellas el F&L anterior al Hub actual).
  *
- * Confirmado por grep en este repo (2026-09-20): ninguno de estos nombres
- * aparece en app/backend/*.js — cero codigo activo los referencia.
+ * Ninguno de estos nombres aparece en app/backend/*.js: ningun codigo activo
+ * los referencia.
  *
  * SOLO LISTA por defecto. Purga real requiere --confirm explicito.
  *

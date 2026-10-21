@@ -9,7 +9,7 @@
  * PENDING_MASTER_APPROVAL hasta que un Admin decide (Regla de Oro: el ser
  * humano autoriza, el ser humano supervisa).
  *
- * Payload de solicitud (forma fija, ver CLAUDE.md):
+ * Payload de solicitud (forma fija):
  * {
  *   request_id, timestamp,
  *   user: { id, role, trust_score },

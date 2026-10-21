@@ -23,6 +23,7 @@
 import crypto from 'crypto';
 import { runAsTenant } from './db/tenant-context.js';
 import { DEFAULT_TENANT_ID } from './db/tenant-registry.js';
+import { isLlmUnavailable } from './llm/index.js';
 
 const ACTION_TYPES = {
   'node.shutdown': { params: [], describe: (n) => `Apagar ${n}` },
@@ -60,10 +61,10 @@ function sha256(s) {
 export function mountElviraCentral(app, deps) {
   const {
     auth, requireMesa, mongo, getReffDb,
-    callLLM, trackTokens, busEmit, adminNotify,
+    callLlm, busEmit, adminNotify,
     readElvira, getU2Snapshot, cibe, llmLimiter,
   } = deps;
-  // limiter especifico en /chat (llama callLLM() en cada mensaje) — ver
+  // limiter especifico en /chat (llama a la IA en cada mensaje) — ver
   // definicion en server.js, keyGenerator por usuario no por IP.
   const chatGuard = llmLimiter ? [auth, llmLimiter] : [auth];
   // firma CIBE del bunker Pactvm Viridi en endpoints criticos OPHS
@@ -133,7 +134,7 @@ export function mountElviraCentral(app, deps) {
       // FASE 5 (2026-09-20): sin timeout, un Systems real colgado dejaba este
       // fetch esperando para siempre — el humano ya autorizo la accion (Regla
       // de Oro), pero la peticion HTTP que la ejecuta se quedaria bloqueada
-      // sin fin ni de exito ni de error. Mismo AbortController que llm.js.
+      // sin fin ni de exito ni de error. Mismo AbortController que llm/index.js.
       const controller = new AbortController();
       const timeoutMs = Number(process.env.SYSTEMS_TIMEOUT_MS) || 15000;
       const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -328,8 +329,10 @@ REGLAS DE RESPUESTA:
       const convo = history.map(m => `${m.role === 'user' ? 'HUMANO' : 'ELVI-RA'}: ${m.text}`).join('\n');
       const userPrompt = `${convo ? `CONVERSACIÓN PREVIA:\n${convo}\n\n` : ''}HUMANO: ${message}`;
 
-      const result = await callLLM(buildSystemPrompt(ctx), userPrompt, 1500);
-      trackTokens(req.user, 'central-chat', result.inputTokens, result.outputTokens);
+      const result = await callLlm({
+        system: buildSystemPrompt(ctx), prompt: userPrompt, maxTokens: 1500,
+        user: req.user, operation: 'central-chat',
+      });
 
       const { reply, action } = parseAction(result.text);
       let pendingAction = null;
@@ -375,6 +378,7 @@ REGLAS DE RESPUESTA:
         } : null,
       });
     } catch (ex) {
+      if (isLlmUnavailable(ex)) return res.status(503).json({ error: ex.message });
       adminNotify({ origin: 'ELVI-RA', label: 'Central chat · fallo', detail: ex.message, severity: 'error' });
       res.status(500).json({ error: ex.message || 'Error en Central' });
     }

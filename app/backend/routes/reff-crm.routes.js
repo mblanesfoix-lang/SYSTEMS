@@ -1,16 +1,13 @@
 /**
  * Rëff CRM-adjacent · sheets/companies/search/linkedin/email/overview
  * Todo Mongo-backed (db 'elvira': sheets, companies). Incluye el buscador de
- * Nodos de Integración Potencial (IA · Claude), LinkedIn Finder y Email
- * Creator — los tres módulos IA de outreach.
- *
- * trackTokens/callLLMTracked usan el store JSON de Elvira (readElvira/
- * writeElvira, ver elvira-store.js) porque T'Controler vive ahí; se reciben
- * como dependencias en vez de reimportar el store.
+ * Nodos de Integración Potencial (búsqueda asistida), LinkedIn Finder y Email
+ * Creator — los tres módulos IA de outreach. El consumo de cada llamada lo
+ * registra el módulo de IA en T'Controler.
  */
 
 import crypto from 'node:crypto';
-import { callLLM } from '../llm.js';
+import { callLlm, isLlmUnavailable } from '../llm/index.js';
 
 function normalizeTareas(input) {
   if (!Array.isArray(input)) return [];
@@ -50,7 +47,7 @@ function extractJson(text) {
   }
 }
 
-/* ---------- IA search (Claude) ---------- */
+/* ---------- búsqueda asistida de nodos ---------- */
 const SYSTEM_PROMPT = `Eres el Agente S-NFI (South Navarre Fresh Innovations) integrado en Rëff, la mesa comercial de SYSTEMS. Tu trabajo: detectar Nodos de Integración Potencial (no "leads").
 
 REGLAS DURAS de inclusión:
@@ -214,7 +211,7 @@ SALIDA: SOLO JSON válido, sin markdown:
 
 export function mountReffCrm(app, {
   auth, mongo, withTransaction, adminNotify,
-  readElvira, writeElvira,
+  readElvira,
   HISTORY_FILE, atomicWriteJson, fs,
 }) {
   /* ---------- sheet helpers ---------- */
@@ -230,34 +227,19 @@ export function mountReffCrm(app, {
     }
   }
 
-  function trackTokens(user, operation, inputTokens, outputTokens) {
-    const state = readElvira();
-    const tc = state.systems.tcontroler;
-    if (!tc.byUser) tc.byUser = {};
-    if (!tc.byUser[user]) tc.byUser[user] = { inputTokens: 0, outputTokens: 0, calls: 0, operations: {} };
-    const u = tc.byUser[user];
-    u.inputTokens  += inputTokens;
-    u.outputTokens += outputTokens;
-    u.calls        += 1;
-    if (!u.operations[operation]) u.operations[operation] = { inputTokens: 0, outputTokens: 0, calls: 0 };
-    u.operations[operation].inputTokens  += inputTokens;
-    u.operations[operation].outputTokens += outputTokens;
-    u.operations[operation].calls        += 1;
-    u.lastCall = new Date().toISOString();
-    // global totals
-    const allUsers = Object.values(tc.byUser);
-    tc.tokensUsed = allUsers.reduce((s, x) => s + x.inputTokens + x.outputTokens, 0);
-    writeElvira(state);
-  }
-
-  async function callLLMTracked(systemPrompt, userPrompt, maxTokens = 4096, user = null, operation = 'unknown') {
-    const result = await callLLM(systemPrompt, userPrompt, maxTokens);
-    if (user) {
-      trackTokens(user, operation, result.inputTokens, result.outputTokens);
-    }
+  async function callLlmText(system, prompt, maxTokens, user, operation) {
+    const result = await callLlm({ system, prompt, maxTokens, user, operation });
     return result.text;
   }
-  const callClaude = (userPrompt, user) => callLLMTracked(SYSTEM_PROMPT, userPrompt, 8192, user, 'search');
+  const searchNodes = (prompt, user) => callLlmText(SYSTEM_PROMPT, prompt, 8192, user, 'search');
+
+  // Sin IA configurada, las rutas responden 503 con el motivo y sin avisar al Admin: es configuración, no avería.
+  function failLlmRoute(res, ex, logTag, label, fallback) {
+    if (isLlmUnavailable(ex)) return res.status(503).json({ error: ex.message });
+    console.error(logTag, ex);
+    adminNotify({ origin: 'REFF', label, detail: ex.message, severity: 'error' });
+    res.status(500).json({ error: ex.message || fallback });
+  }
 
   /* ---------- sheets ---------- */
   app.get('/api/sheets', auth, async (req, res) => {
@@ -495,7 +477,7 @@ Si un campo no se puede estimar ni siquiera por proxy, descarta esa empresa ante
 
 SOLO JSON.`;
 
-      const raw = await callClaude(userPrompt, req.user);
+      const raw = await searchNodes(userPrompt, req.user);
       const parsed = extractJson(raw);
       const results = Array.isArray(parsed.results) ? parsed.results : [];
 
@@ -514,9 +496,7 @@ SOLO JSON.`;
 
       res.json(entry);
     } catch (ex) {
-      console.error('[search]', ex);
-      adminNotify({ origin: 'REFF', label: 'Búsqueda IA · fallo', detail: ex.message, severity: 'error' });
-      res.status(500).json({ error: ex.message || 'error en búsqueda' });
+      failLlmRoute(res, ex, '[search]', 'Búsqueda IA · fallo', 'error en búsqueda');
     }
   });
 
@@ -656,7 +636,7 @@ SOLO JSON.`;
 
 Devuelve 5–8 perfiles tipo priorizados para outreach LinkedIn alineado a S-NFI. SOLO JSON.`;
 
-      const raw = await callLLMTracked(LINKEDIN_SYSTEM, prompt, 2048, req.user, 'linkedin');
+      const raw = await callLlmText(LINKEDIN_SYSTEM, prompt, 2048, req.user, 'linkedin');
       const parsed = extractJson(raw);
       const contactos = Array.isArray(parsed.contactos) ? parsed.contactos : [];
 
@@ -682,9 +662,7 @@ Devuelve 5–8 perfiles tipo priorizados para outreach LinkedIn alineado a S-NFI
         generatedAt: new Date().toISOString(),
       });
     } catch (ex) {
-      console.error('[linkedin]', ex);
-      adminNotify({ origin: 'REFF', label: 'LinkedIn Finder · fallo', detail: ex.message, severity: 'error' });
-      res.status(500).json({ error: ex.message || 'error LinkedIn Finder' });
+      failLlmRoute(res, ex, '[linkedin]', 'LinkedIn Finder · fallo', 'error LinkedIn Finder');
     }
   });
 
@@ -721,7 +699,7 @@ EMPRESA OBJETIVO:
 
 Redacta el email para esta situación, anclado al sector y a las variables S-NFI relevantes. SOLO JSON.`;
 
-      const raw = await callLLMTracked(EMAIL_SYSTEM, prompt, 2048, req.user, 'email');
+      const raw = await callLlmText(EMAIL_SYSTEM, prompt, 2048, req.user, 'email');
       const parsed = extractJson(raw);
 
       res.json({
@@ -736,11 +714,9 @@ Redacta el email para esta situación, anclado al sector y a las variables S-NFI
         generatedAt: new Date().toISOString(),
       });
     } catch (ex) {
-      console.error('[email]', ex);
-      adminNotify({ origin: 'REFF', label: 'Email Creator · fallo', detail: ex.message, severity: 'error' });
-      res.status(500).json({ error: ex.message || 'error Email Creator' });
+      failLlmRoute(res, ex, '[email]', 'Email Creator · fallo', 'error Email Creator');
     }
   });
 
-  return { ensureUserSheets, trackTokens, callLLMTracked, extractJson };
+  return { ensureUserSheets, callLlmText, extractJson };
 }

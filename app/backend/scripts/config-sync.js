@@ -133,7 +133,7 @@ function blockLines(vars, renderLine) {
   return out;
 }
 
-const generated = VARS.filter((v) => !v.manual && !v.localOnly);
+const generated = VARS.filter((v) => !v.localOnly);
 
 export function composeBlock() {
   return blockLines(generated, (v) => `${v.name}: ${composeValue(v)}`);

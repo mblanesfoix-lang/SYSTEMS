@@ -94,7 +94,10 @@ function VigilanciaPanel() {
   async function handleRunNow(companyId?: number) {
     setRunning(true);
     try {
+      setError(null);
       await runWatchNow(companyId);
+    } catch (e: any) {
+      setError(e?.message || 'No se pudo lanzar la búsqueda');
     } finally {
       setTimeout(() => { setRunning(false); loadNews(); }, 3000);
     }
@@ -110,7 +113,7 @@ function VigilanciaPanel() {
     <div className="fade-up" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 1100 }}>
       <div>
         <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>
-          Periódico inteligente: Claude busca en la web cada 6h novedades sobre las empresas vigiladas
+          Periódico inteligente: el sistema busca en la web cada 6 h novedades sobre las empresas vigiladas
           (gestión residual / inversión, asociaciones, novedades generales).
         </p>
       </div>

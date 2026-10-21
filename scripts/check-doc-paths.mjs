@@ -16,23 +16,35 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-// Docs that are never versioned but must stay accurate, and the local files
-// they are allowed to point at.
-const LOCAL_DOCS = ['CLAUDE.md', 'MEMORY.md', 'docs/ESTADO-HISTORICO.md'];
-// The log is a dated history: it cites files that no longer exist on purpose.
-const SKIP_DOCS = new Set(['docs/ESTADO-HISTORICO.md']);
-
-// Produced by a build, an install or a setup step, so absent from a clean clone.
-const GENERATED = /(^|\/)(\.env|\.git|\.claude|node_modules|dist|02-secrets\.yaml|data\/elvira\.json)(\/|$)/;
-const SHELL_COMMAND = /^(sudo|bash|sh|cd|npm|npx|node|docker|kubectl|kind|git|curl|cp|mv|rm|ls|cat|nano)\s/;
-
-const FILE_EXT = /\.(mjs|cjs|js|tsx|ts|json|md|html|css|ya?ml|sh|txt|bat|service|conf|glb|toml)$/i;
-const PATH_CHARS = /^[\w.\-ëËøØ ]+(\/[\w.\-ëËøØ ]+)+$/;
-
 const nfc = (s) => s.normalize('NFC');
 const git = (...args) =>
   execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
     .split('\n').filter(Boolean).map(nfc);
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Local working files: the plain entries of .git/info/exclude (no wildcards).
+// Its Markdown files are never versioned but must stay accurate; its folders
+// may be cited without being in the repository.
+const excludeFile = resolve(ROOT, git('rev-parse', '--git-path', 'info/exclude')[0]);
+const localEntries = existsSync(excludeFile)
+  ? readFileSync(excludeFile, 'utf8').split(/\r?\n/).map((l) => l.trim())
+    .filter((l) => l && !l.startsWith('#') && !/[*?[\]!]/.test(l))
+    .map((l) => nfc(l.replace(/^\//, '')))
+  : [];
+const LOCAL_DOCS = localEntries.filter((e) => e.endsWith('.md'));
+const LOCAL_DIRS = localEntries.filter((e) => e.endsWith('/')).map((e) => escapeRe(e.slice(0, -1)));
+// The log is a dated history: it cites files that no longer exist on purpose.
+const SKIP_DOCS = new Set(['docs/ESTADO-HISTORICO.md']);
+
+// Produced by a build, an install or a setup step (absent from a clean clone),
+// or local folders listed in .git/info/exclude.
+const GENERATED = new RegExp(
+  `(^|/)(${['\\.env', '\\.git', 'node_modules', 'dist', '02-secrets\\.yaml', 'data/elvira\\.json', ...LOCAL_DIRS].join('|')})(/|$)`,
+);
+const SHELL_COMMAND = /^(sudo|bash|sh|cd|npm|npx|node|docker|kubectl|kind|git|curl|cp|mv|rm|ls|cat|nano)\s/;
+
+const FILE_EXT = /\.(mjs|cjs|js|tsx|ts|json|md|html|css|ya?ml|sh|txt|bat|service|conf|glb|toml)$/i;
+const PATH_CHARS = /^[\w.\-ëËøØ ]+(\/[\w.\-ëËøØ ]+)+$/;
 
 const known = new Set(git('ls-files', '-co', '--exclude-standard'));
 for (const doc of LOCAL_DOCS) if (existsSync(join(ROOT, doc))) known.add(doc);
