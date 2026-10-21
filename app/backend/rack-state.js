@@ -38,6 +38,7 @@ import os from 'node:os';
 import { runAsTenant } from './db/tenant-context.js';
 import { DEFAULT_TENANT_ID } from './db/tenant-registry.js';
 import { appendChained, canonicalV2, verifyLog } from './lib/hash-chain.js';
+import { safeEqual } from './lib/safe-compare.js';
 
 const KEY_RE = /^[a-z0-9_.:-]{2,80}$/;
 const MAX_VALUE_BYTES = 2048;
@@ -370,10 +371,7 @@ export function mountRackState(app, { auth, requireMesa, mongo, busEmit, adminNo
       return res.status(400).json({ error: 'nonce invalido' });
     }
     const sig = String(req.headers['x-rack-sig'] || '');
-    const expected = signRackMessage(path, body, SHARED_KEY);
-    const a = Buffer.from(sig, 'utf8');
-    const e = Buffer.from(expected, 'utf8');
-    if (a.length !== e.length || !crypto.timingSafeEqual(a, e)) {
+    if (!safeEqual(sig, signRackMessage(path, body, SHARED_KEY))) {
       return res.status(401).json({ error: 'firma inter-rack invalida' });
     }
     forgetExpiredNonces(now);

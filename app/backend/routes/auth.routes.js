@@ -1,5 +1,6 @@
 /**
  * Auth · usuarios y sesiones sobre MongoDB (colecciones `users` y `sessions`).
+ * De cada sesion solo se guarda el sha256 del token (ver hashSessionToken).
  *
  * Sustituye el store JSON anterior (data/users.json, data/sessions.json).
  * `sessions` lleva indice TTL sobre `exp` (ver ensureIndexes en db/mongo.js):
@@ -38,6 +39,21 @@ const SEED_USERS = {
 };
 
 const SESSION_TTL_MS = 1000 * 60 * 60 * 8; // 8h
+
+/**
+ * En `sessions` solo se guarda el sha256 del token, como `_id`: quien lea la coleccion
+ * (copia de seguridad, acceso a la base) no obtiene sesiones utilizables. El token en
+ * claro solo existe en la respuesta del login y en el navegador. El hash sirve ademas
+ * de identificador de la sesion (`req.sessionId`) para cerrarla o comprobar que sigue viva.
+ */
+export const hashSessionToken = (token) => crypto.createHash('sha256').update(String(token)).digest('hex');
+
+/** true si la sesion (por su hash) existe y no ha caducado. Lo usa Rëff para sus tokens. */
+export async function isSessionActive(mongo, sessionId) {
+  if (typeof sessionId !== 'string' || !sessionId) return false;
+  const s = await mongo.collection('sessions').findOne({ _id: sessionId }, { projection: { exp: 1 } });
+  return Boolean(s) && new Date(s.exp).getTime() > Date.now();
+}
 
 export async function ensureUsersSeed(mongo) {
   const count = await mongo.collection('users').countDocuments();
@@ -117,15 +133,19 @@ export function createAuthMiddleware(mongo, sentinelForensics) {
     const h = req.headers.authorization || '';
     // EventSource no permite headers personalizados: el stream SSE acepta el token por query string.
     const token = h.startsWith('Bearer ') ? h.slice(7) : (req.path.endsWith('/stream') ? req.query.token : null);
-    if (!token) return res.status(401).json({ error: 'unauthorized' });
-    const s = await mongo.collection('sessions').findOne({ _id: token });
-    if (!s || new Date(s.exp).getTime() < Date.now()) return res.status(401).json({ error: 'unauthorized' });
+    if (typeof token !== 'string' || !token) return res.status(401).json({ error: 'unauthorized' });
+    const sessionId = hashSessionToken(token);
+    const s = await mongo.collection('sessions').findOne({ _id: sessionId });
+    // El indice TTL purga las caducadas con retraso (hasta un minuto): se comprueba aqui tambien.
+    if (!s || new Date(s.exp).getTime() <= Date.now()) return res.status(401).json({ error: 'unauthorized' });
     if (sentinelForensics?.isUserBlocked && await sentinelForensics.isUserBlocked(s.user)) {
       return res.status(403).json({ error: 'Usuario bloqueado por Sentinel (Behavioral Analytics)' });
     }
     req.user = s.user;
     req.role = s.role;
     req.tenantId = s.tenantId;
+    req.sessionId = sessionId;
+    req.sessionExp = new Date(s.exp);
     try {
       // Calienta el cache async ANTES de propagar el contexto: el Proxy
       // (tenant-context.js) solo tiene la variante *Sync, que exige que el
@@ -150,8 +170,9 @@ export function mountAuth(app, { mongo, requireAdmin, ROLE_MESAS, authLimiter, s
     const { username, password } = req.body || {};
     const ip = req.ip || 'unknown';
 
-    if (!username) {
-      await sentinelForensics.registerLoginAttempt({ ip, username, ok: false, reason: 'credenciales_invalidas' });
+    // Solo texto: el usuario se usa tal cual como clave de la consulta.
+    if (typeof username !== 'string' || !username || typeof password !== 'string') {
+      await sentinelForensics.registerLoginAttempt({ ip, username: typeof username === 'string' ? username : null, ok: false, reason: 'credenciales_invalidas' });
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
 
@@ -163,7 +184,7 @@ export function mountAuth(app, { mongo, requireAdmin, ROLE_MESAS, authLimiter, s
     await sentinelForensics.registerLoginAttempt({ ip, username, ok: true });
     const token = crypto.randomBytes(24).toString('hex');
     const exp = new Date(Date.now() + SESSION_TTL_MS);
-    await mongo.collection('sessions').insertOne({ _id: token, user: username, role: u.role, tenantId: u.tenantId, exp });
+    await mongo.collection('sessions').insertOne({ _id: hashSessionToken(token), user: username, role: u.role, tenantId: u.tenantId, exp });
 
     setImmediate(() => busEmit({
       id: crypto.randomUUID(), ts: new Date().toISOString(),
@@ -174,8 +195,7 @@ export function mountAuth(app, { mongo, requireAdmin, ROLE_MESAS, authLimiter, s
   });
 
   app.post('/api/logout', auth, async (req, res) => {
-    const h = req.headers.authorization || '';
-    await mongo.collection('sessions').deleteOne({ _id: h.slice(7) });
+    await mongo.collection('sessions').deleteOne({ _id: req.sessionId });
     setImmediate(() => busEmit({
       id: crypto.randomUUID(), ts: new Date().toISOString(),
       origin: 'SENTINEL', dest: 'ELVI-RA', type: 'event', state: 'COMPLETED',
@@ -193,7 +213,9 @@ export function mountAuth(app, { mongo, requireAdmin, ROLE_MESAS, authLimiter, s
 
   app.post('/api/change-password', auth, async (req, res) => {
     const { currentPassword, newPassword } = req.body || {};
-    if (!currentPassword || !newPassword) return res.status(400).json({ error: 'currentPassword y newPassword requeridos' });
+    if (typeof currentPassword !== 'string' || typeof newPassword !== 'string' || !currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'currentPassword y newPassword requeridos' });
+    }
     if (newPassword.length < 6) return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
     const u = await mongo.collection('users').findOne({ _id: req.user });
     if (!u || !(await bcrypt.compare(currentPassword, u.passwordHash))) {
@@ -201,12 +223,15 @@ export function mountAuth(app, { mongo, requireAdmin, ROLE_MESAS, authLimiter, s
     }
     const passwordHash = await bcrypt.hash(newPassword, 12);
     await mongo.collection('users').updateOne({ _id: req.user }, { $set: { passwordHash } });
+    // Cambiar la contraseña cierra el resto de sesiones del usuario (otro navegador, un
+    // dispositivo perdido); se conserva solo la de quien la cambia.
+    const { deletedCount } = await mongo.collection('sessions').deleteMany({ user: req.user, _id: { $ne: req.sessionId } });
     busEmit({
       id: crypto.randomUUID(), ts: new Date().toISOString(),
       origin: 'SENTINEL', dest: 'ELVI-RA', type: 'event', state: 'COMPLETED',
-      label: `PASSWORD_CHANGE · ${req.user}`, payload: { user: req.user }, user: req.user,
+      label: `PASSWORD_CHANGE · ${req.user}`, payload: { user: req.user, closedSessions: deletedCount }, user: req.user,
     });
-    res.json({ ok: true });
+    res.json({ ok: true, closedSessions: deletedCount });
   });
 
   return { auth };

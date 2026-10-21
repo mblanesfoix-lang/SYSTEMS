@@ -24,6 +24,7 @@
 
 import crypto from 'node:crypto';
 import { appendChained, verifyLog } from './lib/hash-chain.js';
+import { safeEqual } from './lib/safe-compare.js';
 
 const TOKEN_RE = /^v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 const KEY_SCOPES = ['ophs.command', 'grid.command', 'rack.command', 'fl.expediente.read', '*'];
@@ -264,9 +265,7 @@ export function mountCibeBunker(app, { auth, requireMesa, mongo, bunker, busEmit
     if (!cert.tokenKey) return externalRefusal('no_token_key', 'certificado sin tokenKey asignada (pedir alta al Admin)');
 
     const expected = crypto.createHmac('sha256', cert.tokenKey).update(`${entityId}|${ts}|${nonce}`).digest('hex');
-    const a = Buffer.from(hmac.toLowerCase(), 'hex');
-    const e = Buffer.from(expected, 'hex');
-    if (a.length !== e.length || !crypto.timingSafeEqual(a, e)) {
+    if (!safeEqual(hmac.toLowerCase(), expected)) {
       return externalRefusal('bad_hmac', 'firma HMAC invalida');
     }
 

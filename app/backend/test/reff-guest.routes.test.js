@@ -13,12 +13,16 @@ import assert from 'node:assert/strict';
 import express from 'express';
 import { mountReffGuestToken } from '../routes/reff-guest.routes.js';
 
-// Sesiones simuladas: el token Bearer elige usuario, rol y tenant, como el middleware real.
+// Sesiones simuladas: el token Bearer elige usuario, rol y tenant, como el middleware real,
+// que ademas deja el identificador de la sesion (hash del token) y su caducidad.
+const HOUR = 60 * 60 * 1000;
 const SESSIONS = {
-  't-marc': { user: 'mblanes@s-nficorp.com', role: 'admin', tenantId: 'equipo-interno' },
-  't-amir': { user: 'ventures@s-nficorp.com', role: 'amir', tenantId: 'equipo-interno' },
-  't-ray': { user: 'ray@s-nficorp.com', role: 'ray', tenantId: 'equipo-interno' }, // sin mesa reff
-  't-otro-admin': { user: 'otro.admin@s-nficorp.com', role: 'admin', tenantId: 'equipo-interno' }, // acceso a reff, sin correspondencia
+  't-marc': { user: 'mblanes@s-nficorp.com', role: 'admin', tenantId: 'equipo-interno', sessionId: 'sid-marc', expIn: 2 * HOUR },
+  't-amir': { user: 'ventures@s-nficorp.com', role: 'amir', tenantId: 'equipo-interno', sessionId: 'sid-amir', expIn: 8 * HOUR },
+  't-ray': { user: 'ray@s-nficorp.com', role: 'ray', tenantId: 'equipo-interno', sessionId: 'sid-ray', expIn: HOUR }, // sin mesa reff
+  't-otro-admin': { user: 'otro.admin@s-nficorp.com', role: 'admin', tenantId: 'equipo-interno', sessionId: 'sid-otro', expIn: HOUR }, // acceso a reff, sin correspondencia
+  't-marc-al-limite': { user: 'mblanes@s-nficorp.com', role: 'admin', tenantId: 'equipo-interno', sessionId: 'sid-limite', expIn: 5 * 60 * 1000 },
+  't-marc-caducada': { user: 'mblanes@s-nficorp.com', role: 'admin', tenantId: 'equipo-interno', sessionId: 'sid-caducada', expIn: -1000 },
 };
 
 // users stub: equivalente al documento real de Mongo, solo con reffUsername.
@@ -36,6 +40,8 @@ function authStub(req, res, next) {
   req.user = s.user;
   req.role = s.role;
   req.tenantId = s.tenantId;
+  req.sessionId = s.sessionId;
+  req.sessionExp = new Date(Date.now() + s.expIn);
   next();
 }
 
@@ -51,7 +57,11 @@ const REFF_USERS = {
   gonzalo: { id: 4, username: 'gonzalo', display_name: 'Gonzalo', avatar_url: null },
 };
 
-const signToken = ({ userId, username, tenantId }) => `jwt:${userId}:${username}:${tenantId}`;
+const signed = [];
+const signToken = (payload, maxSeconds) => {
+  signed.push({ payload, maxSeconds });
+  return `jwt:${payload.userId}:${payload.username}:${payload.tenantId}`;
+};
 
 // mongo stub: solo el metodo que reff-guest.routes.js realmente usa.
 const mongoStub = {
@@ -157,6 +167,31 @@ describe('reff-guest.routes.js: JWT de Rëff solo con sesion de Elvi-Ra', () => 
     } finally {
       lookup = prev;
     }
+  });
+
+  test('el token de Rëff lleva el identificador de la sesion de origen y no dura mas que ella', async () => {
+    const cases = [
+      { bearer: 't-marc', sid: 'sid-marc', seconds: 2 * 3600 },
+      { bearer: 't-amir', sid: 'sid-amir', seconds: 8 * 3600 },
+      { bearer: 't-marc-al-limite', sid: 'sid-limite', seconds: 5 * 60 },
+    ];
+    for (const { bearer, sid, seconds } of cases) {
+      signed.length = 0;
+      const { status } = await get('/reff/api/guest-token', { Authorization: `Bearer ${bearer}` });
+      assert.equal(status, 200);
+      assert.equal(signed.length, 1);
+      assert.equal(signed[0].payload.sid, sid);
+      assert.ok(signed[0].maxSeconds <= seconds, `${bearer}: ${signed[0].maxSeconds}s > ${seconds}s`);
+      assert.ok(signed[0].maxSeconds >= seconds - 5, `${bearer}: ${signed[0].maxSeconds}s`);
+    }
+  });
+
+  test('sesion ya caducada al pedir el token -> 401 y no se firma nada', async () => {
+    signed.length = 0;
+    const { status, body } = await get('/api/guest-token', { Authorization: 'Bearer t-marc-caducada' });
+    assert.equal(status, 401);
+    assert.equal(body.token, undefined);
+    assert.equal(signed.length, 0);
   });
 
   test('reffUsername vive en el documento de users, no en un mapa fijo en codigo', async () => {

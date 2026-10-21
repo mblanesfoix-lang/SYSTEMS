@@ -30,7 +30,7 @@ import { createCibeBunker, mountCibeBunker } from './cibe-bunker.js';
 import { mountRackState } from './rack-state.js';
 import { mountGridInterlink } from './grid-interlink.js';
 
-import { ensureUsersSeed, seedDefaultTenant, mountAuth } from './routes/auth.routes.js';
+import { ensureUsersSeed, seedDefaultTenant, mountAuth, isSessionActive } from './routes/auth.routes.js';
 import { getControlDb, getTenantDb, getTenantReffDb, DEFAULT_TENANT_ID } from './db/tenant-registry.js';
 import { mountBus } from './routes/bus.routes.js';
 import { mountNotifications } from './routes/notifications.routes.js';
@@ -45,6 +45,7 @@ import { mountCspReport, ensureCspReportIndexes } from './routes/csp-report.rout
 import { applySecurityHeaders, CSP_REPORT_PATH } from './lib/security-headers.js';
 import { createMountGuard } from './lib/mount-guard.js';
 import { captureAsyncErrors, createErrorHandler } from './lib/async-errors.js';
+import { safeEqual } from './lib/safe-compare.js';
 
 // Lo primero: .env locales (si existen) y validación, antes de conectar a Mongo o montar
 // ninguna mesa. En producción, si falta algo o tiene un formato inválido, el proceso no
@@ -791,7 +792,10 @@ safeMount('reff', async () => {
   const { seedDatabase, getUserByUsername } = await import(toFileUrl(path.join(REFF_SERVER, 'db.js')));
   await seedDatabase();
 
-  const { signToken } = await import(toFileUrl(path.join(REFF_SERVER, 'auth.js')));
+  const { signToken, setSessionCheck } = await import(toFileUrl(path.join(REFF_SERVER, 'auth.js')));
+  // Cada token de Rëff vale mientras siga abierta la sesión de Elvi-Ra de la que nació
+  // (sesiones en rawMongo, como el login).
+  setSessionCheck((sessionId) => isSessionActive(rawMongo, sessionId));
 
   const { default: reffAuthRoutes }      = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'auth.routes.js')));
   const { default: reffSheetsRoutes }    = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'sheets.routes.js')));
@@ -1024,7 +1028,7 @@ if (process.env.ENABLE_TWIN_PORT === 'true') {
   const twinAuthMiddleware = (req, res, next) => {
     const token = req.headers['x-twin-token'];
 
-    if (!TWIN_TOKEN || token !== TWIN_TOKEN) {
+    if (!TWIN_TOKEN || !safeEqual(token, TWIN_TOKEN)) {
       // Registrar el intento de acceso no autorizado en el Bus para Sentinel
       busEmit({
         id: crypto.randomUUID(),

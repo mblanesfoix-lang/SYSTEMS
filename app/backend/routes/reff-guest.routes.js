@@ -14,6 +14,10 @@
  * `reffUsername` en el propio documento de `users` (poblado inicialmente con
  * los mismos 4 valores que tenia el mapa, ningun usuario pierde acceso en la
  * migracion), leido con el `mongo` tenant-aware de la sesion en curso.
+ *
+ * El token emitido queda atado a esa sesion: caduca con ella y lleva su identificador
+ * (`sid`), que Rëff comprueba en cada peticion (setSessionCheck en su server/auth.ts).
+ * Cerrar sesion o cambiar la contrasena en Elvi-Ra invalida tambien los tokens de Rëff.
  */
 
 export function createGuestTokenHandler({ signToken, getUserByUsername, mongo }) {
@@ -24,8 +28,12 @@ export function createGuestTokenHandler({ signToken, getUserByUsername, mongo })
       if (!reffUsername) return res.status(403).json({ error: 'Tu usuario de Elvi-Ra no tiene correspondencia en Rëff' });
       const userRow = await getUserByUsername(reffUsername);
       if (!userRow) return res.status(500).json({ error: 'usuario no encontrado en DB de Rëff' });
+      // El token de Rëff no sobrevive a la sesion de la que nace: caduca con ella y lleva su
+      // identificador (sid) para que Rëff compruebe en cada peticion que sigue abierta.
+      const sessionSecondsLeft = Math.floor((new Date(req.sessionExp).getTime() - Date.now()) / 1000);
+      if (!(sessionSecondsLeft > 0)) return res.status(401).json({ error: 'unauthorized' });
       res.json({
-        token: signToken({ userId: userRow.id, username: userRow.username, tenantId: req.tenantId }),
+        token: signToken({ userId: userRow.id, username: userRow.username, tenantId: req.tenantId, sid: req.sessionId }, sessionSecondsLeft),
         user: {
           id: userRow.id,
           username: userRow.username,

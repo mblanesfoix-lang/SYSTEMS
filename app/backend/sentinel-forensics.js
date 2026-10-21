@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import geoip from 'geoip-lite';
 import { DEV_FORENSIC_SECRET, MIN_SECRET_LENGTH } from './config.js';
+import { safeEqual } from './lib/safe-compare.js';
 
 /* ============================================================
    SENTINEL · Trazabilidad Forense de IPs
@@ -33,7 +34,7 @@ export function resolveForensicSecret(
   if (Buffer.byteLength(configured, 'utf8') < MIN_SECRET_LENGTH) {
     throw new Error(`SENTINEL_FORENSIC_SECRET debe tener al menos ${MIN_SECRET_LENGTH} bytes.`);
   }
-  if (production && configured === DEV_FORENSIC_SECRET) {
+  if (production && safeEqual(configured, DEV_FORENSIC_SECRET)) {
     throw new Error('SENTINEL_FORENSIC_SECRET no puede ser la clave de desarrollo en producción.');
   }
   return configured;
@@ -229,7 +230,7 @@ export function createSentinelForensics({ mongo, busEmit, ROLE_MESAS = {}, env }
   function breakReason(entry, prev) {
     const hash = chainHash(prev, entry);
     if (hash !== entry.hash) return 'hash_mismatch';
-    if (signHmac(hash) !== entry.hmac) return 'hmac_mismatch';
+    if (!safeEqual(signHmac(hash), entry.hmac)) return 'hmac_mismatch';
     return null;
   }
 
@@ -280,7 +281,7 @@ export function createSentinelForensics({ mongo, busEmit, ROLE_MESAS = {}, env }
       broken = true;
       const hash = chainHash(prev, entry);
       const hmac = signHmac(hash);
-      if (entry.prevHash !== prev || entry.hash !== hash || entry.hmac !== hmac) {
+      if (entry.prevHash !== prev || entry.hash !== hash || !safeEqual(entry.hmac, hmac)) {
         fixedFrom ??= entry.seq;
         resealed += 1;
         if (chainHash(entry.prevHash, entry) !== entry.hash) contentMismatch += 1;

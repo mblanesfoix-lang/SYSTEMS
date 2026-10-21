@@ -54,9 +54,14 @@ export async function fetchGuestToken(): Promise<{ token: string; user: User } |
   return data;
 }
 
-// Cierra también la sesión de Elvi-Ra (mismo localStorage, mismo origen) para que
-// el logout desde Rëff cierre sesión en toda la plataforma.
-export function clearElviraSession(): void {
+// Cierra también la sesión de Elvi-Ra (mismo origen) para que el logout desde Rëff
+// cierre sesión en toda la plataforma: primero en el servidor, para que deje de valer
+// el token y con él los de Rëff nacidos de esa sesión; después en el navegador.
+export async function clearElviraSession(): Promise<void> {
+  const elviraToken = localStorage.getItem('elvira_token');
+  if (elviraToken) {
+    await fetch('/api/logout', { method: 'POST', headers: { Authorization: `Bearer ${elviraToken}` } }).catch(() => undefined);
+  }
   localStorage.removeItem('elvira_token');
   localStorage.removeItem('elvira_user');
   localStorage.removeItem('elvira_active_sheet');

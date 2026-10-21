@@ -16,6 +16,7 @@ import crypto from 'node:crypto';
 import { runAsTenant, withTenant } from './db/tenant-context.js';
 import { DEFAULT_TENANT_ID } from './db/tenant-registry.js';
 import { appendChained, verifyLog } from './lib/hash-chain.js';
+import { safeEqual } from './lib/safe-compare.js';
 import { merkleRoot as computeMerkleRoot, MERKLE_VERSION } from './lib/merkle.js';
 import QRCode from 'qrcode';
 import { rateLimit, ipKeyGenerator } from 'express-rate-limit';
@@ -1118,9 +1119,11 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getRe
       await appendPactvmLog(mongo, { action: 'carbon.verify_denied', actorId: 'externo', detail: { packageId, email, reason: 'email_no_autorizado' } });
       return res.status(403).json({ error: 'correo no autorizado para este paquete' });
     }
-    const accessCode = await mongo.collection('pactvm_verify_access_codes').findOne({
-      packageId, codeHash: hashAccessCode(code), expiresAt: { $gt: new Date().toISOString() },
-    });
+    // Codigos vigentes del paquete comparados en tiempo constante, no buscados por su hash.
+    const givenHash = hashAccessCode(code);
+    const vigentes = await mongo.collection('pactvm_verify_access_codes')
+      .find({ packageId, expiresAt: { $gt: new Date().toISOString() } }).toArray();
+    const accessCode = vigentes.find((c) => safeEqual(givenHash, c.codeHash));
     if (!accessCode) {
       await appendPactvmLog(mongo, { action: 'carbon.verify_denied', actorId: 'externo', detail: { packageId, email, reason: 'codigo_invalido_o_caducado' } });
       return res.status(403).json({ error: 'codigo invalido o caducado' });
@@ -2215,7 +2218,7 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getRe
 
     const token = crypto.randomBytes(24).toString('base64url');
     const code = String(crypto.randomInt(100000, 999999));
-    const codeHash = crypto.createHash('sha256').update(code).digest('hex');
+    const codeHash = hashAccessCode(code);
     const expiresAt = new Date(Date.now() + minutes * 60000).toISOString();
     const doc = {
       _id: token,
@@ -2287,11 +2290,8 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getRe
       await appendPactvmLog(mongo, { action: 'vdr.share_denied', actorId: 'invitado', detail: { token: row._id, email, reason: 'email_no_autorizado' } });
       return res.status(403).json({ error: 'correo no autorizado para este enlace' });
     }
-    const codeHash = crypto.createHash('sha256').update(code).digest('hex');
     // comparacion en tiempo constante: evita distinguir codigos por latencia
-    const given = Buffer.from(codeHash, 'hex');
-    const expected = Buffer.from(row.codeHash, 'hex');
-    if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) {
+    if (!safeEqual(hashAccessCode(code), row.codeHash)) {
       await appendPactvmLog(mongo, { action: 'vdr.share_denied', actorId: 'invitado', detail: { token: row._id, email, reason: 'codigo_invalido' } });
       return res.status(403).json({ error: 'código inválido' });
     }

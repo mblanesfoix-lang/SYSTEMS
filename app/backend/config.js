@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { safeEqual } from './lib/safe-compare.js';
 
 /* ============================================================
    Configuración del proceso: inventario único de variables de
@@ -32,7 +33,7 @@ const strongSecret = (v) => {
   return v.length >= MIN_SECRET_LENGTH ? null : `debe tener al menos ${MIN_SECRET_LENGTH} caracteres`;
 };
 const forensicSecret = (v) => strongSecret(v)
-  ?? (v === DEV_FORENSIC_SECRET ? 'es la clave de desarrollo del repositorio, hay que generar una propia' : null);
+  ?? (safeEqual(v, DEV_FORENSIC_SECRET) ? 'es la clave de desarrollo del repositorio, hay que generar una propia' : null);
 const hex64 = (v) => (/^[0-9a-fA-F]{64}$/.test(v) ? null : 'deben ser 64 caracteres hexadecimales (32 bytes)');
 const oneOf = (...allowed) => (v) => (allowed.includes(v) ? null : `valores admitidos: ${allowed.join(', ')}`);
 const positiveInt = (v) => (/^\d+$/.test(v) && Number(v) > 0 ? null : 'debe ser un entero positivo');

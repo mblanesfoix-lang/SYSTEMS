@@ -29,9 +29,9 @@ export default function App() {
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-      <Sidebar user={user} onLogout={() => {
+      <Sidebar user={user} onLogout={async () => {
         clearSession();
-        clearElviraSession();
+        await clearElviraSession();
         setUser(null);
         const target = window.parent !== window ? window.parent : window;
         target.location.href = '/pages/login.html';

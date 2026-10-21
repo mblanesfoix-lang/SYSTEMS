@@ -1,6 +1,6 @@
 /**
  * Migracion one-shot: data/users.json + data/sessions.json -> colecciones
- * Mongo `users` / `sessions`. Idempotente (upsert por _id=email/token).
+ * Mongo `users` / `sessions`. Idempotente (upsert por _id=email/sha256 del token).
  * No borra los JSON originales: los renombra a *.migrated.json como respaldo.
  *
  * Uso: node --env-file=.env scripts/migrate-auth-to-mongo.js
@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { connectMongo, getElviraDb, closeMongo } from '../db/mongo.js';
+import { hashSessionToken } from '../routes/auth.routes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, '..', 'data');
@@ -57,7 +58,7 @@ async function main() {
     for (const [token, s] of Object.entries(sessions)) {
       if (!s.exp || s.exp <= now) continue; // no migrar sesiones ya expiradas
       await mongo.collection('sessions').updateOne(
-        { _id: token },
+        { _id: hashSessionToken(token) }, // como el login: solo el hash del token
         { $set: { user: s.user, role: s.role, exp: new Date(s.exp) } },
         { upsert: true }
       );
