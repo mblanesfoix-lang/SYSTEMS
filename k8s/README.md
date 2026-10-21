@@ -1,6 +1,6 @@
 # K8s local — SYSTEMS / Elvi-Ra (Fase 1)
 
-Manifests para probar el salto a k8s en local antes de tocar produccion (Coolify/Hetzner sigue siendo el despliegue real hoy, ver el apartado "Stack y despliegue" de [docs/REFERENCIA.md](../docs/REFERENCIA.md)).
+Manifests para probar el salto a k8s en local antes de instalar en servidores propios (hoy no hay ningun despliegue en marcha, ver el apartado "Stack y despliegue" de [docs/REFERENCIA.md](../docs/REFERENCIA.md)).
 
 **Estado de validacion (2026-10-02)**: los primeros 6 manifests (14 recursos) validaron limpio contra el schema real de Kubernetes con `kubeconform -strict`, en 1.34 y 1.37, sin errores, y `server.js` se arranco en caliente contra un `mongod` 7.0.43 real (con y sin auth) verificando: `/api/livez`/`/api/readyz`/`/api/ophs/readyz` responden lo esperado, las sondas no ensucian `forensic_log`, `readyz` falla en <3s si Mongo cae (antes: sin timeout acotado), el apagado ordenado (`SIGTERM`) drena conexiones/SSE y deja la marca de arranque limpia, un proceso que muere sin apagarse (`SIGKILL`/OOM) SI dispara el aviso de "recuperado tras caida" en el siguiente arranque y uno que se apago limpio NO, y `withTransaction` funciona en Mongo standalone (sin replica set, la topologia real de `k8s/03-mongo.yaml`) sin lanzar `IllegalOperation`. Suite completa de tests del repo verde contra el codigo parcheado (98/98 a 2026-10-05).
 
