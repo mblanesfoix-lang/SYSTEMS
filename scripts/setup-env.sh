@@ -26,8 +26,8 @@ cp "$ROOT_DIR/app/backend/.env.example" "$ENV_FILE"
 chmod 600 "$ENV_FILE"
 
 # Claves propias de esta instalacion. Si se van a migrar datos de otro sistema,
-# SENTINEL_FORENSIC_SECRET y FL_EXPEDIENTE_ENC_KEY deben ser las del origen.
-for name in JWT_SECRET SENTINEL_FORENSIC_SECRET FL_EXPEDIENTE_ENC_KEY; do
+# SENTINEL_FORENSIC_SECRET, FL_EXPEDIENTE_ENC_KEY y PACTVM_DATA_KEY deben ser las del origen.
+for name in JWT_SECRET SENTINEL_FORENSIC_SECRET FL_EXPEDIENTE_ENC_KEY PACTVM_DATA_KEY; do
   set_env "$name" "$(openssl rand -hex 32)"
 done
 set_env CORS_ORIGIN "http://127.0.0.1:5173"

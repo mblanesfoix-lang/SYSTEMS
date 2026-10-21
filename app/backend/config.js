@@ -25,6 +25,10 @@ export const MIN_SECRET_LENGTH = 32;
 // producción. Al estar en el repositorio no protege nada: producción la rechaza.
 export const DEV_FORENSIC_SECRET = 'dev-only-secret-cambiar-en-produccion';
 
+// Clave de los secretos de Pactvm guardados en la base (lib/data-seal.js) cuando no se
+// define ninguna fuera de producción. Igual que la anterior, producción la rechaza.
+export const DEV_DATA_KEY = '959c5fde3cd6efb643788abb7480d6b9396bdb748bd87edd5dd7e55ae6b63014';
+
 const isSet = (v) => v !== undefined && v !== null && v !== '';
 const listOf = (v) => v.split(',').map((s) => s.trim()).filter(Boolean);
 
@@ -35,6 +39,8 @@ const strongSecret = (v) => {
 const forensicSecret = (v) => strongSecret(v)
   ?? (safeEqual(v, DEV_FORENSIC_SECRET) ? 'es la clave de desarrollo del repositorio, hay que generar una propia' : null);
 const hex64 = (v) => (/^[0-9a-fA-F]{64}$/.test(v) ? null : 'deben ser 64 caracteres hexadecimales (32 bytes)');
+const dataKey = (v) => hex64(v)
+  ?? (safeEqual(v.toLowerCase(), DEV_DATA_KEY) ? 'es la clave de desarrollo del repositorio, hay que generar una propia' : null);
 const oneOf = (...allowed) => (v) => (allowed.includes(v) ? null : `valores admitidos: ${allowed.join(', ')}`);
 const positiveInt = (v) => (/^\d+$/.test(v) && Number(v) > 0 ? null : 'debe ser un entero positivo');
 const tcpPort = (v) => (/^\d+$/.test(v) && Number(v) >= 1 && Number(v) <= 65535 ? null : 'debe ser un puerto entre 1 y 65535');
@@ -132,6 +138,10 @@ export const VARS = [
   { name: 'FL_EXPEDIENTE_ENC_KEY', group: 'keys', required: true, secret: true, check: hex64,
     desc: 'Cifrado del Expediente Fiscal y Jurídico',
     hint: `${GENERATE_HEX32}. Perderla deja ilegibles los documentos ya cifrados` },
+  { name: 'PACTVM_DATA_KEY', group: 'keys', required: true, secret: true, check: dataKey,
+    desc: 'Cifrado y firma de los secretos de Pactvm Viridi guardados en la base (claves CIBE y códigos de acceso)',
+    hint: `${GENERATE_HEX32}. Fuera de producción, si falta, se usa una clave de desarrollo que producción rechaza. `
+      + 'Perderla deja ilegibles las claves CIBE ya cifradas; mientras dos instalaciones compartan base, debe ser la misma en ambas' },
 
   // Usuarios iniciales
   seedVar('SEED_NOUR_PASSWORD', 'Nour'),

@@ -98,7 +98,7 @@ fi
 # (APP_DIR), no desde app/backend/.env — el archivo debe vivir en la raiz.
 ENV_FILE="$APP_DIR/.env"
 LEGACY_ENV="$APP_DIR/app/backend/.env"
-REQUIRED_KEYS=(JWT_SECRET SENTINEL_FORENSIC_SECRET FL_EXPEDIENTE_ENC_KEY)
+REQUIRED_KEYS=(JWT_SECRET SENTINEL_FORENSIC_SECRET FL_EXPEDIENTE_ENC_KEY PACTVM_DATA_KEY)
 
 # Sustituye NOMBRE=... si la linea existe; si no, la anade al final.
 set_env() {
@@ -120,7 +120,7 @@ else
   cp "$APP_DIR/app/backend/.env.example" "$ENV_FILE"
   chmod 600 "$ENV_FILE"
   # Claves propias de esta instalacion. Si se van a migrar datos de otro sistema,
-  # SENTINEL_FORENSIC_SECRET y FL_EXPEDIENTE_ENC_KEY deben ser las del origen.
+  # SENTINEL_FORENSIC_SECRET, FL_EXPEDIENTE_ENC_KEY y PACTVM_DATA_KEY deben ser las del origen.
   for name in "${REQUIRED_KEYS[@]}"; do
     set_env "$name" "$(openssl rand -hex 32)"
   done

@@ -19,6 +19,7 @@ import { connectMongo, closeMongo, getMongoClient } from '../db/mongo.js';
 import { tenantsCollection, getTenantDb, getTenantReffDb } from '../db/tenant-registry.js';
 import { tenantContext, createTenantAwareDb, createTenantAwareReffDb } from '../db/tenant-context.js';
 import { mountPactvm } from '../pactum-viridi.js';
+import { createDataSeal } from '../lib/data-seal.js';
 
 const MONGO_URI = process.env.MONGO_URI;
 const skip = !MONGO_URI;
@@ -41,6 +42,7 @@ const adminAuth = (req, res, next) => {
 const requireMesaStub = () => (req, res, next) => next();
 const requireAdminStub = (req, res, next) => (req.role === 'admin' ? next() : res.status(403).json({ error: 'admin requerido' }));
 const sha256 = (s) => crypto.createHash('sha256').update(String(s)).digest('hex');
+const dataSeal = createDataSeal(crypto.randomBytes(32));
 
 // ip simula el cliente via X-Forwarded-For (la app de prueba tiene trust proxy).
 async function call(method, path, { body, ip } = {}) {
@@ -102,6 +104,7 @@ describe('pactvm: desbloqueos publicos endurecidos', { skip: skip && 'MONGO_URI 
       getReffDb: () => reffDb,
       getU2Snapshot: () => null,
       systemTenantId: TENANT,
+      dataSeal,
     });
     server = app.listen(0);
     baseUrl = `http://127.0.0.1:${server.address().port}`;
@@ -138,13 +141,25 @@ describe('pactvm: desbloqueos publicos endurecidos', { skip: skip && 'MONGO_URI 
       assert.deepEqual(inlineScripts(missing.body), []);
     });
 
-    test('el codigo de acceso se guarda hasheado, nunca en claro', async () => {
+    test('el codigo de acceso se guarda con HMAC de la clave del servidor, nunca en claro', async () => {
       await newPackage('PKG-HASH');
       const code = await issueCode('PKG-HASH');
       const doc = await db.collection('pactvm_verify_access_codes').findOne({ packageId: 'PKG-HASH' });
-      assert.equal(doc.codeHash, sha256(code));
+      assert.equal(doc.codeHash, dataSeal.mac('pactvm.access-code', code));
+      // un sha256 sin clave se recuperaria probando el millon de codigos posibles
+      assert.notEqual(doc.codeHash, sha256(code));
       assert.equal(doc.code, undefined);
       assert.ok(!JSON.stringify(doc).includes(code), 'el codigo en claro no debe aparecer en el documento');
+    });
+
+    test('un codigo heredado guardado con sha256 sin clave ya no desbloquea', async () => {
+      await newPackage('PKG-SHA');
+      await db.collection('pactvm_verify_access_codes').insertOne({
+        _id: 'legacy-sha', packageId: 'PKG-SHA', codeHash: sha256('654321'),
+        expiresAt: new Date(Date.now() + 60_000).toISOString(), usedBy: [],
+      });
+      const r = await unlock('PKG-SHA', 'auditor@cliente.com', '654321', '203.0.113.5');
+      assert.equal(r.status, 403);
     });
 
     test('correo autorizado + codigo correcto -> 200 y queda el uso registrado', async () => {
@@ -258,6 +273,46 @@ describe('pactvm: desbloqueos publicos endurecidos', { skip: skip && 'MONGO_URI 
       const ok = await unlockVdr(code, '192.0.2.11');
       assert.equal(ok.status, 200);
       assert.equal(ok.body.company.id, company.body.id);
+    });
+
+    test('el enlace se guarda por su huella: el token no esta en la base ni en el registro', async () => {
+      const company = await call('POST', '/api/pactvm/vdr/companies', {
+        body: { name: 'Empresa VDR Huella', geoCountry: 'FR', geoWeight: 2, spainActivity: 1 },
+      });
+      const share = await call('POST', '/api/pactvm/vdr/shares', {
+        body: { companyId: company.body.id, emails: ['cliente@vdr.com'], minutes: 5 },
+      });
+      assert.equal(share.status, 201);
+      const { id, token, code, url } = share.body;
+      assert.equal(id, sha256(token));
+      assert.ok(url.endsWith(`?t=${token}`));
+
+      const doc = await db.collection('pactvm_vdr_shares').findOne({ _id: id });
+      assert.ok(doc);
+      assert.equal(await db.collection('pactvm_vdr_shares').findOne({ _id: token }), null);
+      assert.ok(!JSON.stringify(doc).includes(token));
+      assert.ok(!JSON.stringify(doc).includes(code));
+      assert.equal(doc.codeHash, dataSeal.mac('pactvm.access-code', code));
+
+      assert.equal((await call('GET', `/api/vdr-share/${token}`)).status, 200);
+      // la huella no sirve como enlace
+      assert.equal((await call('GET', `/api/vdr-share/${id}`)).status, 404);
+      const ok = await call('POST', `/api/vdr-share/${token}/unlock`, { body: { email: 'cliente@vdr.com', code }, ip: '192.0.2.20' });
+      assert.equal(ok.status, 200);
+
+      const list = await call('GET', '/api/pactvm/vdr/shares');
+      assert.ok(list.body.some((s) => s.id === id));
+      assert.ok(!JSON.stringify(list.body).includes(token));
+
+      const revoked = await call('DELETE', `/api/pactvm/vdr/shares/${id}`);
+      assert.equal(revoked.status, 200);
+      assert.deepEqual(revoked.body, { id, revoked: true });
+      assert.equal((await call('GET', `/api/vdr-share/${token}`)).status, 410);
+
+      const log = await db.collection('pactvm_log').find({ action: /^vdr\.share_/ }).toArray();
+      assert.ok(log.some((e) => e.action === 'vdr.share_created' && e.detail.shareId === id));
+      assert.ok(log.some((e) => e.action === 'vdr.share_revoked' && e.detail.shareId === id));
+      assert.ok(!JSON.stringify(log).includes(token), 'el token no debe quedar en pactvm_log');
     });
   });
 });

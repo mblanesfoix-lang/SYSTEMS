@@ -11,7 +11,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   VARS, OBSOLETE_VARS, PLATFORM_VARS, TOOL_VARS, BUILD_VARS,
-  ConfigError, validateConfig, assertConfig, parseEnvFile, loadEnvFile, DEV_FORENSIC_SECRET,
+  ConfigError, validateConfig, assertConfig, parseEnvFile, loadEnvFile, DEV_FORENSIC_SECRET, DEV_DATA_KEY,
 } from '../config.js';
 import { REPO_ROOT, outdatedTargets } from '../scripts/config-sync.js';
 
@@ -24,6 +24,7 @@ const VALID_PRODUCTION = {
   JWT_SECRET: SECRET,
   SENTINEL_FORENSIC_SECRET: SECRET,
   FL_EXPEDIENTE_ENC_KEY: HEX64,
+  PACTVM_DATA_KEY: 'c'.repeat(64),
   LLM_PROVIDER: 'ollama',
 };
 const silent = { warn() {} };
@@ -31,7 +32,7 @@ const read = (file) => fs.readFileSync(path.join(REPO_ROOT, file), 'utf8');
 
 describe('config: validación en producción', () => {
   test('las obligatorias son las que exige el arranque', () => {
-    assert.deepEqual(REQUIRED.sort(), ['FL_EXPEDIENTE_ENC_KEY', 'JWT_SECRET', 'MONGO_URI', 'SENTINEL_FORENSIC_SECRET']);
+    assert.deepEqual(REQUIRED.sort(), ['FL_EXPEDIENTE_ENC_KEY', 'JWT_SECRET', 'MONGO_URI', 'PACTVM_DATA_KEY', 'SENTINEL_FORENSIC_SECRET']);
   });
 
   test('sin variables falla con un único error que las lista todas', () => {
@@ -92,6 +93,15 @@ describe('config: validación en producción', () => {
   test('la clave forense de desarrollo no se acepta', () => {
     const { errors } = validateConfig({ ...VALID_PRODUCTION, SENTINEL_FORENSIC_SECRET: DEV_FORENSIC_SECRET });
     assert.deepEqual(errors, ['SENTINEL_FORENSIC_SECRET: es la clave de desarrollo del repositorio, hay que generar una propia']);
+  });
+
+  test('la clave de datos de desarrollo no se acepta, tampoco en mayusculas, ni un formato invalido', () => {
+    for (const value of [DEV_DATA_KEY, DEV_DATA_KEY.toUpperCase()]) {
+      const { errors } = validateConfig({ ...VALID_PRODUCTION, PACTVM_DATA_KEY: value });
+      assert.deepEqual(errors, ['PACTVM_DATA_KEY: es la clave de desarrollo del repositorio, hay que generar una propia']);
+    }
+    const { errors } = validateConfig({ ...VALID_PRODUCTION, PACTVM_DATA_KEY: 'corta' });
+    assert.deepEqual(errors, ['PACTVM_DATA_KEY: deben ser 64 caracteres hexadecimales (32 bytes)']);
   });
 
   test('los mensajes nunca incluyen el valor de una variable', () => {

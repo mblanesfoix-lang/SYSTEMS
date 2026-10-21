@@ -954,7 +954,7 @@ function bootVerification() {
   check('S-NFI U2 (ESIOS/REE)', !!(process.env.ESIOS_TOKEN || process.env.ESIOS_API_KEY),
     (process.env.ESIOS_TOKEN || process.env.ESIOS_API_KEY) ? 'token presente' : 'sin configurar — u2-ree.routes.js usa su propio fallback');
   check('CIBE Bunker', !!process.env.CIBE_PRIVATE_KEY_PEM,
-    process.env.CIBE_PRIVATE_KEY_PEM ? 'clave privada en env' : 'sin env — cibe-bunker.js genera/persiste par en Mongo (cibe_keys)');
+    process.env.CIBE_PRIVATE_KEY_PEM ? 'clave privada en env' : 'sin env — cibe-bunker.js genera/persiste par en Mongo (cibe_keys, cifrada con PACTVM_DATA_KEY)');
   check('Rack State (RAFT)', true,
     process.env.RACK_PEERS ? `cluster: ${process.env.RACK_PEERS}` : 'standalone (quorum 1, sin RACK_PEERS)');
   check('JWT_SECRET', !!process.env.JWT_SECRET, process.env.JWT_SECRET ? 'presente' : 'AUSENTE — revisar si algun modulo lo exige antes de produccion');

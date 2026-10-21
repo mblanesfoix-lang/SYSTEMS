@@ -312,7 +312,7 @@ Object.assign(api, {
   // enlaces temporales de presentacion bajo NDA
   pactvmVdrSharesList:    () => req('GET', '/api/pactvm/vdr/shares'),
   pactvmVdrShareCreate:   (payload) => req('POST', '/api/pactvm/vdr/shares', payload),
-  pactvmVdrShareRevoke:   (token) => req('DELETE', `/api/pactvm/vdr/shares/${token}`),
+  pactvmVdrShareRevoke:   (id) => req('DELETE', `/api/pactvm/vdr/shares/${encodeURIComponent(id)}`),
 
   // S-NFI Resilience (BSS) · continuidad operativa, cadena suministro, backup soberania
   resilienceSummary:          () => req('GET', '/api/resilience/summary'),

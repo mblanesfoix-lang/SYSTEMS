@@ -100,6 +100,23 @@ describe('pactum-viridi.js: 6 sub-mesas sobre Mongo', { skip: skip && 'MONGO_URI
     assert.ok(list.body.some((c) => c.id === create.body.id));
   });
 
+  test('1b. CIBE: ni el listado ni el PATCH devuelven la tokenKey, solo si existe', async () => {
+    await db.collection('pactvm_cibe').insertOne({
+      _id: 'cibe-con-clave', entityName: 'Rack con clave', status: 'emitido', tokenKey: 'sealed:v1:valor-de-prueba',
+    });
+    const list = await fetchJson('/api/pactvm/cibe');
+    const row = list.body.find((c) => c.id === 'cibe-con-clave');
+    assert.equal(row.tokenKey, undefined);
+    assert.equal(row.hasTokenKey, true);
+    assert.ok(list.body.filter((c) => c.id !== 'cibe-con-clave').every((c) => c.hasTokenKey === false));
+    assert.ok(!JSON.stringify(list.body).includes('valor-de-prueba'));
+
+    const patched = await fetchJson('/api/pactvm/cibe/cibe-con-clave', { method: 'PATCH', body: JSON.stringify({ notes: 'revisado' }) });
+    assert.equal(patched.status, 200);
+    assert.equal(patched.body.tokenKey, undefined);
+    assert.equal(patched.body.hasTokenKey, true);
+  });
+
   test('2. Nodos por pais: crear con code duplicado -> 409, nodesNeeded calculado', async () => {
     const create = await fetchJson('/api/pactvm/country-nodes', {
       method: 'POST',

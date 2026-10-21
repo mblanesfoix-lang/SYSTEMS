@@ -79,6 +79,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:?}
       SENTINEL_FORENSIC_SECRET: ${SENTINEL_FORENSIC_SECRET:?}
       FL_EXPEDIENTE_ENC_KEY: ${FL_EXPEDIENTE_ENC_KEY:?}
+      PACTVM_DATA_KEY: ${PACTVM_DATA_KEY:?}
       # Usuarios iniciales (solo primer arranque con la base vacía)
       SEED_NOUR_PASSWORD: ${SEED_NOUR_PASSWORD:-}
       SEED_MARC_PASSWORD: ${SEED_MARC_PASSWORD:-}

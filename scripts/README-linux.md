@@ -25,7 +25,7 @@ bash scripts/setup-env.sh
 nano .env
 ```
 
-El archivo vive en la raiz del proyecto (`/opt/elvi-ra/.env`): docker compose interpola sus variables desde ahi. `setup-env.sh` lo crea a partir de `app/backend/.env.example` y genera las claves obligatorias (`JWT_SECRET`, `SENTINEL_FORENSIC_SECRET` y `FL_EXPEDIENTE_ENC_KEY`).
+El archivo vive en la raiz del proyecto (`/opt/elvi-ra/.env`): docker compose interpola sus variables desde ahi. `setup-env.sh` lo crea a partir de `app/backend/.env.example` y genera las claves obligatorias (`JWT_SECRET`, `SENTINEL_FORENSIC_SECRET`, `FL_EXPEDIENTE_ENC_KEY` y `PACTVM_DATA_KEY`).
 
 Antes del primer arranque hay que completar:
 - Contraseñas iniciales `SEED_*_PASSWORD` y `REFF_SEED_*_PASSWORD`: sin ellas no se crean usuarios.

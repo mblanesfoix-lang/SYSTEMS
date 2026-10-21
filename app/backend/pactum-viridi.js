@@ -17,14 +17,15 @@ import { runAsTenant, withTenant } from './db/tenant-context.js';
 import { DEFAULT_TENANT_ID } from './db/tenant-registry.js';
 import { appendChained, verifyLog } from './lib/hash-chain.js';
 import { safeEqual } from './lib/safe-compare.js';
+import { getDataSeal } from './lib/data-seal.js';
 import { merkleRoot as computeMerkleRoot, MERKLE_VERSION } from './lib/merkle.js';
 import QRCode from 'qrcode';
 import { rateLimit, ipKeyGenerator } from 'express-rate-limit';
 
-// Codigos de acceso temporales de los desbloqueos publicos (verificacion de
-// certificados): en Mongo solo se guarda su sha256, nunca el codigo en claro
-// (mismo criterio que los enlaces VDR).
-const hashAccessCode = (code) => crypto.createHash('sha256').update(String(code)).digest('hex');
+// Enlaces de invitado VDR: el token solo existe en la URL que se entrega al cliente. En
+// Mongo y en pactvm_log va su sha256 (identificador del enlace); el token es aleatorio de
+// 192 bits, asi que la huella no permite reconstruirlo.
+const shareIdOf = (token) => crypto.createHash('sha256').update(String(token)).digest('hex');
 
 const CIBE_STATUSES = ['pendiente', 'emitido', 'suspendido', 'revocado'];
 const POLICY_CATEGORIES = ['quimico', 'circularidad', 'energia', 'residuo', 'otro'];
@@ -166,6 +167,13 @@ function withId(doc) {
   return { id: _id, ...rest };
 }
 
+// La tokenKey de un certificado CIBE solo se entrega al asignarla (cibe-bunker.js).
+function cibeView(doc) {
+  if (!doc) return doc;
+  const { tokenKey, ...rest } = withId(doc);
+  return { ...rest, hasTokenKey: Boolean(tokenKey) };
+}
+
 const appendPactvmLog = (mongo, entry) => appendChained(mongo, 'pactvm_log', entry);
 
 /**
@@ -173,9 +181,16 @@ const appendPactvmLog = (mongo, entry) => appendChained(mongo, 'pactvm_log', ent
  * arranque y rutas publicas de verificacion y de invitados VDR). Mientras solo exista el
  * tenant por defecto, todo certificado y enlace vive en el; con varios tenants, las rutas
  * publicas tendran que deducirlo del identificador pedido (ver docs/REFERENCIA.md).
+ * dataSeal: clave de los secretos guardados en Mongo (lib/data-seal.js).
  */
-export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getReffDb, getU2Snapshot, systemTenantId = DEFAULT_TENANT_ID }) {
+export function mountPactvm(app, {
+  auth, requireMesa, requireAdmin, mongo, getReffDb, getU2Snapshot,
+  systemTenantId = DEFAULT_TENANT_ID, dataSeal = getDataSeal(),
+}) {
   const router = app;
+  // Codigos de acceso de 6 digitos (certificados y enlaces VDR): en Mongo solo su HMAC
+  // con la clave del servidor, nunca el codigo en claro.
+  const hashAccessCode = (code) => dataSeal.mac('pactvm.access-code', String(code));
   const guard = [auth, requireMesa('pactvm')];
   const adminGuard = [auth, requireMesa('pactvm'), requireAdmin];
   // Las rutas publicas no tienen sesion de la que sacar el tenant: se fija aqui, igual
@@ -266,7 +281,7 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getRe
 
   router.get('/api/pactvm/cibe', ...guard, async (req, res) => {
     const rows = await mongo.collection('pactvm_cibe').find({}).sort({ _id: -1 }).toArray();
-    res.json(rows.map(withId));
+    res.json(rows.map(cibeView));
   });
 
   router.post('/api/pactvm/cibe', ...guard, async (req, res) => {
@@ -286,7 +301,7 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getRe
     };
     await mongo.collection('pactvm_cibe').insertOne(doc);
     await appendPactvmLog(mongo, { action: 'cibe.create', actorId: req.user, detail: { cibeId: doc._id, entityName } });
-    res.status(201).json(withId(doc));
+    res.status(201).json(cibeView(doc));
   });
 
   router.patch('/api/pactvm/cibe/:id', ...guard, async (req, res) => {
@@ -308,7 +323,7 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getRe
       await appendPactvmLog(mongo, { action: 'cibe.update', actorId: req.user, detail: { cibeId: req.params.id, $set } });
     }
     const updated = await mongo.collection('pactvm_cibe').findOne({ _id: req.params.id });
-    res.json(withId(updated));
+    res.json(cibeView(updated));
   });
 
   router.delete('/api/pactvm/cibe/:id', ...guard, async (req, res) => {
@@ -2217,11 +2232,12 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getRe
     if (emails.length === 0) return res.status(400).json({ error: 'indica al menos un correo autorizado' });
 
     const token = crypto.randomBytes(24).toString('base64url');
+    const shareId = shareIdOf(token);
     const code = String(crypto.randomInt(100000, 999999));
     const codeHash = hashAccessCode(code);
     const expiresAt = new Date(Date.now() + minutes * 60000).toISOString();
     const doc = {
-      _id: token,
+      _id: shareId, // el token solo viaja en la URL de esta respuesta
       companyId,
       companyName: company.name,
       emails,
@@ -2235,23 +2251,24 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getRe
     await mongo.collection('pactvm_vdr_shares').insertOne(doc);
     await appendPactvmLog(mongo, {
       action: 'vdr.share_created', actorId: req.user,
-      detail: { token, companyId, companyName: company.name, emails, minutes, expiresAt },
+      detail: { shareId, companyId, companyName: company.name, emails, minutes, expiresAt },
     });
     const base = `${req.protocol}://${req.get('host')}`;
     res.status(201).json({
-      token, code, expiresAt, minutes, emails,
+      id: shareId, token, code, expiresAt, minutes, emails,
       url: `${base}/pages/pactvm-vdr-invitado.html?t=${token}`,
     });
   });
 
-  router.delete('/api/pactvm/vdr/shares/:token', ...guard, async (req, res) => {
+  // :id es el identificador del enlace que devuelve el listado, no el token de la URL.
+  router.delete('/api/pactvm/vdr/shares/:id', ...guard, async (req, res) => {
     const result = await mongo.collection('pactvm_vdr_shares').updateOne(
-      { _id: req.params.token },
+      { _id: req.params.id },
       { $set: { revoked: true, revokedBy: req.user, revokedAt: new Date().toISOString() } },
     );
     if (result.matchedCount === 0) return res.status(404).json({ error: 'enlace no encontrado' });
-    await appendPactvmLog(mongo, { action: 'vdr.share_revoked', actorId: req.user, detail: { token: req.params.token } });
-    res.json({ token: req.params.token, revoked: true });
+    await appendPactvmLog(mongo, { action: 'vdr.share_revoked', actorId: req.user, detail: { shareId: req.params.id } });
+    res.json({ id: req.params.id, revoked: true });
   });
 
   /* ---- rutas publicas del enlace temporal (SIN auth) ----
@@ -2270,7 +2287,7 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getRe
   // Estado del enlace: el invitado lo consulta al abrir, antes de introducir
   // credenciales. No revela nada del contenido, solo si sigue vivo.
   app.get('/api/vdr-share/:token', publicTenant, async (req, res) => {
-    const row = await mongo.collection('pactvm_vdr_shares').findOne({ _id: req.params.token });
+    const row = await mongo.collection('pactvm_vdr_shares').findOne({ _id: shareIdOf(req.params.token) });
     const state = shareState(row);
     if (!state.ok) return res.status(state.reason === 'NOT_FOUND' ? 404 : 410).json({ status: state.reason });
     res.json({ status: 'ACTIVE', companyName: row.companyName, expiresAt: row.expiresAt });
@@ -2279,7 +2296,7 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getRe
   // Desbloqueo: correo en la allowlist + codigo correcto. Devuelve el mismo
   // payload que el endpoint autenticado del globo. Sin sesion persistente.
   app.post('/api/vdr-share/:token/unlock', unlockPerIp, unlockPerTarget, publicTenant, async (req, res) => {
-    const row = await mongo.collection('pactvm_vdr_shares').findOne({ _id: req.params.token });
+    const row = await mongo.collection('pactvm_vdr_shares').findOne({ _id: shareIdOf(req.params.token) });
     const state = shareState(row);
     if (!state.ok) return res.status(state.reason === 'NOT_FOUND' ? 404 : 410).json({ status: state.reason });
 
@@ -2287,12 +2304,12 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getRe
     const code = String(req.body?.code || '').trim();
     if (!email || !code) return res.status(400).json({ error: 'correo y código requeridos' });
     if (!row.emails.includes(email)) {
-      await appendPactvmLog(mongo, { action: 'vdr.share_denied', actorId: 'invitado', detail: { token: row._id, email, reason: 'email_no_autorizado' } });
+      await appendPactvmLog(mongo, { action: 'vdr.share_denied', actorId: 'invitado', detail: { shareId: row._id, email, reason: 'email_no_autorizado' } });
       return res.status(403).json({ error: 'correo no autorizado para este enlace' });
     }
     // comparacion en tiempo constante: evita distinguir codigos por latencia
     if (!safeEqual(hashAccessCode(code), row.codeHash)) {
-      await appendPactvmLog(mongo, { action: 'vdr.share_denied', actorId: 'invitado', detail: { token: row._id, email, reason: 'codigo_invalido' } });
+      await appendPactvmLog(mongo, { action: 'vdr.share_denied', actorId: 'invitado', detail: { shareId: row._id, email, reason: 'codigo_invalido' } });
       return res.status(403).json({ error: 'código inválido' });
     }
 
@@ -2303,7 +2320,7 @@ export function mountPactvm(app, { auth, requireMesa, requireAdmin, mongo, getRe
       { _id: row._id },
       { $push: { accessLog: { email, at: new Date().toISOString(), ip: req.ip || null } } },
     );
-    await appendPactvmLog(mongo, { action: 'vdr.share_accessed', actorId: 'invitado', detail: { token: row._id, email, companyId: row.companyId } });
+    await appendPactvmLog(mongo, { action: 'vdr.share_accessed', actorId: 'invitado', detail: { shareId: row._id, email, companyId: row.companyId } });
 
     // El reparto territorial va bajo SPV LEVEL 2: no basta con ocultarlo en
     // la interfaz, se retira del payload para que tampoco viaje al cliente.

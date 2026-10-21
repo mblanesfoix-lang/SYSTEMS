@@ -17,14 +17,18 @@
  *     HMAC su tokenKey. Cert suspendido/revocado/inexistente => AUTH_REFUSAL,
  *     da igual la urgencia o el dinero.
  *
- * Claves: par Ed25519 generado una vez y persistido en Mongo (cibe_keys).
- * Override prod: env CIBE_PRIVATE_KEY_PEM + CIBE_PUBLIC_KEY_PEM (vault/env,
- * misma nota de produccion que el resto de secretos de nodo).
+ * Claves: par Ed25519 generado una vez y persistido en Mongo (cibe_keys), con la
+ * clave privada cifrada (lib/data-seal.js). Override prod: env CIBE_PRIVATE_KEY_PEM +
+ * CIBE_PUBLIC_KEY_PEM (vault/env, misma nota de produccion que el resto de secretos
+ * de nodo). La tokenKey de cada certificado tambien se guarda cifrada.
  */
 
 import crypto from 'node:crypto';
 import { appendChained, verifyLog } from './lib/hash-chain.js';
 import { safeEqual } from './lib/safe-compare.js';
+import { getDataSeal, isSealed } from './lib/data-seal.js';
+import { withTenant } from './db/tenant-context.js';
+import { DEFAULT_TENANT_ID } from './db/tenant-registry.js';
 
 const TOKEN_RE = /^v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 const KEY_SCOPES = ['ophs.command', 'grid.command', 'rack.command', 'fl.expediente.read', '*'];
@@ -37,13 +41,19 @@ function b64url(buf) {
 
 const appendCibeLog = (mongo, entry) => appendChained(mongo, 'cibe_log', entry);
 
-export function createCibeBunker({ mongo, busEmit, adminNotify }) {
+// Contextos de cifrado: atan cada valor a su documento (ver lib/data-seal.js). Los usa
+// tambien scripts/seal-pactvm-secrets.js para sellar los valores heredados en claro.
+export const PRIVATE_KEY_CONTEXT = 'cibe_keys.privateKeyPem:active';
+export const tokenKeyContext = (certId) => `pactvm_cibe.tokenKey:${certId}`;
+
+export function createCibeBunker({ mongo, busEmit, adminNotify, dataSeal = getDataSeal() }) {
   const MODE = ['off', 'auto', 'strict'].includes(process.env.CIBE_MODE) ? process.env.CIBE_MODE : 'auto';
   const TTL_S = Math.min(Math.max(Number(process.env.CIBE_TOKEN_TTL_S) || 120, 30), 3600);
 
   let privateKey = null;
   let publicKey = null;
   let kid = null;
+  let keySource = null;
   const revoked = new Set();
   const counters = { issued: 0, verified: 0, refused: 0, autoIssued: 0 };
   let readyPromise = null;
@@ -53,6 +63,7 @@ export function createCibeBunker({ mongo, busEmit, adminNotify }) {
       privateKey = crypto.createPrivateKey(process.env.CIBE_PRIVATE_KEY_PEM);
       publicKey = crypto.createPublicKey(process.env.CIBE_PUBLIC_KEY_PEM);
       kid = 'env';
+      keySource = 'env (vault)';
     } else {
       const col = mongo.collection('cibe_keys');
       let doc = await col.findOne({ _id: 'active' });
@@ -61,16 +72,25 @@ export function createCibeBunker({ mongo, busEmit, adminNotify }) {
         doc = {
           _id: 'active',
           kid: crypto.randomUUID().slice(0, 8),
-          privateKeyPem: pair.privateKey.export({ type: 'pkcs8', format: 'pem' }),
+          privateKeyPem: dataSeal.seal(pair.privateKey.export({ type: 'pkcs8', format: 'pem' }), PRIVATE_KEY_CONTEXT),
           publicKeyPem: pair.publicKey.export({ type: 'spki', format: 'pem' }),
           createdAt: new Date().toISOString(),
         };
         await col.insertOne(doc);
         await appendCibeLog(mongo, { action: 'keypair.generate', actorId: 'system', detail: { kid: doc.kid } });
       }
-      privateKey = crypto.createPrivateKey(doc.privateKeyPem);
+      let privateKeyPem;
+      try {
+        privateKeyPem = dataSeal.open(doc.privateKeyPem, PRIVATE_KEY_CONTEXT);
+      } catch {
+        throw new Error('la clave privada de cibe_keys no se puede descifrar con PACTVM_DATA_KEY (¿la cifró otra clave?)');
+      }
+      privateKey = crypto.createPrivateKey(privateKeyPem);
       publicKey = crypto.createPublicKey(doc.publicKeyPem);
       kid = doc.kid;
+      keySource = isSealed(doc.privateKeyPem)
+        ? 'mongo (cibe_keys, cifrada; mover a vault en prod)'
+        : 'mongo (cibe_keys, EN CLARO: sellar con scripts/seal-pactvm-secrets.js; mover a vault en prod)';
     }
     const revs = await mongo.collection('cibe_revocations').find({}).toArray();
     for (const r of revs) revoked.add(r._id);
@@ -201,7 +221,7 @@ export function createCibeBunker({ mongo, busEmit, adminNotify }) {
       tokenTtlS: TTL_S,
       counters: { ...counters },
       revokedCount: revoked.size,
-      keySource: process.env.CIBE_PRIVATE_KEY_PEM ? 'env (vault)' : 'mongo (cibe_keys — mover a vault en prod)',
+      keySource,
     };
   }
 
@@ -209,16 +229,27 @@ export function createCibeBunker({ mongo, busEmit, adminNotify }) {
     return { kid, alg: 'Ed25519', publicKeyPem: publicKey.export({ type: 'spki', format: 'pem' }) };
   }
 
-  return { ready, issue, verify, guard, revoke, status, publicKeyInfo, MODE };
+  // tokenKey de un certificado: se guarda cifrada y atada a su certificado. openTokenKey
+  // lanza si no se puede descifrar (otra PACTVM_DATA_KEY, valor copiado de otro certificado).
+  const sealTokenKey = (certId, tokenKey) => dataSeal.seal(tokenKey, tokenKeyContext(certId));
+  const openTokenKey = (cert) => dataSeal.open(cert.tokenKey, tokenKeyContext(cert._id));
+
+  return { ready, issue, verify, guard, revoke, status, publicKeyInfo, sealTokenKey, openTokenKey, MODE };
 }
 
-export function mountCibeBunker(app, { auth, requireMesa, mongo, bunker, busEmit }) {
+/**
+ * systemTenantId: tenant de los certificados CIBE para la puerta publica, que no tiene
+ * sesion de la que sacarlo (mismo criterio que las rutas publicas de pactum-viridi.js).
+ */
+export function mountCibeBunker(app, { auth, requireMesa, mongo, bunker, busEmit, systemTenantId = DEFAULT_TENANT_ID }) {
   const guard = [auth, requireMesa('pactvm')];
+  const publicTenant = withTenant(systemTenantId);
 
+  // El detalle del error solo va al log: la puerta es publica.
   const h = (fn) => (req, res) => {
     Promise.resolve(fn(req, res)).catch((err) => {
       console.error('[CIBE] route error:', err?.message || err);
-      if (!res.headersSent) res.status(500).json({ error: String(err?.message || err) });
+      if (!res.headersSent) res.status(500).json({ error: 'error interno del bunker CIBE' });
     });
   };
 
@@ -233,7 +264,7 @@ export function mountCibeBunker(app, { auth, requireMesa, mongo, bunker, busEmit
   // Puerta de acceso CIBE: sujeto externo pide token firmando con su tokenKey.
   // Sin certificado 'emitido' => Auth-Refusal automatico (doctrina: el acceso
   // no se compra, se gana mediante cumplimiento).
-  app.post('/api/cibe/token', h(async (req, res) => {
+  app.post('/api/cibe/token', publicTenant, h(async (req, res) => {
     await bunker.ready();
     const b = req.body || {};
     const entityId = String(b.entityId || '').trim();
@@ -263,8 +294,14 @@ export function mountCibeBunker(app, { auth, requireMesa, mongo, bunker, busEmit
     if (!cert) return externalRefusal('no_cert', 'sin certificado CIBE: solicitar auditoria Herzog');
     if (cert.status !== 'emitido') return externalRefusal('cert_not_issued', `certificado en estado '${cert.status}': la puerta permanece cerrada`);
     if (!cert.tokenKey) return externalRefusal('no_token_key', 'certificado sin tokenKey asignada (pedir alta al Admin)');
+    let tokenKey;
+    try {
+      tokenKey = bunker.openTokenKey(cert);
+    } catch {
+      return externalRefusal('token_key_unreadable', 'tokenKey ilegible con la clave de datos actual (pedir rotacion al Admin)');
+    }
 
-    const expected = crypto.createHmac('sha256', cert.tokenKey).update(`${entityId}|${ts}|${nonce}`).digest('hex');
+    const expected = crypto.createHmac('sha256', tokenKey).update(`${entityId}|${ts}|${nonce}`).digest('hex');
     if (!safeEqual(hmac.toLowerCase(), expected)) {
       return externalRefusal('bad_hmac', 'firma HMAC invalida');
     }
@@ -291,7 +328,10 @@ export function mountCibeBunker(app, { auth, requireMesa, mongo, bunker, busEmit
     if (!cert) return res.status(404).json({ error: 'certificado no encontrado' });
     if (cert.status !== 'emitido') return res.status(409).json({ error: `certificado en estado '${cert.status}', solo 'emitido' puede tener tokenKey` });
     const tokenKey = crypto.randomBytes(24).toString('hex');
-    await mongo.collection('pactvm_cibe').updateOne({ _id: cert._id }, { $set: { tokenKey, tokenKeyRotatedAt: new Date().toISOString() } });
+    await mongo.collection('pactvm_cibe').updateOne(
+      { _id: cert._id },
+      { $set: { tokenKey: bunker.sealTokenKey(cert._id, tokenKey), tokenKeyRotatedAt: new Date().toISOString() } },
+    );
     await appendCibeLog(mongo, { action: 'token_key.assign', actorId: req.user, detail: { cibeId: cert._id, entityName: cert.entityName } });
     res.json({ cibeId: cert._id, entityName: cert.entityName, tokenKey });
   }));
