@@ -17,6 +17,9 @@ try {
   if (!allowed.has('seagle')) {
     location.href = '/pages/dashboard.html';
   }
+  document.querySelectorAll('.tile[data-mesa]').forEach(el => {
+    if (!allowed.has(el.dataset.mesa)) el.style.display = 'none';
+  });
 } catch {}
 
 document.getElementById('logoutBtn').addEventListener('click', async () => {
@@ -99,13 +102,8 @@ async function checkMesa(mesa, url, { okLabel = 'operativo', parse } = {}) {
 }
 
 function refreshMesaStatus() {
-  // El mapa no tiene endpoint propio (frontend puro reusando Gob Share) — el health
-  // check golpea /api/seagle/summary igualmente para confirmar que la mesa responde.
-  checkMesa('seagle-mapa', '/api/seagle/summary', {
-    parse: () => 'directorio Gob Share'
-  });
-  checkMesa('seagle-hconexion', '/api/seagle/summary', {
-    parse: d => `${d.reviewsTotal ?? 0} revisiones`
+  checkMesa('seagle', '/api/seagle/summary', {
+    parse: () => 'ventana de inspección en desarrollo'
   });
 }
 

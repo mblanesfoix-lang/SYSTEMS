@@ -7,6 +7,8 @@
   <link rel="stylesheet" href="/css/fonts.css">
   <link rel="stylesheet" href="/css/theme.css">
   <link rel="stylesheet" href="/css/fl-hub.css">
+  <link rel="stylesheet" href="/css/gob-share.css">
+  <link rel="stylesheet" href="/css/gob-share-links.css">
   <script src="/js/theme-init.js"></script>
   <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
   <style>
@@ -183,6 +185,7 @@
         <button class="flh-tab" type="button" role="tab" id="tab-corporativo" data-tab="corporativo" aria-controls="panel-corporativo" aria-selected="false" tabindex="-1"><span class="flh-tab__n">04</span>Gobierno corporativo<span class="flh-tab__badge" data-badge="corporativo" hidden></span></button>
         <button class="flh-tab" type="button" role="tab" id="tab-clm" data-tab="clm" aria-controls="panel-clm" aria-selected="false" tabindex="-1"><span class="flh-tab__n">05</span>CLM · Contratos<span class="flh-tab__badge" data-badge="clm" hidden></span></button>
         <button class="flh-tab" type="button" role="tab" id="tab-expediente" data-tab="expediente" aria-controls="panel-expediente" aria-selected="false" tabindex="-1"><span class="flh-tab__n">06</span>Expediente fiscal y jurídico</button>
+        <button class="flh-tab" type="button" role="tab" id="tab-registros" data-tab="registros" aria-controls="panel-registros" aria-selected="false" tabindex="-1"><span class="flh-tab__n">07</span>Registros oficiales</button>
       </nav>
     </div>
 
@@ -233,11 +236,41 @@
         </div>
       </div>
     </section>
+
+    <!-- GOB SHARE: portales oficiales de registro por pais (gob-share-panel.js, sin backend propio) -->
+    <section class="flh-panel" id="panel-registros" role="tabpanel" aria-labelledby="tab-registros">
+      <div class="card" style="padding:20px;">
+        <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:16px; max-width:720px;">
+          Portales de registro gubernamentales por país. Pasa el cursor sobre un país registrado para ver su
+          servicio y haz clic para abrir el portal oficial; si tiene varios enlaces, se abre un selector.
+        </p>
+        <div class="gobshare-dark-box">
+          <div class="gobshare-wrap">
+            <div id="gobShareMap" class="gobshare-map"></div>
+            <div id="gobShareTooltip" class="gobshare-tooltip" hidden></div>
+            <div id="gobShareEmpty" class="gobshare-empty" hidden>Sin nodo configurado para este país todavía.</div>
+            <button type="button" id="gobShareDrawerTab" class="gobshare-drawer__tab">
+              <span>PAÍSES</span><span class="count" id="gobShareCount"></span>
+            </button>
+            <aside class="gobshare-drawer" id="gobShareDrawer">
+              <div class="gobshare-panel__head">
+                <span class="kicker">Nodos registrados</span>
+                <input type="text" id="gobShareSearch" class="gobshare-panel__search" placeholder="Buscar país o servicio...">
+              </div>
+              <div class="gobshare-panel__list" id="gobShareList"></div>
+            </aside>
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
 
   <dialog class="flh-dialog" id="flhModal" aria-label="Detalle"></dialog>
   <dialog class="flh-dialog flh-palette" id="flhPalette" aria-label="Buscar en S-NFI F&amp;L"></dialog>
 
+  <!-- Script clasico: topojson-client.min.js es un bundle UMD y fija window.topojson; un import()
+       dinamico de este archivo falla de forma silenciosa. -->
+  <script src="/vendor/topojson-client.min.js"></script>
   <script type="module" src="/js/pages/fl.js"></script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 /* Gob Share: selector de enlaces por pais (gob-share-links.js) y marca de "N enlaces" en la lista
-   del cajon. Colores fijos del modo oscuro del mapa (igual que .gobshare-tooltip), validos tambien
-   en seagle-mapa.html, donde el resto de la pagina usa el tema global. */
+   del cajon. Colores fijos del modo oscuro del mapa (igual que .gobshare-tooltip), validos con el
+   tema global claro de la pagina de F&L. */
 
 .gobshare-links {
   position: fixed; z-index: 210;

@@ -2,6 +2,7 @@ import { api, getUser, getToken, requireAuth, clearSession, toast, escapeHtml, u
 import { mountThemeToggle } from '/js/theme.js';
 import { mountOfficeBg } from '/js/office-bg.js';
 import { initFlHub } from '/js/fl-hub.js';
+import { mountGobSharePanel } from '/js/gob-share-panel.js';
 requireAuth();
 mountThemeToggle(document.querySelector('nav.nav .row'));
 mountOfficeBg();
@@ -474,7 +475,12 @@ async function cargarExpediente() {
 }
 
 // ---- Init: Hub fiscal y legal (cinco vistas) + Expediente ----
-const hub = initFlHub({ onTab: (tab) => { if (tab === 'expediente') cargarExpediente(); } });
+const hub = initFlHub({
+  onTab: (tab) => {
+    if (tab === 'expediente') cargarExpediente();
+    if (tab === 'registros') mountGobSharePanel(document.getElementById('panel-registros'));
+  },
+});
 
 // Sin la mesa fl_expediente, la pestaña del Expediente no se ofrece.
 fetch('/api/me/permissions', { headers: { Authorization: `Bearer ${getToken()}` } })

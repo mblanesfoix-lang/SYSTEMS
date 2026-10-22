@@ -17,7 +17,6 @@ import { mountMna } from '../mna.js';
 import { mountMasterGateway } from '../master-gateway.js';
 import { mountHerzog } from '../herzog.js';
 import { mountHerzogLaw } from '../herzog-law.js';
-import { mountSeagle } from '../seagle.js';
 import { mountResilience } from '../resilience.js';
 import { mountOps } from '../ops.js';
 import { mountPactvm } from '../pactum-viridi.js';
@@ -88,15 +87,6 @@ const MODULES = [
     write: { path: '/api/herzog-law/zones', body: { name: 'Zona de prueba' } },
     action: 'zone.create',
     nested: 'detail.name',
-  },
-  {
-    name: 'seagle',
-    log: 'seagle_log',
-    verify: '/api/seagle/log/verify',
-    mount: (app, deps) => mountSeagle(app, deps),
-    write: { path: '/api/seagle/herzog/review', body: { sourceType: 'metric', sourceId: 'm-1', status: 'verificado', note: 'ok' } },
-    action: 'review.set',
-    nested: 'detail.sourceId',
   },
   {
     name: 'resilience',

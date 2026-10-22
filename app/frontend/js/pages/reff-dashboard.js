@@ -118,7 +118,7 @@ function refreshMesaStatus() {
   });
   setMesaStatus('factory', 'checking', 'en desarrollo', 'mesa pendiente de reconstrucción', '');
   checkMesa('seagle', '/api/seagle/summary', {
-    parse: d => `${d.reviewsTotal ?? 0} revisiones`
+    parse: () => 'ventana de inspección en desarrollo'
   });
   checkMesa('finance', '/api/finance/summary', {
     parse: d => `${d.accountsCount ?? 0} cuentas`

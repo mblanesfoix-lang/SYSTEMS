@@ -303,9 +303,6 @@ Object.assign(api, {
 
   // S-EAGLE · revision de informacion Herzog (verificar/corregir/compartir)
   seagleSummary:      () => req('GET', '/api/seagle/summary'),
-  seagleHerzogFeed:   (department) => req('GET', `/api/seagle/herzog/feed${department ? `?department=${encodeURIComponent(department)}` : ''}`),
-  seagleReview:       (payload) => req('POST', '/api/seagle/herzog/review', payload),
-  seagleHerzogShare:  (payload) => req('POST', '/api/seagle/herzog/share', payload),
   seagleLogVerify:    () => req('GET', '/api/seagle/log/verify'),
 
   // Motor Planetario · parametros globales, paises target (T/año), telemetria CUDA-Bio simulada

@@ -42,23 +42,30 @@
       <span class="kicker">Rëff Core Engine · S-EAGLE</span>
       <h1>S-EAGLE</h1>
       <p style="max-width:640px; margin-top:8px;">
-        Revisión de la información que Herzog retiene: filtra, corrige y alerta errores de documentación
-        para entregar toda la información en regla. Métricas y variables propias: por desarrollar próximamente.
+        Ventana de inspección: un inspector de gobierno verá aquí, en solo lectura y con acceso temporal
+        autorizado por Dirección, el cumplimiento de S-NFI en tiempo real. En desarrollo: de momento la
+        mesa ofrece accesos directos a las mesas de las que se alimentará.
       </p>
     </header>
 
     <section class="reveal delay-1">
-      <span class="kicker">Apartados</span>
+      <span class="kicker">Mesas de cumplimiento</span>
       <div class="tiles" style="margin-top:12px;">
-        <a class="tile reveal delay-2" href="/pages/seagle-mapa.html" data-mesa="seagle" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
-          <h3>Mapa Gob Share</h3>
-          <p>Mapa mundi con acceso directo a los portales oficiales de registro por país (mismo dataset que Gob Share).</p>
+        <a class="tile reveal delay-2" href="/pages/herzog-law.html" data-mesa="herzog_law" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
+          <h3>Herzog LaW</h3>
+          <p>Normativa y cumplimiento: ISO, ATEX, CBAM, Argelia y títulos del Estado. Fuente de los datos que verá el inspector.</p>
           <p class="mono" style="margin-top:10px;">acceso directo →</p>
         </a>
 
-        <a class="tile reveal delay-3" href="/pages/seagle-hconexion.html" data-mesa="seagle" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
-          <h3>H-CONEXIÓN</h3>
-          <p>Conexión directa con Herzog (bunker central): verificar, corregir y compartir información — métricas, documentos y notas.</p>
+        <a class="tile reveal delay-3" href="/pages/fl.html#registros" data-mesa="fl" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
+          <h3>Registros oficiales</h3>
+          <p>Gob Share, en S-NFI F&amp;L: mapa con los portales oficiales de registro por país.</p>
+          <p class="mono" style="margin-top:10px;">acceso directo →</p>
+        </a>
+
+        <a class="tile reveal delay-4" href="/pages/pactum-viridi.html" data-mesa="pactvm" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
+          <h3>Pactvm Viridi</h3>
+          <p>Cumplimiento: CIBE, nodos por país, entrada, carbono y VDR con enlaces temporales para invitados.</p>
           <p class="mono" style="margin-top:10px;">acceso directo →</p>
         </a>
       </div>
@@ -70,18 +77,9 @@
       <span class="kicker">Estado de las Mesas</span>
       <h2 style="margin-top:4px;">Health Check</h2>
       <div class="mesa-status-grid" id="mesaStatusGrid">
-        <div class="mesa-status-card" data-mesa="seagle-mapa">
+        <div class="mesa-status-card" data-mesa="seagle">
           <div class="mesa-status-head">
-            <span class="mesa-status-name">Mapa Gob Share</span>
-            <span class="mesa-status-dot checking"></span>
-          </div>
-          <span class="mesa-status-label">comprobando...</span>
-          <span class="mesa-status-detail"></span>
-          <span class="mesa-status-error"></span>
-        </div>
-        <div class="mesa-status-card" data-mesa="seagle-hconexion">
-          <div class="mesa-status-head">
-            <span class="mesa-status-name">H-CONEXIÓN</span>
+            <span class="mesa-status-name">S-EAGLE</span>
             <span class="mesa-status-dot checking"></span>
           </div>
           <span class="mesa-status-label">comprobando...</span>

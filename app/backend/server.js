@@ -657,9 +657,8 @@ await safeMount('herzog-law', () => mountHerzogLaw(app, { auth, requireMesa, mon
 });
 
 /* ==========================================================================
-   S-EAGLE · Rëff Core Engine, mesa 5. Revisa la informacion que Herzog
-   retiene: verificar/corregir/compartir. Mapa mundi portales (apartado 1)
-   reutiliza Gob Share en frontend, sin backend propio. Ver seagle.js.
+   S-EAGLE · Rëff Core Engine, mesa 5. Ventana de inspeccion de solo
+   lectura sobre el cumplimiento de S-NFI. Ver seagle.js.
 ========================================================================== */
 await safeMount('seagle', () => mountSeagle(app, { auth, requireMesa, mongo }), {
   label: 'S-EAGLE', mesa: 'seagle', prefixes: ['/api/seagle'],

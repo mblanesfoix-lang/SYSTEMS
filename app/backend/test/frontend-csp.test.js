@@ -30,7 +30,7 @@ function jsFiles(dir) {
 const frontendJs = jsFiles(path.join(FRONT, 'js'));
 
 test('hay paginas que revisar', () => {
-  assert.ok(pages.length >= 30, `solo ${pages.length} paginas`);
+  assert.ok(pages.length >= 25, `solo ${pages.length} paginas`);
 });
 
 test('ninguna pagina lleva <script> en linea', () => {

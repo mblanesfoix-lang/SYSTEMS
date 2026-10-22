@@ -5,8 +5,9 @@
  * accion (acuse, cambio de estado, alta, edicion, archivo) va al backend,
  * queda en fl_log y recarga los datos. Plazos legales y KPIs llegan
  * calculados del servidor: aqui solo se presentan y se animan las cuentas
- * atras. La sexta pestaña (Expediente Fiscal y Juridico) la sigue pintando
- * el script propio de fl.html; este modulo solo la muestra u oculta.
+ * atras. La sexta pestaña (Expediente Fiscal y Juridico) y la septima
+ * (Registros oficiales) las sigue pintando el script propio de fl.html;
+ * este modulo solo las muestra u oculta.
  */
 import { api, toast, escapeHtml as h, fetchFlFichaPdf } from '/js/api.js';
 import * as L from '/js/fl-hub-logic.js';
@@ -14,8 +15,9 @@ import * as L from '/js/fl-hub-logic.js';
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
-const TABS = ['overview', 'fiscal', 'gobtech', 'corporativo', 'clm', 'expediente'];
-const HUB_TABS = TABS.filter((t) => t !== 'expediente');
+const TABS = ['overview', 'fiscal', 'gobtech', 'corporativo', 'clm', 'expediente', 'registros'];
+// Expediente y Registros oficiales los pinta fl.js: este modulo solo los muestra u oculta.
+const HUB_TABS = TABS.filter((t) => t !== 'expediente' && t !== 'registros');
 const REFRESCO_MS = 5 * 60 * 1000;
 const FILAS_FISCAL = 15;
 
