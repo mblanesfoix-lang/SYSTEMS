@@ -109,6 +109,13 @@ export async function ensureTenantIndexes(db) {
   await db.collection('herzog_law_documents.files').createIndex({ 'metadata.framework_id': 1 });
   await db.collection('herzog_law_log').createIndex({ seq: 1 }, { unique: true });
 
+  // S-EAGLE · invitaciones de inspeccion y sesiones de inspector (TTL: Mongo las borra al
+  // vencer; la traza de cada acceso queda en seagle_log)
+  await db.collection('seagle_log').createIndex({ seq: 1 }, { unique: true });
+  await db.collection('seagle_invitations').createIndex({ createdAt: -1 });
+  await db.collection('seagle_inspector_sessions').createIndex({ expireAt: 1 }, { expireAfterSeconds: 0 });
+  await db.collection('seagle_inspector_sessions').createIndex({ invitationId: 1, endedAt: 1 });
+
   // OPHS Framework · OPS (telemetria) y PAIA (analitica), leidos por el Cockpit
   await db.collection('ops_nodes').createIndex({ circuitState: 1 });
   await db.collection('ops_readings').createIndex({ ts: -1 });

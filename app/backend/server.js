@@ -658,10 +658,11 @@ await safeMount('herzog-law', () => mountHerzogLaw(app, { auth, requireMesa, mon
 
 /* ==========================================================================
    S-EAGLE · Rëff Core Engine, mesa 5. Ventana de inspeccion de solo
-   lectura sobre el cumplimiento de S-NFI. Ver seagle.js.
+   lectura sobre el cumplimiento de S-NFI: el Admin invita, el inspector
+   entra con enlace y codigo por /api/seagle-inspect. Ver seagle.js.
 ========================================================================== */
-await safeMount('seagle', () => mountSeagle(app, { auth, requireMesa, mongo }), {
-  label: 'S-EAGLE', mesa: 'seagle', prefixes: ['/api/seagle'],
+await safeMount('seagle', () => mountSeagle(app, { auth, requireMesa, requireAdmin, mongo, adminNotify }), {
+  label: 'S-EAGLE', mesa: 'seagle', prefixes: ['/api/seagle'], publicPrefixes: ['/api/seagle-inspect'],
 });
 
 /* ==========================================================================

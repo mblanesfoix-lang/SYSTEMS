@@ -8,7 +8,9 @@ import assert from 'node:assert/strict';
 import { MongoClient } from 'mongodb';
 import express from 'express';
 import { mountSeagle } from '../seagle.js';
+import crypto from 'node:crypto';
 import { appendChained } from '../lib/hash-chain.js';
+import { createDataSeal } from '../lib/data-seal.js';
 
 const MONGO_URI = process.env.MONGO_URI;
 const skip = !MONGO_URI;
@@ -36,7 +38,10 @@ describe('seagle.js: vista de cumplimiento sobre Herzog LaW', { skip: skip && 'M
     db = client.db('elvira_test');
     await Promise.all(COLLECTIONS.map((c) => db.collection(c).deleteMany({})));
     const app = express();
-    mountSeagle(app, { auth: authStub, requireMesa: requireMesaStub, mongo: db });
+    mountSeagle(app, {
+      auth: authStub, requireMesa: requireMesaStub, requireAdmin: (req, res, next) => next(), mongo: db,
+      dataSeal: createDataSeal(crypto.randomBytes(32)), integrityTtlMs: 0,
+    });
     server = app.listen(0);
     baseUrl = `http://127.0.0.1:${server.address().port}`;
   });

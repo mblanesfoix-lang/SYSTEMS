@@ -33,7 +33,7 @@ const ZONE_STATUSES = ['pendiente', 'clasificada', 'protegida'];
 const UNCLASSIFIED = 'sin_clasificar';
 const PRIORITY_ORDER = { alta: 0, media: 1, vigilar: 2 };
 
-const DOCUMENT_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp',
+export const DOCUMENT_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
 const MAX_DOCUMENTS = 300;
 const MAX_FRAMEWORKS = 200;
