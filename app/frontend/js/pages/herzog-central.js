@@ -1,10 +1,12 @@
 import { api, getUser, requireAuth, clearSession, toast, escapeHtml, uploadHerzogDocument, openAuthenticatedFile } from '/js/api.js';
 import { mountThemeToggle } from '/js/theme.js';
 import { mountAdminNotifications } from '/js/notifications.js';
+import { mountPageSwitch } from '/js/page-switch.js';
 requireAuth();
 mountThemeToggle(document.querySelector('nav.nav .row'));
 document.getElementById('userTag').textContent = getUser() || '';
 mountAdminNotifications(document.querySelector('nav.nav .row'));
+mountPageSwitch();
 
 const trigger = document.getElementById('userTag');
 const dropdown = document.getElementById('userDropdown');

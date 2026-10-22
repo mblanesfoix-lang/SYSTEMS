@@ -168,7 +168,7 @@ await ensureUsersSeed(rawMongo);
 // los tenga admin — separa el permiso para el dia que 'fl' se abra a mas roles
 // sin arrastrar automaticamente el expediente confidencial.
 const ROLE_MESAS = {
-  admin:   ['elvira', 'reff', 'snfiu2', 'ophs', 'sentinel', 'factory', 'finance', 'mna', 'fl', 'fl_expediente', 'pactvm', 'gateway', 'seagle', 'herzog', 'resilience', 'notificaciones'],
+  admin:   ['elvira', 'reff', 'snfiu2', 'ophs', 'sentinel', 'factory', 'finance', 'mna', 'fl', 'fl_expediente', 'pactvm', 'gateway', 'seagle', 'herzog', 'herzog_law', 'resilience', 'notificaciones'],
   ray:     ['snfiu2', 'pactvm'],
   amir:    ['reff'],
   gonzalo: ['reff', 'snfiu2', 'pactvm', 'gateway'],
@@ -192,7 +192,8 @@ const MESA_ROUTES = {
   ophs:     ['/api/ops', '/api/paia', '/api/ophs-cockpit', '/api/grid'],
   gateway:  ['/api/gateway'],
   seagle:   ['/api/seagle'],
-  herzog:   ['/api/herzog-central', '/api/herzog-law'],
+  herzog:   ['/api/herzog-central'],
+  herzog_law: ['/api/herzog-law'],
   resilience: ['/api/resilience'],
   notificaciones: ['/api/notif-center'],
 };
@@ -514,7 +515,7 @@ app.use('/api/fl', (req, res, next) => (req.path.startsWith('/expediente') ? nex
 app.use('/api/pactvm',    auth, requireMesa('pactvm'));
 app.use('/api/resilience', auth, requireMesa('resilience'));
 app.use('/api/herzog-central', auth, requireMesa('herzog'));
-app.use('/api/herzog-law', auth, requireMesa('herzog'));
+app.use('/api/herzog-law', auth, requireMesa('herzog_law'));
 app.use('/api/seagle',    auth, requireMesa('seagle'));
 app.use('/api/ops',       auth, requireMesa('ophs'));
 app.use('/api/paia',      auth, requireMesa('ophs'));
@@ -647,11 +648,12 @@ await safeMount('herzog-central', () => mountHerzog(app, { auth, requireMesa, mo
 
 /* ==========================================================================
    Herzog LaW · normativa y cumplimiento: ISO, CBAM, ATEX, marco de Argelia y
-   titulos del Estado, con certificados, vencimientos y zonas ATEX. Misma mesa
-   'herzog' que Herzog PG. Guarda y avisa; el estado lo declara una persona.
+   titulos del Estado, con certificados, vencimientos y zonas ATEX. Mesa propia
+   'herzog_law', con su permiso aparte del de Herzog PG. Guarda y avisa; el
+   estado lo declara una persona.
 ========================================================================== */
 await safeMount('herzog-law', () => mountHerzogLaw(app, { auth, requireMesa, mongo, adminNotify }), {
-  label: 'Herzog LaW', mesa: 'herzog', prefixes: ['/api/herzog-law'],
+  label: 'Herzog LaW', mesa: 'herzog_law', prefixes: ['/api/herzog-law'],
 });
 
 /* ==========================================================================

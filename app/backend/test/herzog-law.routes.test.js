@@ -33,9 +33,14 @@ function authAs(role, user = 'test-admin') {
   };
 }
 
-function requireMesaStub() {
+/* Mesas que tiene cada rol en esta prueba: 'gonzalo' tiene Herzog PG pero no Herzog LaW. */
+const MESAS_BY_ROLE = { admin: ['herzog_law', 'herzog'], gonzalo: ['herzog'] };
+const mesasRequested = new Set();
+
+function requireMesaStub(mesa) {
+  mesasRequested.add(mesa);
   return (req, res, next) => {
-    if (req.role !== 'admin') return res.status(403).json({ error: 'Acceso denegado a esta mesa' });
+    if (!(MESAS_BY_ROLE[req.role] ?? []).includes(mesa)) return res.status(403).json({ error: 'Acceso denegado a esta mesa' });
     next();
   };
 }
@@ -442,7 +447,11 @@ describe('herzog-law.js: marcos, certificados, zonas ATEX y CBAM sobre Mongo', {
     });
   });
 
-  test('requireMesa bloquea rol sin acceso (403)', async () => {
+  test('todas las rutas piden solo la mesa herzog_law', () => {
+    assert.deepEqual([...mesasRequested], ['herzog_law']);
+  });
+
+  test('tener Herzog PG no da acceso a Herzog LaW (403)', async () => {
     const { srv, url } = await startApp({ role: 'gonzalo' });
     for (const path of ['/api/herzog-law/frameworks', '/api/herzog-law/summary', '/api/herzog-law/zones', '/api/herzog-law/cbam/reference']) {
       assert.equal((await call(path, { url })).status, 403, path);

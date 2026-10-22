@@ -5,8 +5,8 @@
  * simulador orientativo de CBAM.
  *
  * Herzog guarda y avisa, no decide: el estado de cada marco lo declara una
- * persona. Todo cambio queda en herzog_law_log (cadena de hashes). Comparte la
- * mesa 'herzog' con Herzog PG, asi que hereda sus permisos.
+ * persona. Todo cambio queda en herzog_law_log (cadena de hashes). Mesa propia
+ * ('herzog_law'): su permiso es independiente del de Herzog PG.
  *
  * El catalogo inicial se siembra de forma perezosa en el primer acceso de cada
  * tenant; solo inserta los marcos que faltan y nunca pisa lo ya editado.
@@ -44,6 +44,7 @@ const EXPIRY_CHECK_INTERVAL_MS = 12 * 60 * 60 * 1000;
 /* Campos de texto del marco: solo se editan en los creados a mano, no en los del catalogo. */
 const OWN_TEXT_FIELDS = ['code', 'title', 'summary', 'why', 'appliesWhen', 'family', 'kind', 'nature', 'jurisdictions'];
 
+const MESA = 'herzog_law';
 const LOG = 'herzog_law_log';
 const appendLawLog = (mongo, entry) => appendChained(mongo, LOG, entry);
 
@@ -202,7 +203,7 @@ function resolveZone(body, current) {
 
 export function mountHerzogLaw(app, { auth, requireMesa, mongo, adminNotify }) {
   const router = app;
-  const guard = [auth, requireMesa('herzog')];
+  const guard = [auth, requireMesa(MESA)];
   const frameworks = () => mongo.collection('herzog_law_frameworks');
   const zones = () => mongo.collection('herzog_law_zones');
 
@@ -419,7 +420,7 @@ export function mountHerzogLaw(app, { auth, requireMesa, mongo, adminNotify }) {
     res.json(files.map(documentView));
   });
 
-  router.post('/api/herzog-law/documents', auth, requireMesa('herzog'), express.raw({ type: DOCUMENT_TYPES, limit: '20mb' }), async (req, res, next) => {
+  router.post('/api/herzog-law/documents', auth, requireMesa(MESA), express.raw({ type: DOCUMENT_TYPES, limit: '20mb' }), async (req, res, next) => {
     const contentType = String(req.headers['content-type'] || '');
     if (!DOCUMENT_TYPES.includes(contentType)) {
       return res.status(415).json({ error: 'Formato no permitido. PDF, imagen (JPG/PNG/WebP) o documento Word (DOCX).' });

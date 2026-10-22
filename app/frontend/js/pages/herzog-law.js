@@ -1,6 +1,7 @@
 import { api, getUser, requireAuth, clearSession, toast, escapeHtml, uploadHerzogLawDocument, openAuthenticatedFile } from '/js/api.js';
 import { mountThemeToggle } from '/js/theme.js';
 import { mountAdminNotifications } from '/js/notifications.js';
+import { mountPageSwitch } from '/js/page-switch.js';
 import {
   $, $$, showError, fmtDay, fmtBytes, STATUS_LABEL, PRIORITY_LABEL, NATURE_LABEL, KIND_LABEL, JURISDICTION_LABEL,
   expiryPill, statusPill, priorityMark, progressBar,
@@ -13,6 +14,7 @@ requireAuth();
 mountThemeToggle(document.querySelector('nav.nav .row'));
 document.getElementById('userTag').textContent = getUser() || '';
 mountAdminNotifications(document.querySelector('nav.nav .row'));
+mountPageSwitch();
 
 /* ---------- menu de usuario ---------- */
 const trigger = document.getElementById('userTag');

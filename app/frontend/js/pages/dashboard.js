@@ -179,6 +179,9 @@ function refreshMesaStatus() {
   checkMesa('herzog', '/api/herzog-central/summary', {
     parse: d => `${d.metricsCount ?? 0} métricas · ${d.documentsCount ?? 0} docs · ${d.notesCount ?? 0} notas`
   });
+  checkMesa('herzog_law', '/api/herzog-law/summary', {
+    parse: d => `${d.frameworksCount ?? 0} marcos · ${d.byStatus?.vigente ?? 0} vigentes · ${d.upcoming?.length ?? 0} vencimientos próximos`
+  });
 }
 
 refreshMesaStatus();

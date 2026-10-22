@@ -7,7 +7,7 @@
  */
 
 /* Subir cuando se anada un marco al catalogo para que se inserte en los tenants existentes. */
-export const SEED_VERSION = 1;
+export const SEED_VERSION = 2;
 
 const REF = {
   cbamPage: { label: 'Comisión Europea · CBAM, régimen definitivo', url: 'https://taxation-customs.ec.europa.eu/carbon-border-adjustment-mechanism/cbam-definitive-regime_en' },
@@ -237,11 +237,12 @@ export const FRAMEWORK_SEED = [
     jurisdictions: ['UE', 'ES'], nature: 'obligatoria', priority: 'alta',
     appliesWhen: 'Si un módulo o un componente va a funcionar en una zona con gas, vapor o polvo explosivo.',
     summary: 'Obliga al fabricante a que los equipos destinados a esas zonas estén diseñados, ensayados y marcados para ellas (marcado Ex además del CE). En España la recoge el Real Decreto 144/2016.',
-    why: 'Triturar y secar residuo orgánico genera polvo combustible. Todo módulo o componente que funcione dentro de una zona clasificada necesita la categoría ATEX adecuada: 1D, 2D o 3D para polvo.',
+    why: 'Triturar y secar residuo orgánico genera polvo combustible, y el aprovechamiento de gas previsto en Argelia añade atmósferas de gas. Todo módulo o componente que funcione dentro de una zona clasificada necesita la categoría ATEX adecuada: 1D, 2D o 3D para polvo y 1G, 2G o 3G para gas.',
     requirements: [
       'Caracterizar el polvo real en laboratorio: humedad, granulometría, energía mínima de ignición, temperatura de ignición de nube y de capa, Kst y Pmax.',
+      'Si se maneja gas, identificarlo y fijar su grupo (IIA, IIB o IIC) y la clase de temperatura que debe cumplir el equipo (de T1 a T6).',
       'Acordar con el cliente en qué zonas se instalará cada módulo (ver el Registro de zonas ATEX).',
-      'Elegir la categoría del equipo según la zona: 1D en zona 20, 2D en zona 21 y 3D en zona 22.',
+      'Elegir la categoría del equipo según la zona: 1D, 2D y 3D en las zonas 20, 21 y 22 (polvo); 1G, 2G y 3G en las zonas 0, 1 y 2 (gas).',
       'Controlar las fuentes de ignición, con especial atención a la temperatura de superficie del deshidratador y a las chispas mecánicas.',
       'Evaluación de conformidad, con organismo notificado cuando el procedimiento lo exija.',
       'Expediente técnico, instrucciones, marcado CE y Ex, y Declaración UE de conformidad.',
@@ -253,7 +254,7 @@ export const FRAMEWORK_SEED = [
     jurisdictions: ['UE', 'ES'], nature: 'obligatoria', priority: 'alta',
     appliesWhen: 'Al empleador de cada instalación: S-NFI en sus propias plantas y el cliente en las suyas. Si comparten lugar de trabajo, deben coordinarse.',
     summary: 'Obliga a quien opera una instalación con posible atmósfera explosiva a evaluar el riesgo, clasificar las zonas y documentar las medidas de protección. En España la recoge el Real Decreto 681/2003.',
-    why: 'Cada nodo trabaja con polvo orgánico. Aunque la obligación sea del operador, S-NFI debe entregar los datos del polvo y de los equipos para que el cliente pueda cumplirla en Navarra, Gipuzkoa o Argelia.',
+    why: 'Cada nodo trabaja con polvo orgánico y, donde se aproveche gas, con atmósferas de gas. Aunque la obligación sea del operador, S-NFI debe entregar los datos del polvo, del gas y de los equipos para que el cliente pueda cumplirla en Navarra, Gipuzkoa o Argelia.',
     requirements: [
       'Evaluar el riesgo de explosión de cada puesto y de cada módulo.',
       'Clasificar las zonas (0, 1 y 2 para gas; 20, 21 y 22 para polvo) en el Registro de zonas ATEX.',
@@ -275,6 +276,21 @@ export const FRAMEWORK_SEED = [
       'Mantener la temperatura de las superficies por debajo de la temperatura de ignición del polvo.',
       'Elegir el tipo de protección adecuado para cada fuente de ignición que no se pueda eliminar.',
       'Reunir la documentación técnica para el marcado ATEX.',
+    ],
+  },
+
+  {
+    id: 'ped-2014-68', code: 'Directiva 2014/68/UE', title: 'Equipos a presión (marcado CE)', kind: 'ue', family: 'Seguridad y explosiones',
+    jurisdictions: ['UE', 'ES'], nature: 'obligatoria', priority: 'media',
+    appliesWhen: 'Si un equipo o conjunto contiene fluidos, como gas o vapor, a una presión máxima admisible superior a 0,5 bar.',
+    summary: 'Ley europea sobre el diseño, la fabricación y la evaluación de conformidad de equipos a presión: recipientes, tuberías y accesorios de seguridad. Los clasifica en categorías de I a IV según el riesgo.',
+    why: 'El aprovechamiento de gas previsto en Argelia puede introducir recipientes y tuberías a presión en la instalación. Si superan el umbral, necesitan marcado CE y, desde la categoría II, un organismo notificado.',
+    requirements: [
+      'Inventariar los recipientes, tuberías y accesorios de seguridad de cada módulo y de la instalación de gas, con su presión máxima admisible.',
+      'Clasificar cada equipo en su categoría (I a IV) según la presión, el volumen y el tipo de fluido.',
+      'Evaluación de conformidad: control interno de producción en la categoría I y organismo notificado desde la II.',
+      'Expediente técnico, instrucciones, marcado CE y Declaración UE de conformidad.',
+      'Dejar constancia de los equipos que quedan por debajo de la categoría I: se diseñan con buenas prácticas de ingeniería y no llevan marcado CE.',
     ],
   },
 
@@ -341,7 +357,7 @@ export const FRAMEWORK_SEED = [
     id: 'dz-marco-local', code: 'Argelia · marco local', title: 'Marco legal y normativo de Argelia', kind: 'local', family: 'Argelia',
     jurisdictions: ['DZ'], nature: 'obligatoria', priority: 'alta',
     appliesWhen: 'Al implantar y operar nodos en Argelia. El contenido exacto debe confirmarlo un asesor jurídico local.',
-    summary: 'Normativa propia de Argelia que se suma a la europea: permisos de implantación, seguridad industrial, atmósferas explosivas, importación de maquinaria y comercio del biocombustible. Pendiente de validar con asesoría local.',
+    summary: 'Normativa propia de Argelia que se suma a la europea: permisos de implantación, seguridad industrial, atmósferas explosivas, aprovechamiento de gas, importación de maquinaria y comercio del biocombustible. Pendiente de validar con asesoría local.',
     why: 'Es probable que S-NFI despliegue en Argelia. Hasta confirmarlo con un asesor local, no se debe dar por cierto ningún requisito.',
     requirements: [
       'Contratar un asesor jurídico y técnico local.',
@@ -350,6 +366,7 @@ export const FRAMEWORK_SEED = [
       'Identificar la normativa argelina sobre atmósferas explosivas y seguridad de los trabajadores. La ficha ATEX del IANOR cita los decretos ejecutivos 21-261 y 01-342, a confirmar en el Diario Oficial.',
       'Confirmar si Argelia reconoce el marcado CE y los certificados ATEX europeos o exige ensayos locales.',
       'Confirmar el régimen de importación de maquinaria y de exportación del biopellet.',
+      'Confirmar el régimen legal del aprovechamiento de gas: permisos, titularidad del gas y autoridad competente.',
       'Revisar los tratados de inversión y la fiscalidad aplicables.',
     ],
     references: [REF.ianorAtex],
