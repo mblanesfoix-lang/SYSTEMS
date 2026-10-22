@@ -12,7 +12,7 @@ const FIELD_LABEL = {
 
 /* Frase corta por accion; `d` es el detalle que guardo la entrada. */
 const SENTENCES = {
-  'catalog.seed': (d) => `Se cargó el catálogo de marcos (${d.inserted} nuevos)`,
+  'catalog.seed': (d) => `Se cargó el catálogo: ${[d.inserted && `${d.inserted} marcos`, d.titles && `${d.titles} títulos del Estado`].filter(Boolean).join(' y ')}`,
   'framework.create': (d) => `Se añadió el marco ${d.code}`,
   'framework.update': (d, code) => `Se actualizó ${code(d.frameworkId)}${d.changed?.length ? ` (${d.changed.map((k) => FIELD_LABEL[k] || k).join(', ')})` : ''}`,
   'framework.delete': (d) => `Se eliminó el marco ${d.code}`,

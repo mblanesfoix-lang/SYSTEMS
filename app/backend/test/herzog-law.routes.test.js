@@ -9,7 +9,9 @@ import assert from 'node:assert/strict';
 import { MongoClient } from 'mongodb';
 import express from 'express';
 import { mountHerzogLaw } from '../herzog-law.js';
-import { FRAMEWORK_SEED, SEED_VERSION } from '../herzog-law-data.js';
+import { FRAMEWORK_SEED, TITLE_SEED, SEED_VERSION } from '../herzog-law-data.js';
+import { tenantContext } from '../db/tenant-context.js';
+import { DEFAULT_TENANT_ID } from '../db/tenant-registry.js';
 
 const MONGO_URI = process.env.MONGO_URI;
 const skip = !MONGO_URI;
@@ -57,10 +59,11 @@ async function call(path, { method = 'GET', body, url = baseUrl } = {}) {
 const isoIn = (days) => new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
 const logCount = (action) => db.collection('herzog_law_log').countDocuments({ action });
 
-async function startApp({ role = 'admin', adminNotify = () => {} } = {}) {
+async function startApp({ role = 'admin', adminNotify = () => {}, database = db, tenantId } = {}) {
   const app = express();
   app.use(express.json());
-  mountHerzogLaw(app, { auth: authAs(role), requireMesa: requireMesaStub, mongo: db, adminNotify });
+  if (tenantId) app.use((req, res, next) => tenantContext.run({ tenantId }, next));
+  mountHerzogLaw(app, { auth: authAs(role), requireMesa: requireMesaStub, mongo: database, adminNotify });
   const srv = app.listen(0);
   return { srv, url: `http://127.0.0.1:${srv.address().port}` };
 }
@@ -457,6 +460,90 @@ describe('herzog-law.js: marcos, certificados, zonas ATEX y CBAM sobre Mongo', {
       assert.equal((await call(path, { url })).status, 403, path);
     }
     assert.equal((await call('/api/herzog-law/cbam/estimate', { method: 'POST', body: {}, url })).status, 403);
+    await closeApp(srv);
+  });
+});
+
+describe('herzog-law.js: titulos del Estado de S-NFI', { skip: skip && 'MONGO_URI no configurada' }, () => {
+  let titlesClient, ownDb, otherDb;
+  const DBS = ['elvira_test_law_titles_own', 'elvira_test_law_titles_other'];
+
+  before(async () => {
+    titlesClient = new MongoClient(MONGO_URI);
+    await titlesClient.connect();
+    await Promise.all(DBS.map((name) => titlesClient.db(name).dropDatabase()));
+    ownDb = titlesClient.db(DBS[0]);
+    otherDb = titlesClient.db(DBS[1]);
+  });
+
+  after(async () => {
+    await Promise.all(DBS.map((name) => titlesClient.db(name).dropDatabase()));
+    await titlesClient.close();
+  });
+
+  const titlesOf = (list) => list.filter((f) => f.kind === 'titulo');
+
+  test('el tenant por defecto recibe los tres titulos, una sola vez aunque lleguen peticiones a la vez', async () => {
+    const { srv, url } = await startApp({ database: ownDb, tenantId: DEFAULT_TENANT_ID });
+    const responses = await Promise.all([1, 2, 3, 4].map(() => call('/api/herzog-law/frameworks', { url })));
+    assert.ok(responses.every((r) => r.status === 200));
+
+    const list = responses[0].body;
+    assert.equal(list.length, FRAMEWORK_SEED.length + TITLE_SEED.length);
+    const titles = titlesOf(list);
+    assert.deepEqual(titles.map((t) => t.id).sort(), TITLE_SEED.map((t) => t.id).sort());
+    for (const t of titles) {
+      assert.equal(t.status, 'vigente');
+      assert.equal(t.seed, false);
+      assert.equal(t.family, 'Títulos del Estado');
+      assert.ok(t.requirements.length > 0 && t.requirements.every((r) => r.custom));
+      assert.ok(t.issuer);
+    }
+    assert.equal(titles.find((t) => t.id === 'titulo-pyme-innovadora').tracksExpiry, true);
+    assert.equal(titles.find((t) => t.id === 'titulo-modelo-utilidad').tracksExpiry, true);
+    assert.equal(titles.find((t) => t.id === 'titulo-camara-espana-emprende').tracksExpiry, false);
+
+    const seeds = await ownDb.collection('herzog_law_log').find({ action: 'catalog.seed' }).toArray();
+    assert.equal(seeds.length, 1);
+    assert.deepEqual([seeds[0].detail.inserted, seeds[0].detail.titles], [FRAMEWORK_SEED.length, TITLE_SEED.length]);
+    assert.equal((await call('/api/herzog-law/log/verify', { url })).body.valid, true);
+    await closeApp(srv);
+  });
+
+  test('un titulo borrado no vuelve, ni siquiera con una version nueva del catalogo', async () => {
+    const { srv, url } = await startApp({ database: ownDb, tenantId: DEFAULT_TENANT_ID });
+    const del = await call('/api/herzog-law/frameworks/titulo-camara-espana-emprende', { method: 'DELETE', url });
+    assert.equal(del.status, 200);
+
+    await ownDb.collection('herzog_law_meta').updateOne({ _id: 'seed' }, { $set: { version: SEED_VERSION - 1 } });
+    const list = (await call('/api/herzog-law/frameworks', { url })).body;
+    assert.equal(titlesOf(list).length, TITLE_SEED.length - 1);
+    assert.ok(!list.some((f) => f.id === 'titulo-camara-espana-emprende'));
+    await closeApp(srv);
+  });
+
+  test('un titulo se edita y sus requisitos se pueden quitar', async () => {
+    const { srv, url } = await startApp({ database: ownDb, tenantId: DEFAULT_TENANT_ID });
+    const patched = await call('/api/herzog-law/frameworks/titulo-pyme-innovadora', {
+      method: 'PATCH',
+      body: { certNumber: 'PI-0001', issuedAt: '2025-03-01', expiresAt: '2028-03-01', title: 'Sello PYME Innovadora (renombrado)' },
+      url,
+    });
+    assert.equal(patched.status, 200);
+    assert.equal(patched.body.certNumber, 'PI-0001');
+    assert.equal(patched.body.title, 'Sello PYME Innovadora (renombrado)');
+
+    const removed = await call('/api/herzog-law/frameworks/titulo-pyme-innovadora/requirements/c1', { method: 'DELETE', url });
+    assert.equal(removed.status, 200);
+    assert.ok(!removed.body.requirements.some((r) => r.id === 'c1'));
+    await closeApp(srv);
+  });
+
+  test('otro tenant recibe el catalogo pero no los titulos de S-NFI', async () => {
+    const { srv, url } = await startApp({ database: otherDb, tenantId: 'otro-tenant' });
+    const list = (await call('/api/herzog-law/frameworks', { url })).body;
+    assert.equal(list.length, FRAMEWORK_SEED.length);
+    assert.equal(titlesOf(list).length, 0);
     await closeApp(srv);
   });
 });

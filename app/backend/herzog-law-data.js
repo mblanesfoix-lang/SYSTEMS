@@ -13,6 +13,10 @@ const REF = {
   cbamPage: { label: 'Comisión Europea · CBAM, régimen definitivo', url: 'https://taxation-customs.ec.europa.eu/carbon-border-adjustment-mechanism/cbam-definitive-regime_en' },
   cbamGuidance: { label: 'Comisión Europea · CBAM, legislación y guías', url: 'https://taxation-customs.ec.europa.eu/carbon-border-adjustment-mechanism/cbam-legislation-and-guidance_en' },
   cbamQa: { label: 'Comisión Europea · CBAM, preguntas y respuestas (biomasa)', url: 'https://taxation-customs.ec.europa.eu/document/download/013fa763-5dce-4726-a204-69fec04d5ce2_en?filename=CBAM_Questions+and+Answers.pdf' },
+  oepm: { label: 'OEPM · cuestiones básicas de patentes y modelos de utilidad', url: 'https://www.oepm.es/cs/OEPMSite/contenidos/Folletos/cuestiones_basicas_Patentes_y_ModUti.html' },
+  modeloUtilidad: { label: 'Administración.gob.es · modelo de utilidad', url: 'https://administracion.gob.es/tu-espacio-europeo/derechos-obligaciones/empresas/inicio-gestion-cierre/derechos/patentes-marcas/modelo-utilidad' },
+  pymeInnovadora: { label: 'Guía del sello PYME Innovadora (impulsa-empresa.es)', url: 'https://impulsa-empresa.es/wp-content/uploads/2025/02/Sello-Pyme-Innovadora.pdf' },
+  espanaEmprende: { label: 'Cámara de España · folleto de España Emprende', url: 'https://camara.es/sites/default/files/Folleto%20Espa%C3%B1a%20Emprende_compressed.pdf' },
   sandbag: { label: 'Sandbag · CBAM y exportaciones de Argelia', url: 'https://sandbag.be/2026/02/20/eu-cbam-algeria-iron-exports/' },
   machinery: { label: 'EU-OSHA · Reglamento (UE) 2023/1230 de máquinas', url: 'https://osha.europa.eu/en/legislation/directive/regulation-20231230eu-machinery' },
   atex: { label: 'Directivas ATEX (resumen)', url: 'https://en.wikipedia.org/wiki/ATEX_directives' },
@@ -237,10 +241,10 @@ export const FRAMEWORK_SEED = [
     jurisdictions: ['UE', 'ES'], nature: 'obligatoria', priority: 'alta',
     appliesWhen: 'Si un módulo o un componente va a funcionar en una zona con gas, vapor o polvo explosivo.',
     summary: 'Obliga al fabricante a que los equipos destinados a esas zonas estén diseñados, ensayados y marcados para ellas (marcado Ex además del CE). En España la recoge el Real Decreto 144/2016.',
-    why: 'Triturar y secar residuo orgánico genera polvo combustible, y el aprovechamiento de gas previsto en Argelia añade atmósferas de gas. Todo módulo o componente que funcione dentro de una zona clasificada necesita la categoría ATEX adecuada: 1D, 2D o 3D para polvo y 1G, 2G o 3G para gas.',
+    why: 'Triturar y secar residuo orgánico genera polvo combustible, y el aprovechamiento de gas natural previsto en Argelia añade atmósferas de gas. Todo módulo o componente que funcione dentro de una zona clasificada necesita la categoría ATEX adecuada: 1D, 2D o 3D para polvo y 1G, 2G o 3G para gas.',
     requirements: [
       'Caracterizar el polvo real en laboratorio: humedad, granulometría, energía mínima de ignición, temperatura de ignición de nube y de capa, Kst y Pmax.',
-      'Si se maneja gas, identificarlo y fijar su grupo (IIA, IIB o IIC) y la clase de temperatura que debe cumplir el equipo (de T1 a T6).',
+      'Gas natural: es sobre todo metano (grupo IIA, clase de temperatura T1). Confirmarlo con el análisis de composición del gas real, porque otros componentes pueden cambiar el grupo o la clase.',
       'Acordar con el cliente en qué zonas se instalará cada módulo (ver el Registro de zonas ATEX).',
       'Elegir la categoría del equipo según la zona: 1D, 2D y 3D en las zonas 20, 21 y 22 (polvo); 1G, 2G y 3G en las zonas 0, 1 y 2 (gas).',
       'Controlar las fuentes de ignición, con especial atención a la temperatura de superficie del deshidratador y a las chispas mecánicas.',
@@ -254,7 +258,7 @@ export const FRAMEWORK_SEED = [
     jurisdictions: ['UE', 'ES'], nature: 'obligatoria', priority: 'alta',
     appliesWhen: 'Al empleador de cada instalación: S-NFI en sus propias plantas y el cliente en las suyas. Si comparten lugar de trabajo, deben coordinarse.',
     summary: 'Obliga a quien opera una instalación con posible atmósfera explosiva a evaluar el riesgo, clasificar las zonas y documentar las medidas de protección. En España la recoge el Real Decreto 681/2003.',
-    why: 'Cada nodo trabaja con polvo orgánico y, donde se aproveche gas, con atmósferas de gas. Aunque la obligación sea del operador, S-NFI debe entregar los datos del polvo, del gas y de los equipos para que el cliente pueda cumplirla en Navarra, Gipuzkoa o Argelia.',
+    why: 'Cada nodo trabaja con polvo orgánico y, donde se aproveche gas natural, con atmósferas de gas. Aunque la obligación sea del operador, S-NFI debe entregar los datos del polvo, del gas y de los equipos para que el cliente pueda cumplirla en Navarra, Gipuzkoa o Argelia.',
     requirements: [
       'Evaluar el riesgo de explosión de cada puesto y de cada módulo.',
       'Clasificar las zonas (0, 1 y 2 para gas; 20, 21 y 22 para polvo) en el Registro de zonas ATEX.',
@@ -284,7 +288,7 @@ export const FRAMEWORK_SEED = [
     jurisdictions: ['UE', 'ES'], nature: 'obligatoria', priority: 'media',
     appliesWhen: 'Si un equipo o conjunto contiene fluidos, como gas o vapor, a una presión máxima admisible superior a 0,5 bar.',
     summary: 'Ley europea sobre el diseño, la fabricación y la evaluación de conformidad de equipos a presión: recipientes, tuberías y accesorios de seguridad. Los clasifica en categorías de I a IV según el riesgo.',
-    why: 'El aprovechamiento de gas previsto en Argelia puede introducir recipientes y tuberías a presión en la instalación. Si superan el umbral, necesitan marcado CE y, desde la categoría II, un organismo notificado.',
+    why: 'El aprovechamiento de gas natural previsto en Argelia puede introducir recipientes y tuberías a presión en la instalación. Si superan el umbral, necesitan marcado CE y, desde la categoría II, un organismo notificado.',
     requirements: [
       'Inventariar los recipientes, tuberías y accesorios de seguridad de cada módulo y de la instalación de gas, con su presión máxima admisible.',
       'Clasificar cada equipo en su categoría (I a IV) según la presión, el volumen y el tipo de fluido.',
@@ -357,19 +361,69 @@ export const FRAMEWORK_SEED = [
     id: 'dz-marco-local', code: 'Argelia · marco local', title: 'Marco legal y normativo de Argelia', kind: 'local', family: 'Argelia',
     jurisdictions: ['DZ'], nature: 'obligatoria', priority: 'alta',
     appliesWhen: 'Al implantar y operar nodos en Argelia. El contenido exacto debe confirmarlo un asesor jurídico local.',
-    summary: 'Normativa propia de Argelia que se suma a la europea: permisos de implantación, seguridad industrial, atmósferas explosivas, aprovechamiento de gas, importación de maquinaria y comercio del biocombustible. Pendiente de validar con asesoría local.',
+    summary: 'Normativa propia de Argelia que se suma a la europea: permisos de implantación, seguridad industrial, atmósferas explosivas, aprovechamiento de gas natural, importación de maquinaria y comercio del biocombustible. Pendiente de validar con asesoría local.',
     why: 'Es probable que S-NFI despliegue en Argelia. Hasta confirmarlo con un asesor local, no se debe dar por cierto ningún requisito.',
     requirements: [
       'Contratar un asesor jurídico y técnico local.',
       'Confirmar la autoridad competente y los permisos necesarios para implantar una instalación industrial.',
       'Consultar al IANOR, el instituto de normalización argelino, qué normas ISO ha adoptado y cuáles son obligatorias.',
-      'Identificar la normativa argelina sobre atmósferas explosivas y seguridad de los trabajadores. La ficha ATEX del IANOR cita los decretos ejecutivos 21-261 y 01-342, a confirmar en el Diario Oficial.',
+      'Identificar la normativa argelina sobre atmósferas explosivas, equipos a presión y seguridad de los trabajadores, incluida la del sector de hidrocarburos. La ficha ATEX del IANOR cita los decretos ejecutivos 21-261 (equipos a presión y eléctricos de instalaciones de hidrocarburos) y 01-342 (protección de los trabajadores frente a riesgos eléctricos), a confirmar en el Diario Oficial.',
       'Confirmar si Argelia reconoce el marcado CE y los certificados ATEX europeos o exige ensayos locales.',
       'Confirmar el régimen de importación de maquinaria y de exportación del biopellet.',
-      'Confirmar el régimen legal del aprovechamiento de gas: permisos, titularidad del gas y autoridad competente.',
+      'Confirmar el régimen legal del aprovechamiento de gas natural: permisos, titularidad del gas y autoridad competente, incluida la normativa del sector de hidrocarburos.',
       'Revisar los tratados de inversión y la fiscalidad aplicables.',
     ],
     references: [REF.ianorAtex],
+  },
+];
+
+/**
+ * Titulos concedidos que Marc confirmo que S-NFI ya tiene, sin numeros ni fechas.
+ * Solo se siembran en el tenant por defecto (los datos son de S-NFI) y una unica
+ * vez: despues se editan y se borran como cualquier marco propio.
+ */
+export const TITLE_SEED = [
+  {
+    id: 'titulo-pyme-innovadora', code: 'Sello PYME Innovadora', title: 'Sello de Pyme Innovadora', kind: 'titulo', family: 'Títulos del Estado',
+    jurisdictions: ['ES'], nature: 'voluntaria', priority: 'media', status: 'vigente', tracksExpiry: true,
+    issuer: 'Ministerio de Ciencia, Innovación y Universidades',
+    summary: 'Sello público que reconoce a una pyme como innovadora y la inscribe en el registro de pymes innovadoras. Da acceso a incentivos fiscales y a la compra pública de innovación.',
+    why: 'Respalda ante clientes, administraciones y financiadores el carácter tecnológico de S-NFI y abre incentivos fiscales y la compra pública de innovación.',
+    requirements: [
+      'Registrar la fecha de inscripción y la de vencimiento: el sello dura tres años desde la inscripción, según las fuentes consultadas. Confirmarlo en el Ministerio.',
+      'Guardar el certificado y el número de registro en Documentos.',
+      'Preparar la renovación antes del vencimiento: si no se renueva a tiempo, la empresa causa baja en el registro.',
+      'Comprobar que siguen cumpliéndose los requisitos del sello: si dejan de cumplirse, se puede perder.',
+      'Anotar las ventajas que se están usando: deducciones por I+D+i, bonificaciones y compra pública de innovación.',
+    ],
+    references: [REF.pymeInnovadora],
+  },
+  {
+    id: 'titulo-modelo-utilidad', code: 'Modelo de utilidad', title: 'Modelo de utilidad (propiedad industrial)', kind: 'titulo', family: 'Títulos del Estado',
+    jurisdictions: ['ES'], nature: 'voluntaria', priority: 'media', status: 'vigente', tracksExpiry: true,
+    issuer: 'Oficina Española de Patentes y Marcas (OEPM)',
+    summary: 'Título de propiedad industrial que protege una invención durante diez años desde la presentación de la solicitud. No es prorrogable y exige pagar una tasa anual a partir del tercer año.',
+    why: 'Forma parte de los activos de propiedad intelectual de S-NFI. Si no se pagan las tasas, el modelo caduca y cualquiera puede explotar la invención.',
+    requirements: [
+      'Registrar el número de solicitud, la fecha de presentación y la de vencimiento (diez años desde la presentación).',
+      'Pagar la tasa anual a partir del tercer año y guardar los justificantes en Documentos.',
+      'Guardar el título en Documentos.',
+      'Valorar con un agente de la propiedad industrial la protección en otros países, como Argelia, antes del despliegue: el título español solo protege en España.',
+    ],
+    references: [REF.oepm, REF.modeloUtilidad],
+  },
+  {
+    id: 'titulo-camara-espana-emprende', code: 'Cámara de Comercio · España Emprende', title: 'Adhesión a la Cámara de Comercio (España Emprende)', kind: 'titulo', family: 'Títulos del Estado',
+    jurisdictions: ['ES'], nature: 'voluntaria', priority: 'vigilar', status: 'vigente', tracksExpiry: false,
+    issuer: 'Cámara de Comercio de España',
+    summary: 'Programa de la Cámara de España, ejecutado por la red de Cámaras de Comercio y cofinanciado por el Fondo Social Europeo, que apoya la creación y consolidación de empresas.',
+    why: 'Da acceso a información, asesoramiento y apoyo empresarial de la red de Cámaras.',
+    requirements: [
+      'Registrar la Cámara a la que está adherida S-NFI y la fecha de adhesión.',
+      'Guardar el justificante de la adhesión en Documentos.',
+      'Confirmar con la Cámara si la adhesión caduca o necesita renovarse.',
+    ],
+    references: [REF.espanaEmprende],
   },
 ];
 

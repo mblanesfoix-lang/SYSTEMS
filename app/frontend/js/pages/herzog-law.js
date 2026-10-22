@@ -200,6 +200,9 @@ function attentionItems() {
     items.push({ rank: 3, days: 0, tone: 'is-warn', title: plural(pendingZones, 'zona ATEX sin clasificar', 'zonas ATEX sin clasificar'), sub: 'Clasifícalas para poder elegir la categoría de equipo de cada una', tab: 'atex' });
   }
   for (const f of state.frameworks) {
+    if (f.tracksExpiry && f.status === 'vigente' && !f.expiresAt) {
+      items.push({ rank: 3, days: 0, tone: 'is-warn', title: `${f.code}: falta la fecha de vencimiento`, sub: 'Sin ella, Herzog no puede avisar antes de que caduque', open: f.id });
+    }
     if (f.priority === 'alta' && f.status === 'no_iniciado') {
       items.push({ rank: 4, days: 0, tone: 'is-info', title: `${f.code}: prioridad alta sin iniciar`, sub: f.title, open: f.id });
     }

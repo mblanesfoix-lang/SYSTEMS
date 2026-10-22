@@ -31,7 +31,7 @@ export function initAtex(root, ctx) {
       <h2 class="law-block__title">Qué es una zona ATEX</h2>
       <p class="law-block__desc">Una zona ATEX es un área donde puede formarse aire explosivo (polvo, gas o vapor). Cuanto más probable es, más estricta es la zona y más exigente debe ser el equipo que se instale en ella.</p>
       <div id="atexScale"><div class="law-empty">Cargando…</div></div>
-      <div class="law-callout is-warn" style="margin-top:18px;"><b>Para S-NFI.</b> Los riesgos principales son el polvo que generan la trituración y el secado de residuo orgánico y el gas que se aproveche en Argelia. Antes de fijar zonas hay que ensayar el polvo real en un laboratorio y caracterizar el gas. La clasificación definitiva debe hacerla un técnico competente; este registro la recoge y la enlaza con los equipos.</div>
+      <div class="law-callout is-warn" style="margin-top:18px;"><b>Para S-NFI.</b> Los riesgos principales son el polvo que generan la trituración y el secado de residuo orgánico y el gas natural que se aproveche en Argelia. Antes de fijar zonas hay que ensayar el polvo real en un laboratorio y analizar la composición del gas. La clasificación definitiva debe hacerla un técnico competente; este registro la recoge y la enlaza con los equipos.</div>
       <div class="law-form__actions" style="justify-content:flex-start; margin-top:16px;">
         <button type="button" class="btn ghost" data-open-fw="atex-2014-34">Ver ATEX de producto</button>
         <button type="button" class="btn ghost" data-open-fw="atex-1999-92">Ver ATEX de lugares de trabajo</button>

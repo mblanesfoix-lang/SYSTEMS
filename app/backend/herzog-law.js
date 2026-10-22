@@ -18,7 +18,7 @@ import { GridFSBucket, ObjectId } from 'mongodb';
 import { runAsTenant, tenantContext } from './db/tenant-context.js';
 import { DEFAULT_TENANT_ID } from './db/tenant-registry.js';
 import { appendChained, verifyLog } from './lib/hash-chain.js';
-import { SEED_VERSION, FRAMEWORK_SEED, CBAM_REFERENCE, ZONE_REFERENCE } from './herzog-law-data.js';
+import { SEED_VERSION, FRAMEWORK_SEED, TITLE_SEED, CBAM_REFERENCE, ZONE_REFERENCE } from './herzog-law-data.js';
 import {
   ALERT_RANK, expiryState, readiness, parseDateOnly, zoneCategory, validZonesFor, parseCbamInput, estimateCbam,
 } from './lib/law-calc.js';
@@ -81,7 +81,8 @@ function documentView(f) {
 
 const documentsBucket = (mongo) => new GridFSBucket(mongo, { bucketName: 'herzog_law_documents' });
 
-function seedDoc(f, now) {
+/* `catalog`: marco del catalogo (texto fijo, requisitos que no se borran) o titulo propio (editable). */
+function seedDoc(f, now, catalog) {
   return {
     _id: f.id,
     code: f.code,
@@ -94,43 +95,55 @@ function seedDoc(f, now) {
     priority: f.priority,
     summary: f.summary,
     why: f.why,
-    requirements: f.requirements.map((t, i) => ({ id: `r${i + 1}`, text: t, done: false, doneAt: null, doneBy: null, custom: false })),
+    requirements: f.requirements.map((t, i) => ({ id: `${catalog ? 'r' : 'c'}${i + 1}`, text: t, done: false, doneAt: null, doneBy: null, custom: !catalog })),
     references: f.references ?? [],
-    status: 'no_iniciado',
-    issuer: null,
+    status: f.status ?? 'no_iniciado',
+    issuer: f.issuer ?? null,
     certNumber: null,
     issuedAt: null,
     expiresAt: null,
+    tracksExpiry: f.tracksExpiry ?? false,
     owner: null,
     notes: null,
     alert: null,
-    seed: true,
+    seed: catalog,
     createdAt: now,
     updatedAt: now,
     updatedBy: 'system',
   };
 }
 
-async function applySeed(mongo) {
-  const meta = mongo.collection('herzog_law_meta');
-  const current = await meta.findOne({ _id: 'seed' });
-  if (current && current.version >= SEED_VERSION) return;
-  const now = new Date().toISOString();
-  let inserted = 0;
+/* Inserta los marcos de `list` que faltan y devuelve cuantos entraron. */
+async function insertMissing(mongo, list, now, catalog) {
   try {
     const result = await mongo.collection('herzog_law_frameworks').bulkWrite(
-      FRAMEWORK_SEED.map((f) => ({ updateOne: { filter: { _id: f.id }, update: { $setOnInsert: seedDoc(f, now) }, upsert: true } })),
+      list.map((f) => ({ updateOne: { filter: { _id: f.id }, update: { $setOnInsert: seedDoc(f, now, catalog) }, upsert: true } })),
       { ordered: false },
     );
-    inserted = result.upsertedCount;
+    return result.upsertedCount;
   } catch (err) {
     // Otro proceso sembro a la vez y choco en el upsert del mismo _id: lo que falta ya lo inserto el.
     if (err?.code !== 11000) throw err;
-    inserted = err.result?.upsertedCount ?? 0;
+    return err.result?.upsertedCount ?? 0;
   }
-  await meta.updateOne({ _id: 'seed' }, { $set: { version: SEED_VERSION, appliedAt: now } }, { upsert: true });
-  if (inserted > 0) {
-    await appendLawLog(mongo, { action: 'catalog.seed', actorId: 'system', detail: { version: SEED_VERSION, inserted } });
+}
+
+async function applySeed(mongo, tenant) {
+  const meta = mongo.collection('herzog_law_meta');
+  const done = new Map((await meta.find({ _id: { $in: ['seed', 'seed_titles'] } }).toArray()).map((m) => [m._id, m]));
+  const wantCatalog = !(done.get('seed')?.version >= SEED_VERSION);
+  // Los titulos son de S-NFI: solo el tenant por defecto los recibe, y una sola vez, para que
+  // borrar uno no lo devuelva en la siguiente version del catalogo.
+  const wantTitles = tenant === DEFAULT_TENANT_ID && !done.has('seed_titles');
+  if (!wantCatalog && !wantTitles) return;
+
+  const now = new Date().toISOString();
+  const inserted = wantCatalog ? await insertMissing(mongo, FRAMEWORK_SEED, now, true) : 0;
+  const titles = wantTitles ? await insertMissing(mongo, TITLE_SEED, now, false) : 0;
+  if (wantCatalog) await meta.updateOne({ _id: 'seed' }, { $set: { version: SEED_VERSION, appliedAt: now } }, { upsert: true });
+  if (wantTitles) await meta.updateOne({ _id: 'seed_titles' }, { $set: { appliedAt: now } }, { upsert: true });
+  if (inserted + titles > 0) {
+    await appendLawLog(mongo, { action: 'catalog.seed', actorId: 'system', detail: { version: SEED_VERSION, inserted, titles } });
   }
 }
 
@@ -139,7 +152,7 @@ const seedsInFlight = new Map();
 function ensureSeed(mongo) {
   const tenant = tenantContext.getStore()?.tenantId ?? 'default';
   if (!seedsInFlight.has(tenant)) {
-    seedsInFlight.set(tenant, applySeed(mongo).finally(() => seedsInFlight.delete(tenant)));
+    seedsInFlight.set(tenant, applySeed(mongo, tenant).finally(() => seedsInFlight.delete(tenant)));
   }
   return seedsInFlight.get(tenant);
 }
@@ -277,6 +290,7 @@ export function mountHerzogLaw(app, { auth, requireMesa, mongo, adminNotify }) {
       certNumber: null,
       issuedAt: null,
       expiresAt: null,
+      tracksExpiry: false,
       owner: null,
       notes: null,
       alert: null,
