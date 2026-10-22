@@ -26,13 +26,14 @@ function worst(levels) {
 export function frameworkLevel(f, expiry, ready) {
   if (f.status === 'no_aplica') return { level: 'no_aplica', reason: 'No aplica a S-NFI' };
   const obligatory = f.nature === 'obligatoria';
-  if (expiry.state === 'vencido') return { level: 'rojo', reason: `Vencida hace ${Math.abs(expiry.days)} dias` };
+  // Texto visible para el inspector: va con tildes.
+  if (expiry.state === 'vencido') return { level: 'rojo', reason: `Vencida hace ${Math.abs(expiry.days)} días` };
   if (f.status !== 'vigente') {
     if (!obligatory) return { level: 'informativo', reason: 'Norma no obligatoria, sin certificar' };
-    if (f.priority === 'alta') return { level: 'rojo', reason: f.status === 'en_preparacion' ? 'Obligatoria de prioridad alta, en preparacion' : 'Obligatoria de prioridad alta, sin iniciar' };
-    return { level: 'ambar', reason: f.status === 'en_preparacion' ? 'En preparacion' : 'Sin iniciar' };
+    if (f.priority === 'alta') return { level: 'rojo', reason: f.status === 'en_preparacion' ? 'Obligatoria de prioridad alta, en preparación' : 'Obligatoria de prioridad alta, sin iniciar' };
+    return { level: 'ambar', reason: f.status === 'en_preparacion' ? 'En preparación' : 'Sin iniciar' };
   }
-  if (ALERT_RANK[expiry.state]) return { level: 'ambar', reason: `Vence en ${expiry.days} dias` };
+  if (ALERT_RANK[expiry.state]) return { level: 'ambar', reason: expiry.days === 0 ? 'Vence hoy' : `Vence en ${expiry.days} días` };
   if (f.tracksExpiry && expiry.state === 'sin_fecha') return { level: 'ambar', reason: 'Falta la fecha de vencimiento' };
   if (ready.total > 0 && ready.done < ready.total) return { level: 'ambar', reason: `Requisitos pendientes (${ready.done} de ${ready.total})` };
   return { level: 'verde', reason: 'Vigente y en regla' };

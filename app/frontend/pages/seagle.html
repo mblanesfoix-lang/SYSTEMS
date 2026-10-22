@@ -6,6 +6,7 @@
   <title>S-EAGLE · S-NFI</title>
   <link rel="stylesheet" href="/css/fonts.css">
   <link rel="stylesheet" href="/css/theme.css">
+  <link rel="stylesheet" href="/css/seagle.css">
   <script src="/js/theme-init.js"></script>
   <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
 </head>
@@ -20,50 +21,72 @@
       <span class="mono" style="opacity:0.5; margin:0 8px;">/</span>
       <span>S-EAGLE</span>
     </div>
-    <div class="user-menu" id="userMenu">
-      <button class="user-menu__trigger mono" id="userTag" aria-haspopup="true" aria-expanded="false">…</button>
-      <div class="user-menu__dropdown" id="userDropdown" hidden>
-        <div class="user-menu__section">
-          <span class="user-menu__label">Cambiar contraseña</span>
-          <input class="user-menu__input" type="password" id="pwdCurrent" placeholder="Contraseña actual" autocomplete="current-password">
-          <input class="user-menu__input" type="password" id="pwdNew" placeholder="Nueva contraseña" autocomplete="new-password">
-          <input class="user-menu__input" type="password" id="pwdConfirm" placeholder="Confirmar nueva" autocomplete="new-password">
-          <p class="user-menu__error" id="pwdError" hidden></p>
-          <button class="btn sage" id="pwdSubmit" style="width:100%;margin-top:4px;">Actualizar</button>
+    <div class="row" style="gap:18px;">
+      <div class="user-menu" id="userMenu">
+        <button class="user-menu__trigger mono" id="userTag" aria-haspopup="true" aria-expanded="false">…</button>
+        <div class="user-menu__dropdown" id="userDropdown" hidden>
+          <div class="user-menu__section">
+            <span class="user-menu__label">Cambiar contraseña</span>
+            <input class="user-menu__input" type="password" id="pwdCurrent" placeholder="Contraseña actual" autocomplete="current-password">
+            <input class="user-menu__input" type="password" id="pwdNew" placeholder="Nueva contraseña" autocomplete="new-password">
+            <input class="user-menu__input" type="password" id="pwdConfirm" placeholder="Confirmar nueva" autocomplete="new-password">
+            <p class="user-menu__error" id="pwdError" hidden></p>
+            <button class="btn sage" id="pwdSubmit" style="width:100%;margin-top:4px;">Actualizar</button>
+          </div>
+          <div class="user-menu__divider"></div>
+          <button class="user-menu__item user-menu__item--danger" id="logoutBtn">Cerrar sesión</button>
         </div>
-        <div class="user-menu__divider"></div>
-        <button class="user-menu__item user-menu__item--danger" id="logoutBtn">Cerrar sesión</button>
       </div>
     </div>
   </nav>
 
-  <main class="container">
-    <header class="reveal">
-      <span class="kicker">Rëff Core Engine · S-EAGLE</span>
-      <h1>S-EAGLE</h1>
-      <p style="max-width:640px; margin-top:8px;">
-        Ventana de inspección: un inspector de gobierno verá aquí, en solo lectura y con acceso temporal
-        autorizado por Dirección, el cumplimiento de S-NFI en tiempo real. En desarrollo: de momento la
-        mesa ofrece accesos directos a las mesas de las que se alimentará.
-      </p>
+  <main class="container sg-stage">
+    <header class="reveal" style="display:flex; align-items:flex-end; justify-content:space-between; gap:20px; flex-wrap:wrap;">
+      <div>
+        <span class="kicker">Rëff Core Engine · S-EAGLE</span>
+        <h1>Ventana de inspección</h1>
+        <p style="max-width:680px; margin-top:8px;">
+          El cumplimiento de S-NFI en tiempo real, calculado sobre Herzog LaW. Es lo mismo que ve un inspector
+          de gobierno cuando la Dirección le invita: solo lectura, acceso temporal y cada entrada registrada.
+        </p>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <span class="sg-live" id="sgLive"><span class="sg-live__dot"></span><span id="sgLiveText">Conectando</span></span>
+        <button type="button" class="btn sg-btn-sm" id="sgInviteShortcut" hidden>Invitar a un inspector</button>
+      </div>
     </header>
 
-    <section class="reveal delay-1">
-      <span class="kicker">Mesas de cumplimiento</span>
-      <div class="tiles" style="margin-top:12px;">
-        <a class="tile reveal delay-2" href="/pages/herzog-law.html" data-mesa="herzog_law" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
+    <section class="sg-section reveal delay-1" aria-label="Cumplimiento en vivo">
+      <div id="sgView"></div>
+    </section>
+
+    <section class="sg-section" id="sgInvites" hidden aria-labelledby="sgInvitesTitle">
+      <div class="sg-section__head">
+        <div>
+          <span class="sg-eyebrow">Solo Dirección</span>
+          <h2 class="sg-section__title" id="sgInvitesTitle">Invitaciones de inspección</h2>
+          <p class="sg-muted" style="margin:6px 0 0; max-width:640px;">Cada invitación da a un inspector un enlace y un código para ver esta pantalla durante un tiempo limitado, con el alcance que elijas. Puedes retirarla en cualquier momento.</p>
+        </div>
+        <button type="button" class="btn" id="sgNewInvite">Nueva invitación</button>
+      </div>
+      <div class="sg-invites" id="sgInviteList"><div class="sg-skel" style="height:84px"></div></div>
+    </section>
+
+    <section class="sg-section reveal" aria-labelledby="sgMesasTitle">
+      <span class="sg-eyebrow">Fuentes</span>
+      <h2 class="sg-section__title" id="sgMesasTitle">Mesas de cumplimiento</h2>
+      <div class="tiles" style="margin-top:14px;">
+        <a class="tile" href="/pages/herzog-law.html" data-mesa="herzog_law" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
           <h3>Herzog LaW</h3>
           <p>Normativa y cumplimiento: ISO, ATEX, CBAM, Argelia y títulos del Estado. Fuente de los datos que verá el inspector.</p>
           <p class="mono" style="margin-top:10px;">acceso directo →</p>
         </a>
-
-        <a class="tile reveal delay-3" href="/pages/fl.html#registros" data-mesa="fl" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
+        <a class="tile" href="/pages/fl.html#registros" data-mesa="fl" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
           <h3>Registros oficiales</h3>
           <p>Gob Share, en S-NFI F&amp;L: mapa con los portales oficiales de registro por país.</p>
           <p class="mono" style="margin-top:10px;">acceso directo →</p>
         </a>
-
-        <a class="tile reveal delay-4" href="/pages/pactum-viridi.html" data-mesa="pactvm" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
+        <a class="tile" href="/pages/pactum-viridi.html" data-mesa="pactvm" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
           <h3>Pactvm Viridi</h3>
           <p>Cumplimiento: CIBE, nodos por país, entrada, carbono y VDR con enlaces temporales para invitados.</p>
           <p class="mono" style="margin-top:10px;">acceso directo →</p>
@@ -89,6 +112,34 @@
       </div>
     </section>
   </main>
+
+  <dialog class="sg-dialog" id="sgInviteDialog" aria-labelledby="sgInviteDialogTitle">
+    <div class="sg-dialog__head">
+      <div>
+        <span class="sg-eyebrow">S-EAGLE · Dirección</span>
+        <h2 class="sg-dialog__title" id="sgInviteDialogTitle">Nueva invitación de inspección</h2>
+      </div>
+      <button type="button" class="sg-close" data-close aria-label="Cerrar">&times;</button>
+    </div>
+    <div id="sgInviteDialogBody"></div>
+  </dialog>
+
+  <dialog class="sg-dialog sg-dialog--wide" id="sgPreviewDialog" aria-labelledby="sgPreviewTitle">
+    <div class="sg-dialog__head">
+      <div>
+        <span class="sg-eyebrow">Vista previa · exactamente lo que verá el inspector</span>
+        <h2 class="sg-dialog__title" id="sgPreviewTitle">Invitación</h2>
+      </div>
+      <button type="button" class="sg-close" data-close aria-label="Cerrar">&times;</button>
+    </div>
+    <div class="sg-dialog__body">
+      <div class="sg-demo" id="sgPreviewDemo" hidden>
+        <strong>DEMOSTRACIÓN</strong>
+        <p>El inspector verá este aviso: los datos son de demostración y no tienen valor oficial.</p>
+      </div>
+      <div id="sgPreviewView"></div>
+    </div>
+  </dialog>
 
   <script type="module" src="/js/pages/seagle.js"></script>
 </body>

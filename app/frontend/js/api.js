@@ -301,9 +301,15 @@ Object.assign(api, {
   herzogLawActivity:          (limit = 30) => req('GET', `/api/herzog-law/activity?limit=${limit}`),
   herzogLawLogVerify:         () => req('GET', '/api/herzog-law/log/verify'),
 
-  // S-EAGLE · revision de informacion Herzog (verificar/corregir/compartir)
-  seagleSummary:      () => req('GET', '/api/seagle/summary'),
-  seagleLogVerify:    () => req('GET', '/api/seagle/log/verify'),
+  // S-EAGLE · ventana de inspeccion (cumplimiento en vivo e invitaciones, estas solo Admin)
+  seagleSummary:            () => req('GET', '/api/seagle/summary'),
+  seagleCompliance:         () => req('GET', '/api/seagle/compliance'),
+  seagleInspectable:        () => req('GET', '/api/seagle/inspectable'),
+  seagleInvitations:        () => req('GET', '/api/seagle/invitations'),
+  seagleInvitationCreate:   (payload) => req('POST', '/api/seagle/invitations', payload),
+  seagleInvitationRevoke:   (id) => req('POST', `/api/seagle/invitations/${encodeURIComponent(id)}/revoke`),
+  seagleInvitationPreview:  (id) => req('GET', `/api/seagle/invitations/${encodeURIComponent(id)}/preview`),
+  seagleLogVerify:          () => req('GET', '/api/seagle/log/verify'),
 
   // Motor Planetario · parametros globales, paises target (T/año), telemetria CUDA-Bio simulada
   pactvmPlanetaryConfig:        () => req('GET', '/api/pactvm/planetary/config'),

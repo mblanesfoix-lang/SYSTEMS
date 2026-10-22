@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow, noarchive">
+  <meta name="referrer" content="no-referrer">
+  <title>Ventana de inspección · S-NFI</title>
+  <link rel="stylesheet" href="/css/fonts.css">
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="stylesheet" href="/css/seagle.css">
+  <script src="/js/theme-init.js"></script>
+  <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
+  <style>
+    body { min-height: 100vh; background: var(--bg-void); }
+
+    .sgi-top {
+      position: sticky; top: 0; z-index: 20;
+      display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+      padding: 14px 32px; min-height: var(--nav-h);
+      background: var(--glass-strong); border-bottom: 1px solid var(--border);
+      backdrop-filter: saturate(180%) blur(18px); -webkit-backdrop-filter: saturate(180%) blur(18px);
+    }
+    @media (max-width: 720px) { .sgi-top { padding: 12px 20px; } }
+    .sgi-brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .sgi-brand img { height: 22px; width: auto; }
+    .sgi-brand__name { font-weight: 650; letter-spacing: -0.01em; color: var(--text-primary); white-space: nowrap; }
+    .sgi-brand__sep { width: 1px; height: 18px; background: var(--border-mid); }
+    .sgi-brand__app { font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); white-space: nowrap; }
+    .sgi-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .sgi-session { font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.04em; color: var(--text-muted); }
+
+    /* Puerta de acceso */
+    .sgi-gate { min-height: calc(100vh - var(--nav-h) - 80px); display: grid; place-items: center; }
+    .sgi-card {
+      width: min(440px, 100%); padding: 34px 32px 28px; border-radius: var(--radius-lg);
+      background: var(--bg-card); border: 1px solid var(--border-mid); box-shadow: var(--shadow-2);
+      animation: sg-rise 0.5s var(--ease) both;
+    }
+    .sgi-card__mark {
+      width: 52px; height: 52px; margin-bottom: 20px; border-radius: 16px;
+      display: grid; place-items: center; color: var(--accent-blue);
+      background: color-mix(in srgb, var(--accent-blue) 14%, transparent);
+      border: 1px solid color-mix(in srgb, var(--accent-blue) 30%, transparent);
+    }
+    .sgi-card__mark svg { width: 26px; height: 26px; }
+    .sgi-card--warn .sgi-card__mark { color: var(--accent-amber); background: color-mix(in srgb, var(--accent-amber) 14%, transparent); border-color: color-mix(in srgb, var(--accent-amber) 30%, transparent); }
+    .sgi-card h1 { margin: 6px 0 8px; font-size: 1.5rem; font-weight: 650; letter-spacing: -0.02em; color: var(--text-primary); }
+    .sgi-card p { margin: 0; font-size: 0.88rem; }
+    .sgi-form { display: grid; gap: 14px; margin-top: 24px; }
+    .sgi-form label { display: block; margin-bottom: 6px; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); }
+    .sgi-code { height: 54px; font-family: var(--font-mono); font-size: 1.5rem; letter-spacing: 0.5em; text-align: center; padding-left: 0.5em; }
+    .sgi-submit { width: 100%; height: 46px; margin-top: 4px; font-size: 0.95rem; }
+    .sgi-note { margin-top: 20px !important; padding-top: 16px; border-top: 1px solid var(--border); font-size: 0.76rem !important; color: var(--text-muted); line-height: 1.6; }
+
+    /* Panel */
+    .sgi-intro { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin-bottom: 26px; }
+    .sgi-intro h1 { margin: 8px 0 6px; font-size: clamp(1.6rem, 3vw, 2.3rem); font-weight: 650; letter-spacing: -0.03em; color: var(--text-primary); }
+    .sgi-intro p { margin: 0; font-size: 0.88rem; color: var(--text-muted); }
+    .sgi-foot {
+      margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--border);
+      display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+      font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.04em; color: var(--text-dim);
+    }
+  </style>
+</head>
+<body class="sg-stage">
+  <header class="sgi-top">
+    <div class="sgi-brand">
+      <img src="/assets/logo-snfi.png" alt="S-NFI">
+      <span class="sgi-brand__name">S-NFI Corp.</span>
+      <span class="sgi-brand__sep" aria-hidden="true"></span>
+      <span class="sgi-brand__app">Ventana de inspección</span>
+    </div>
+    <div class="sgi-actions" id="sgiActions">
+      <span class="sg-live" id="sgiLive" hidden><span class="sg-live__dot"></span><span id="sgiLiveText">En vivo</span></span>
+      <span class="sgi-session" id="sgiSession" hidden></span>
+      <button type="button" class="btn btn--ghost sg-btn-sm" id="sgiLogout" hidden>Salir</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="sgi-gate" id="sgiGate" aria-live="polite">
+      <div class="sgi-card" id="sgiCard">
+        <p class="sg-muted">Comprobando el enlace…</p>
+      </div>
+    </section>
+
+    <section id="sgiBoard" hidden>
+      <div class="sgi-intro">
+        <div>
+          <span class="sg-eyebrow">Inspección autorizada por la Dirección de S-NFI</span>
+          <h1 id="sgiLabel">Cumplimiento</h1>
+          <p>Estado de cumplimiento de S-NFI en tiempo real. Solo lectura: nada de lo que hagas aquí cambia ningún dato.</p>
+        </div>
+      </div>
+      <div class="sg-demo" id="sgiDemo" hidden>
+        <strong>DEMOSTRACIÓN</strong>
+        <p>Los datos de esta pantalla son de demostración y no tienen valor oficial. S-NFI los sustituirá por los definitivos.</p>
+      </div>
+      <div id="sgiView"></div>
+      <footer class="sgi-foot">
+        <span id="sgiFootUser"></span>
+        <span>Cada acceso queda registrado de forma inmutable · S-NFI Corp.</span>
+      </footer>
+    </section>
+  </main>
+
+  <script type="module" src="/js/pages/seagle-inspeccion.js"></script>
+</body>
+</html>

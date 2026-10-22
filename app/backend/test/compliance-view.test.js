@@ -36,7 +36,7 @@ describe('compliance-view: nivel de cada norma', () => {
   test('vence en 60 dias: ambar con el motivo', () => {
     const r = levelOf(fw({ expiresAt: isoIn(60) }));
     assert.equal(r.level, 'ambar');
-    assert.match(r.reason, /60 dias/);
+    assert.match(r.reason, /60 días/);
   });
 
   test('vigente que caduca y sin fecha: ambar, nunca verde', () => {
