@@ -21,6 +21,7 @@ import { mountFlExpediente } from './fl-expediente.js';
 import { mountPactvm } from './pactum-viridi.js';
 import { mountResilience } from './resilience.js';
 import { mountHerzog } from './herzog.js';
+import { mountHerzogLaw } from './herzog-law.js';
 import { mountSeagle } from './seagle.js';
 import { mountMasterGateway } from './master-gateway.js';
 import { mountNotificationCenter, ensureNotificationCenterIndexes } from './notification-center.js';
@@ -191,7 +192,7 @@ const MESA_ROUTES = {
   ophs:     ['/api/ops', '/api/paia', '/api/ophs-cockpit', '/api/grid'],
   gateway:  ['/api/gateway'],
   seagle:   ['/api/seagle'],
-  herzog:   ['/api/herzog-central'],
+  herzog:   ['/api/herzog-central', '/api/herzog-law'],
   resilience: ['/api/resilience'],
   notificaciones: ['/api/notif-center'],
 };
@@ -513,6 +514,7 @@ app.use('/api/fl', (req, res, next) => (req.path.startsWith('/expediente') ? nex
 app.use('/api/pactvm',    auth, requireMesa('pactvm'));
 app.use('/api/resilience', auth, requireMesa('resilience'));
 app.use('/api/herzog-central', auth, requireMesa('herzog'));
+app.use('/api/herzog-law', auth, requireMesa('herzog'));
 app.use('/api/seagle',    auth, requireMesa('seagle'));
 app.use('/api/ops',       auth, requireMesa('ophs'));
 app.use('/api/paia',      auth, requireMesa('ophs'));
@@ -634,13 +636,22 @@ await safeMount('resilience', () => mountResilience(app, { auth, requireMesa, mo
 });
 
 /* ==========================================================================
-   Herzog (Central) · bunker receptor de toda la informacion/datos de SYSTEMS.
+   Herzog PG (herzog.js) · bunker receptor de toda la informacion/datos de SYSTEMS.
    Distinto del Herzog interno de OPHS Framework (sigue en elvira-central.js,
    solo telemetria fisica OPS/PAIA). Transversal: cualquier departamento
    pide/guarda informacion aqui (metricas, documentos, notas).
 ========================================================================== */
 await safeMount('herzog-central', () => mountHerzog(app, { auth, requireMesa, mongo, busEmit, adminNotify, getU2Snapshot }), {
-  label: 'Herzog Central', mesa: 'herzog', prefixes: ['/api/herzog-central'],
+  label: 'Herzog PG', mesa: 'herzog', prefixes: ['/api/herzog-central'],
+});
+
+/* ==========================================================================
+   Herzog LaW · normativa y cumplimiento: ISO, CBAM, ATEX, marco de Argelia y
+   titulos del Estado, con certificados, vencimientos y zonas ATEX. Misma mesa
+   'herzog' que Herzog PG. Guarda y avisa; el estado lo declara una persona.
+========================================================================== */
+await safeMount('herzog-law', () => mountHerzogLaw(app, { auth, requireMesa, mongo, adminNotify }), {
+  label: 'Herzog LaW', mesa: 'herzog', prefixes: ['/api/herzog-law'],
 });
 
 /* ==========================================================================

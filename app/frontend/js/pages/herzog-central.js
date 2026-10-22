@@ -1,4 +1,4 @@
-import { api, getUser, requireAuth, clearSession, toast, escapeHtml, uploadHerzogDocument } from '/js/api.js';
+import { api, getUser, requireAuth, clearSession, toast, escapeHtml, uploadHerzogDocument, openAuthenticatedFile } from '/js/api.js';
 import { mountThemeToggle } from '/js/theme.js';
 import { mountAdminNotifications } from '/js/notifications.js';
 requireAuth();
@@ -136,13 +136,18 @@ async function loadDocuments() {
     if (docs.length === 0) { list.innerHTML = '<p class="mono" style="color:var(--text-muted); font-size:0.75rem;">Sin documentos aún.</p>'; return; }
     list.innerHTML = docs.map(d => `<div class="doc-item" data-id="${d.id}">
           <div>
-            <a href="/api/herzog-central/documents/${d.id}" target="_blank" rel="noopener">${escapeHtml(d.filename)}</a>
+            <a href="#" class="doc-open" data-name="${escapeHtml(d.filename)}">${escapeHtml(d.filename)}</a>
             <div class="doc-item__meta">${escapeHtml(d.department || '—')} · ${fmtBytes(d.size)} · ${escapeHtml(d.uploadedBy || '—')} · ${fmtDate(d.uploadedAt)}</div>
           </div>
           <button class="btn ghost btn--sm doc-del">Eliminar</button>
         </div>`).join('');
     list.querySelectorAll('.doc-item').forEach(el => {
       const id = el.dataset.id;
+      // El enlace plano no envia Authorization: el documento se baja autenticado.
+      el.querySelector('.doc-open').addEventListener('click', async (e) => {
+        e.preventDefault();
+        try { await openAuthenticatedFile(`/api/herzog-central/documents/${id}`, e.currentTarget.dataset.name); } catch (ex) { showError(ex.message); }
+      });
       el.querySelector('.doc-del').addEventListener('click', async () => {
         try { await api.herzogDocumentDelete(id); loadDocuments(); loadSummary(); } catch (ex) { showError(ex.message); }
       });

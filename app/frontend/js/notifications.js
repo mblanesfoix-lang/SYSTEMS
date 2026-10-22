@@ -18,6 +18,7 @@ const ORIGIN_NAME = {
   K8S: 'K8s',
   FL: 'S-NFI F&L',
   RESILIENCE: 'S-NFI Resilience',
+  HERZOG: 'Herzog LaW',
 };
 
 // Pagina de mesa donde el humano resuelve la incidencia de cada origen.
@@ -32,6 +33,7 @@ const ORIGIN_LINK = {
   RACK: 'sentinel.html',
   FL: 'fl.html',
   RESILIENCE: 'resilience.html',
+  HERZOG: 'herzog-law.html',
 };
 
 function simpleTitle(n) {

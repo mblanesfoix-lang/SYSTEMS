@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Herzog LaW · S-NFI</title>
+  <link rel="stylesheet" href="/css/fonts.css">
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="stylesheet" href="/css/herzog-law.css">
+  <script src="/js/theme-init.js"></script>
+  <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
+</head>
+<body>
+  <nav class="nav">
+    <div class="brand">
+      <a href="/pages/dashboard.html" style="color:inherit; text-decoration:none;">
+        <img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;"> <span class="brand-mark">S-NFI Systems (c)</span>
+      </a>
+    </div>
+    <div class="row" style="gap:18px;">
+      <div class="user-menu" id="userMenu">
+        <button class="user-menu__trigger mono" id="userTag" aria-haspopup="true" aria-expanded="false">…</button>
+        <div class="user-menu__dropdown" id="userDropdown" hidden>
+          <div class="user-menu__section">
+            <span class="user-menu__label">Cambiar contraseña</span>
+            <input class="user-menu__input" type="password" id="pwdCurrent" placeholder="Contraseña actual" autocomplete="current-password">
+            <input class="user-menu__input" type="password" id="pwdNew" placeholder="Nueva contraseña" autocomplete="new-password">
+            <input class="user-menu__input" type="password" id="pwdConfirm" placeholder="Confirmar nueva" autocomplete="new-password">
+            <p class="user-menu__error" id="pwdError" hidden></p>
+            <button class="btn sage" id="pwdSubmit" style="width:100%;margin-top:4px;">Actualizar</button>
+          </div>
+          <div class="user-menu__divider"></div>
+          <button class="user-menu__item user-menu__item--danger" id="logoutBtn">Cerrar sesión</button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container law">
+    <div class="breadcrumb-row">
+      <a href="/pages/dashboard.html">Systems</a>
+      <span class="sep">/</span>
+      <span class="active">Herzog LaW</span>
+    </div>
+
+    <nav class="page-switch reveal" aria-label="Páginas de Herzog">
+      <a href="/pages/herzog-central.html">Herzog PG</a>
+      <a href="/pages/herzog-law.html" aria-current="page">Herzog LaW</a>
+    </nav>
+
+    <header class="law-hero reveal">
+      <div>
+        <span class="kicker">Normativa y cumplimiento · Transversal</span>
+        <h1 class="law-hero__title">Herzog <em>LaW</em></h1>
+        <p class="law-hero__sub">
+          Qué normas y leyes afectan a S-NFI, en qué punto está cada una y qué falta para cumplirla.
+          ISO, ATEX, CBAM, el marco de Argelia y los títulos del Estado, con su certificado y su fecha de
+          vencimiento. Herzog guarda la prueba y avisa; el estado lo declara una persona. Todo cambio queda
+          en un log inmutable con cadena de hashes.
+        </p>
+        <div class="law-hero__actions">
+          <button class="btn sage" id="addFrameworkBtn" type="button">Añadir marco o título</button>
+          <a class="btn ghost" href="#cbam">CBAM y Argelia</a>
+        </div>
+      </div>
+      <div class="law-ring" id="heroRing" role="img" aria-label="Preparación de los marcos de prioridad alta">
+        <svg viewBox="0 0 140 140" aria-hidden="true">
+          <circle class="law-ring__track" cx="70" cy="70" r="60"></circle>
+          <circle class="law-ring__bar" id="ringBar" cx="70" cy="70" r="60"></circle>
+        </svg>
+        <div class="law-ring__label">
+          <span class="law-ring__pct" id="ringPct">–</span>
+          <span class="law-ring__caption" id="ringCaption">preparación de los marcos de prioridad alta</span>
+        </div>
+      </div>
+    </header>
+
+    <div id="errorBox" class="law-error" role="alert"></div>
+
+    <div class="law-kpis reveal" id="kpis">
+      <div class="law-kpi">
+        <div class="law-kpi__label">Marcos registrados</div>
+        <div class="law-kpi__value" id="kpiFrameworks">–</div>
+        <div class="law-kpi__sub" id="kpiFrameworksSub"></div>
+      </div>
+      <div class="law-kpi">
+        <div class="law-kpi__label">Prioridad alta abierta</div>
+        <div class="law-kpi__value" id="kpiHigh">–</div>
+        <div class="law-kpi__sub" id="kpiHighSub"></div>
+      </div>
+      <div class="law-kpi">
+        <div class="law-kpi__label">Vencimientos próximos</div>
+        <div class="law-kpi__value" id="kpiExpiry">–</div>
+        <div class="law-kpi__sub" id="kpiExpirySub"></div>
+      </div>
+      <div class="law-kpi">
+        <div class="law-kpi__label">Zonas ATEX clasificadas</div>
+        <div class="law-kpi__value" id="kpiZones">–</div>
+        <div class="law-kpi__sub" id="kpiZonesSub"></div>
+      </div>
+    </div>
+
+    <div class="law-tabs" role="tablist" aria-label="Secciones de Herzog LaW">
+      <button class="law-tab" role="tab" id="tab-overview" data-tab="overview" aria-controls="panel-overview" aria-selected="true">Panorama</button>
+      <button class="law-tab" role="tab" id="tab-frameworks" data-tab="frameworks" aria-controls="panel-frameworks" aria-selected="false">Normativa<span class="law-tab__count" id="tabFrameworksCount"></span></button>
+      <button class="law-tab" role="tab" id="tab-cbam" data-tab="cbam" aria-controls="panel-cbam" aria-selected="false">CBAM y Argelia</button>
+      <button class="law-tab" role="tab" id="tab-atex" data-tab="atex" aria-controls="panel-atex" aria-selected="false">Zonas ATEX<span class="law-tab__count" id="tabZonesCount"></span></button>
+      <button class="law-tab" role="tab" id="tab-activity" data-tab="activity" aria-controls="panel-activity" aria-selected="false">Actividad</button>
+    </div>
+
+    <section class="law-panel" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
+      <div class="law-grid-2">
+        <div class="card law-block" style="margin-bottom:0;">
+          <span class="law-block__eyebrow">Ahora</span>
+          <h2 class="law-block__title">Requiere atención</h2>
+          <p class="law-block__desc">Lo más urgente primero: certificados que caducan, zonas sin clasificar y marcos de prioridad alta que aún no han empezado.</p>
+          <ul class="law-attn" id="attnList"></ul>
+        </div>
+        <div class="card law-block" style="margin-bottom:0;">
+          <span class="law-block__eyebrow">Estado</span>
+          <h2 class="law-block__title">Dónde está cada marco</h2>
+          <p class="law-block__desc">Reparto de los marcos según el estado que ha declarado el responsable.</p>
+          <div class="law-stack" id="stateStack" aria-hidden="true"></div>
+          <ul class="law-legend" id="stateLegend"></ul>
+          <div id="kindBreakdown"></div>
+        </div>
+      </div>
+      <div class="card law-block">
+        <span class="law-block__eyebrow">Mapa</span>
+        <h2 class="law-block__title">Mapa de preparación</h2>
+        <p class="law-block__desc">Cada celda es un marco. La barra inferior muestra los requisitos cumplidos y el borde indica su estado. Pulsa una celda para abrirla.</p>
+        <div id="readinessMap"></div>
+      </div>
+    </section>
+
+    <section class="law-panel" id="panel-frameworks" role="tabpanel" aria-labelledby="tab-frameworks" hidden>
+      <div class="law-toolbar">
+        <input class="input law-search" id="searchInput" type="search" placeholder="Buscar por código o título" aria-label="Buscar marcos">
+        <div class="law-filters" id="kindFilters" role="group" aria-label="Filtrar por tipo"></div>
+        <span class="law-toolbar__spacer"></span>
+        <select id="priorityFilter" aria-label="Filtrar por prioridad">
+          <option value="">Toda prioridad</option>
+          <option value="alta">Prioridad alta</option>
+          <option value="media">Prioridad media</option>
+          <option value="vigilar">Vigilar</option>
+        </select>
+        <select id="statusFilter" aria-label="Filtrar por estado">
+          <option value="">Todo estado</option>
+          <option value="no_iniciado">Sin iniciar</option>
+          <option value="en_preparacion">En preparación</option>
+          <option value="vigente">Vigente</option>
+          <option value="no_aplica">No aplica</option>
+        </select>
+      </div>
+      <div id="frameworkList"></div>
+    </section>
+
+    <section class="law-panel" id="panel-cbam" role="tabpanel" aria-labelledby="tab-cbam" hidden></section>
+    <section class="law-panel" id="panel-atex" role="tabpanel" aria-labelledby="tab-atex" hidden></section>
+    <section class="law-panel" id="panel-activity" role="tabpanel" aria-labelledby="tab-activity" hidden></section>
+  </main>
+
+  <div class="law-overlay" id="overlay"></div>
+  <aside class="law-drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle" aria-hidden="true"></aside>
+
+  <dialog class="law-dialog" id="frameworkDialog" aria-labelledby="fwDialogTitle">
+    <form method="dialog" id="frameworkForm" novalidate>
+      <div class="law-dialog__head"><h2 class="law-dialog__title" id="fwDialogTitle">Añadir marco o título</h2></div>
+      <div class="law-dialog__body">
+        <div class="law-form">
+          <div><label for="fwCode">Código</label><input class="input" id="fwCode" maxlength="60" placeholder="Ej. ISO 9001 o Título nº 123"></div>
+          <div><label for="fwKind">Tipo</label>
+            <select id="fwKind">
+              <option value="titulo">Título del Estado</option>
+              <option value="iso">ISO</option>
+              <option value="ue">Unión Europea</option>
+              <option value="local">Local (otro país)</option>
+              <option value="otro">Otro</option>
+            </select>
+          </div>
+          <div class="is-wide"><label for="fwTitle">Título</label><input class="input" id="fwTitle" maxlength="200" placeholder="Nombre completo"></div>
+          <div><label for="fwNature">Naturaleza</label>
+            <select id="fwNature">
+              <option value="obligatoria">Obligatoria</option>
+              <option value="voluntaria">Voluntaria</option>
+              <option value="indirecta">Afecta a clientes</option>
+            </select>
+          </div>
+          <div><label for="fwPriority">Prioridad</label>
+            <select id="fwPriority">
+              <option value="alta">Alta</option>
+              <option value="media" selected>Media</option>
+              <option value="vigilar">Vigilar</option>
+            </select>
+          </div>
+          <div class="is-wide"><label for="fwFamily">Familia (agrupa la tarjeta)</label><input class="input" id="fwFamily" maxlength="60" list="familyOptions" placeholder="Opcional"><datalist id="familyOptions"></datalist></div>
+          <div class="is-wide"><label>Dónde aplica</label>
+            <div class="law-juris" id="fwJuris">
+              <label><input type="checkbox" value="ES"> España</label>
+              <label><input type="checkbox" value="UE"> UE</label>
+              <label><input type="checkbox" value="DZ"> Argelia</label>
+              <label><input type="checkbox" value="INT"> Internacional</label>
+            </div>
+          </div>
+          <div class="is-wide"><label for="fwSummary">Qué es</label><textarea class="input" id="fwSummary" maxlength="800" rows="3" placeholder="Una o dos frases"></textarea></div>
+          <div class="is-wide" id="fwReqsWrap"><label for="fwReqs">Requisitos (uno por línea, opcional)</label><textarea class="input" id="fwReqs" rows="3" placeholder="Guardar copia del título&#10;Registrar la fecha de renovación"></textarea></div>
+        </div>
+        <p class="law-error" id="fwError" role="alert" style="margin:14px 0 0;"></p>
+      </div>
+      <div class="law-dialog__foot">
+        <button class="btn ghost" type="button" id="fwCancel">Cancelar</button>
+        <button class="btn sage" type="submit" id="fwSubmit">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="law-dialog" id="zoneDialog" aria-labelledby="znDialogTitle">
+    <form method="dialog" id="zoneForm" novalidate>
+      <div class="law-dialog__head"><h2 class="law-dialog__title" id="znDialogTitle">Añadir zona</h2></div>
+      <div class="law-dialog__body">
+        <div class="law-form">
+          <div class="is-wide"><label for="znName">Nombre de la zona</label><input class="input" id="znName" maxlength="120" placeholder="Ej. Interior del BioGrinder"></div>
+          <div class="is-wide"><label for="znLocation">Ubicación</label><input class="input" id="znLocation" maxlength="160" placeholder="Ej. Nodo de Navarra, nave 1"></div>
+          <div><label for="znKind">Tipo de atmósfera</label>
+            <select id="znKind"><option value="polvo">Polvo</option><option value="gas">Gas o vapor</option></select>
+          </div>
+          <div><label for="znSubstance">Sustancia</label><input class="input" id="znSubstance" maxlength="200" placeholder="Ej. Polvo de biomasa seca"></div>
+          <div><label for="znZone">Zona</label><select id="znZone"></select></div>
+          <div><label for="znStatus">Estado</label>
+            <select id="znStatus">
+              <option value="pendiente">Pendiente de estudio</option>
+              <option value="clasificada">Clasificada</option>
+              <option value="protegida">Protegida</option>
+            </select>
+          </div>
+          <div class="is-wide"><label for="znEquipment">Equipos instalados</label><input class="input" id="znEquipment" maxlength="300" placeholder="Ej. Trituradora, transportador de tornillo"></div>
+          <div class="is-wide"><label for="znNotes">Notas</label><textarea class="input" id="znNotes" maxlength="2000" rows="3"></textarea></div>
+        </div>
+        <p class="law-error" id="znError" role="alert" style="margin:14px 0 0;"></p>
+      </div>
+      <div class="law-dialog__foot">
+        <button class="btn ghost" type="button" id="znCancel">Cancelar</button>
+        <button class="btn sage" type="submit" id="znSubmit">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="/js/pages/herzog-law.js"></script>
+</body>
+</html>

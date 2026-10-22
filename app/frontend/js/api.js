@@ -280,6 +280,27 @@ Object.assign(api, {
   herzogNoteAdd:        (payload) => req('POST', '/api/herzog-central/notes', payload),
   herzogNoteDelete:     (id) => req('DELETE', `/api/herzog-central/notes/${id}`),
 
+  // Herzog LaW · normativa y cumplimiento
+  herzogLawSummary:           () => req('GET', '/api/herzog-law/summary'),
+  herzogLawFrameworks:        () => req('GET', '/api/herzog-law/frameworks'),
+  herzogLawFrameworkCreate:   (payload) => req('POST', '/api/herzog-law/frameworks', payload),
+  herzogLawFrameworkUpdate:   (id, payload) => req('PATCH', `/api/herzog-law/frameworks/${encodeURIComponent(id)}`, payload),
+  herzogLawFrameworkDelete:   (id) => req('DELETE', `/api/herzog-law/frameworks/${encodeURIComponent(id)}`),
+  herzogLawRequirementAdd:    (id, text) => req('POST', `/api/herzog-law/frameworks/${encodeURIComponent(id)}/requirements`, { text }),
+  herzogLawRequirementSet:    (id, reqId, done) => req('PATCH', `/api/herzog-law/frameworks/${encodeURIComponent(id)}/requirements/${encodeURIComponent(reqId)}`, { done }),
+  herzogLawRequirementDelete: (id, reqId) => req('DELETE', `/api/herzog-law/frameworks/${encodeURIComponent(id)}/requirements/${encodeURIComponent(reqId)}`),
+  herzogLawDocuments:         (frameworkId) => req('GET', `/api/herzog-law/documents?frameworkId=${encodeURIComponent(frameworkId)}`),
+  herzogLawDocumentDelete:    (fileId) => req('DELETE', `/api/herzog-law/documents/${fileId}`),
+  herzogLawZones:             () => req('GET', '/api/herzog-law/zones'),
+  herzogLawZonesReference:    () => req('GET', '/api/herzog-law/zones/reference'),
+  herzogLawZoneCreate:        (payload) => req('POST', '/api/herzog-law/zones', payload),
+  herzogLawZoneUpdate:        (id, payload) => req('PATCH', `/api/herzog-law/zones/${encodeURIComponent(id)}`, payload),
+  herzogLawZoneDelete:        (id) => req('DELETE', `/api/herzog-law/zones/${encodeURIComponent(id)}`),
+  herzogLawCbamReference:     () => req('GET', '/api/herzog-law/cbam/reference'),
+  herzogLawCbamEstimate:      (payload) => req('POST', '/api/herzog-law/cbam/estimate', payload),
+  herzogLawActivity:          (limit = 30) => req('GET', `/api/herzog-law/activity?limit=${limit}`),
+  herzogLawLogVerify:         () => req('GET', '/api/herzog-law/log/verify'),
+
   // S-EAGLE · revision de informacion Herzog (verificar/corregir/compartir)
   seagleSummary:      () => req('GET', '/api/seagle/summary'),
   seagleHerzogFeed:   (department) => req('GET', `/api/seagle/herzog/feed${department ? `?department=${encodeURIComponent(department)}` : ''}`),
@@ -453,6 +474,40 @@ export async function uploadHerzogDocument(file, department) {
   const data = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
   return data;
+}
+
+// Herzog LaW: subida raw de un certificado o evidencia al marco indicado.
+export async function uploadHerzogLawDocument(file, frameworkId) {
+  const headers = { 'Content-Type': file.type, 'X-Filename': encodeURIComponent(file.name), 'X-Framework': frameworkId };
+  const t = getToken();
+  if (t) headers.Authorization = `Bearer ${t}`;
+  const r = await fetch('/api/herzog-law/documents', { method: 'POST', headers, body: file });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+  return data;
+}
+
+// Descarga autenticada (un <a href> plano no envia Authorization): se baja como blob y
+// se abre en pestana nueva, o se fuerza el guardado.
+export async function openAuthenticatedFile(url, filename, download = false) {
+  const headers = {};
+  const t = getToken();
+  if (t) headers.Authorization = `Bearer ${t}`;
+  const r = await fetch(url, { headers });
+  if (!r.ok) {
+    const data = await r.json().catch(() => ({}));
+    throw new Error(data.error || `HTTP ${r.status}`);
+  }
+  const objectUrl = URL.createObjectURL(await r.blob());
+  if (download) {
+    const a = document.createElement('a');
+    a.href = objectUrl;
+    a.download = filename || 'documento';
+    a.click();
+  } else {
+    window.open(objectUrl, '_blank', 'noopener');
+  }
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
 }
 
 // Finance CRM: subida raw de documentacion por empresa (mismo patron que Herzog,

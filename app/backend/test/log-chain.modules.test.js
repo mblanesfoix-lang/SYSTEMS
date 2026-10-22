@@ -1,6 +1,6 @@
 /**
  * Cada mesa con log encadenado por hash (Finance, Empresas de Finance, M&A,
- * Puerto Maestro, Herzog Central, S-EAGLE, Resilience, ØPS y Pactvm) escribe entradas
+ * Puerto Maestro, Herzog PG, Herzog LaW, S-EAGLE, Resilience, ØPS y Pactvm) escribe entradas
  * canon 2 y su /log/verify acepta tambien las heredadas. Mismo patron que
  * resilience.routes.test.js: cada mesa se monta sobre un Express propio con
  * auth y requireMesa como stubs y una db de pruebas propia. Se salta sin
@@ -16,6 +16,7 @@ import { mountFinanceCompanies } from '../finance-companies.js';
 import { mountMna } from '../mna.js';
 import { mountMasterGateway } from '../master-gateway.js';
 import { mountHerzog } from '../herzog.js';
+import { mountHerzogLaw } from '../herzog-law.js';
 import { mountSeagle } from '../seagle.js';
 import { mountResilience } from '../resilience.js';
 import { mountOps } from '../ops.js';
@@ -78,6 +79,15 @@ const MODULES = [
     write: { path: '/api/herzog-central/metrics', body: { department: 'finanzas', metric: 'caja', value: 5 } },
     action: 'metric.create',
     nested: 'detail.metric',
+  },
+  {
+    name: 'herzog-law',
+    log: 'herzog_law_log',
+    verify: '/api/herzog-law/log/verify',
+    mount: (app, deps) => mountHerzogLaw(app, { ...deps, adminNotify: () => {} }),
+    write: { path: '/api/herzog-law/zones', body: { name: 'Zona de prueba' } },
+    action: 'zone.create',
+    nested: 'detail.name',
   },
   {
     name: 'seagle',

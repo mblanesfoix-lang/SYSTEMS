@@ -102,6 +102,13 @@ export async function ensureTenantIndexes(db) {
   await db.collection('herzog_notes').createIndex({ createdAt: -1 });
   await db.collection('herzog_notes').createIndex({ department: 1 });
 
+  // Herzog LaW · marcos normativos, zonas ATEX, certificados y log encadenado
+  await db.collection('herzog_law_frameworks').createIndex({ kind: 1, priority: 1 });
+  await db.collection('herzog_law_frameworks').createIndex({ expiresAt: 1 });
+  await db.collection('herzog_law_zones').createIndex({ zone: 1 });
+  await db.collection('herzog_law_documents.files').createIndex({ 'metadata.framework_id': 1 });
+  await db.collection('herzog_law_log').createIndex({ seq: 1 }, { unique: true });
+
   // OPHS Framework · OPS (telemetria) y PAIA (analitica), leidos por el Cockpit
   await db.collection('ops_nodes').createIndex({ circuitState: 1 });
   await db.collection('ops_readings').createIndex({ ts: -1 });
