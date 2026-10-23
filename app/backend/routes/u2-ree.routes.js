@@ -491,7 +491,7 @@ function extractESIOSValues(data) {
   return data?.indicator?.values || [];
 }
 
-export function mountU2Ree(app, { auth, busEmit, busEmitAlert, busEvents, DATA_DIR }) {
+export function mountU2Ree(app, { auth, busEmit, busEmitAlert, DATA_DIR }) {
   /* Historic year-level cache — past years never change, current year expires 4h.
      Local to each replica and regenerable from REE: if DATA_DIR is missing or read-only
      it simply lives in memory. */
@@ -540,7 +540,7 @@ export function mountU2Ree(app, { auth, busEmit, busEmitAlert, busEvents, DATA_D
       if (!calculo) return res.status(502).json({ error: 'Sin series precio/demanda en respuesta REE' });
 
       busEmit({
-        id: crypto.randomUUID(), ts: new Date().toISOString(), seq: busEvents.length + 1,
+        id: crypto.randomUUID(), ts: new Date().toISOString(),
         origin: 'ELVI-RA', dest: 'SNFI-U2', type: 'event', state: 'COMPLETED',
         label: `S-NFI U2 · ${start}→${end} · ${calculo.horas_precio_cero}h precio<=1€ · ${calculo.exceso_gwh} GWh`,
         payload: { start, end, horas: calculo.horas_precio_cero, gwh: calculo.exceso_gwh },
@@ -695,7 +695,7 @@ export function mountU2Ree(app, { auth, busEmit, busEmitAlert, busEvents, DATA_D
       const maxGwh     = Math.max(...resultados.map(r => r.exceso_gwh || 0));
 
       busEmit({
-        id: crypto.randomUUID(), ts: new Date().toISOString(), seq: busEvents.length + 1,
+        id: crypto.randomUUID(), ts: new Date().toISOString(),
         origin: 'ELVI-RA', dest: 'SNFI-U2', type: 'event', state: 'COMPLETED',
         label: `S-NFI U2 HISTORICO · ${fromYear}-${toYear} · ${Math.round(totalGwh)} GWh acumulados`,
         payload: { fromYear, toYear, totalGwh: Math.round(totalGwh), anos: resultados.length },
@@ -830,7 +830,7 @@ export function mountU2Ree(app, { auth, busEmit, busEmitAlert, busEvents, DATA_D
       while (days.length > LIVE_HISTORY_MAX_DAYS) liveCache.delete(days.shift());
 
       busEmit({
-        id: crypto.randomUUID(), ts: new Date().toISOString(), seq: busEvents.length + 1,
+        id: crypto.randomUUID(), ts: new Date().toISOString(),
         origin: 'SNFI-U2', dest: 'ELVI-RA', type: 'event',
         state: stats.exceso_gwh_hoy > 0 ? 'BLOCKED' : 'COMPLETED',
         label: `S-NFI U2 LIVE · ${today} · ${stats.intervalos_negativos} neg · ${stats.exceso_gwh_hoy} GWh`,
@@ -1270,7 +1270,7 @@ export function mountU2Ree(app, { auth, busEmit, busEmitAlert, busEvents, DATA_D
       const totalRenov = mensual.reduce((s, m) => s + (m.gen_renovable_mwh || 0), 0);
 
       busEmit({
-        id: crypto.randomUUID(), ts: new Date().toISOString(), seq: busEvents.length + 1,
+        id: crypto.randomUUID(), ts: new Date().toISOString(),
         origin: 'SNFI-U2', dest: 'ELVI-RA', type: 'event', state: 'COMPLETED',
         label: `CURTAILMENT ${fromYear}-${toYear} · ${Math.round(totalErni / 1000)} GWh no integrados`,
         payload: { fromYear, toYear, totalErniMwh: Math.round(totalErni) },
@@ -1356,7 +1356,7 @@ export function mountU2Ree(app, { auth, busEmit, busEmitAlert, busEvents, DATA_D
         : null;
 
       busEmit({
-        id: crypto.randomUUID(), ts: new Date().toISOString(), seq: busEvents.length + 1,
+        id: crypto.randomUUID(), ts: new Date().toISOString(),
         origin: 'SNFI-U2', dest: 'ELVI-RA', type: 'event', state: 'COMPLETED',
         label: `CURTAILMENT ESTIMADO ${from}→${to} · ${es.curtailment_estimado_gwh} GWh (${es.pct_sobre_renovable}% renovable)`,
         payload: { from, to, gwh: es.curtailment_estimado_gwh, pct: es.pct_sobre_renovable },

@@ -136,6 +136,8 @@ export const VARS = [
   { name: 'MONGO_URI', group: 'mongo', required: true, check: mongoUri, deploy: 'mongodb://mongo:27017/elvira', reff: true,
     desc: 'Cadena de conexión a MongoDB',
     hint: 'Con docker compose se usa el servicio mongo; fuera de Docker, por ejemplo mongodb://127.0.0.1:27017/elvira' },
+  { name: 'BUS_RETENTION_DAYS', group: 'mongo', check: positiveInt, def: '90',
+    desc: 'Días que se guarda cada evento del bus antes de caducar' },
 
   // Claves de firma y cifrado
   { name: 'JWT_SECRET', group: 'keys', required: true, secret: true, check: strongSecret, reff: true,

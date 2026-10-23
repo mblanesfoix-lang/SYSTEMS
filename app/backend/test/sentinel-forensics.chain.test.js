@@ -275,7 +275,7 @@ describe('sentinel-forensics: ensayo del re-sellado por la ruta de Admin', { ski
       req.role = req.get('x-test-role');
       next();
     };
-    mountSentinelForensicRoutes(app, { auth, sentinelForensics, busEmit: (e) => busEvents.push(e), busEvents });
+    mountSentinelForensicRoutes(app, { auth, sentinelForensics, busEmit: (e) => busEvents.push(e) });
     server = app.listen(0);
     baseUrl = `http://127.0.0.1:${server.address().port}`;
   });

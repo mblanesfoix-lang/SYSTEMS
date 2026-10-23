@@ -49,8 +49,6 @@ export async function ensureTenantIndexes(db) {
   await db.collection('search_history').createIndex({ user: 1, createdAt: -1 });
   await db.collection('search_history').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
   await db.collection('u2_calculos').createIndex({ creadoAt: -1 });
-  await db.collection('bus_history').createIndex({ ts: -1 });
-  await db.collection('bus_history').createIndex({ origin: 1, state: 1, type: 1 });
 
   // Sentinel · trazabilidad forense IP
   await db.collection('forensic_log').createIndex({ seq: 1 }, { unique: true });

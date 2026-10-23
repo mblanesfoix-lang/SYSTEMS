@@ -9,7 +9,7 @@
 
 import crypto from 'node:crypto';
 
-export function mountSentinelForensicRoutes(app, { auth, sentinelForensics, busEmit, busEvents }) {
+export function mountSentinelForensicRoutes(app, { auth, sentinelForensics, busEmit }) {
   /* GET /api/sentinel/forensic-log — paginado, filtrable por ip/mesa/blocked/sensitive */
   app.get('/api/sentinel/forensic-log', auth, async (req, res) => {
     const { ip, mesa, blocked, sensitive, from, to, limit, offset } = req.query;
@@ -79,7 +79,7 @@ export function mountSentinelForensicRoutes(app, { auth, sentinelForensics, busE
     if (!ip) return res.status(400).json({ error: 'ip requerida' });
     const updated = await sentinelForensics.manualBlock(ip, reason, req.user);
     busEmit({
-      id: crypto.randomUUID(), ts: new Date().toISOString(), seq: busEvents.length + 1,
+      id: crypto.randomUUID(), ts: new Date().toISOString(),
       origin: 'SENTINEL', dest: 'ELVI-RA', type: 'alert', state: 'BLOCKED',
       label: `IP BLOQUEADA MANUALMENTE · ${ip} · por ${req.user}`, payload: { ip, reason }, user: req.user,
     });
@@ -99,7 +99,7 @@ export function mountSentinelForensicRoutes(app, { auth, sentinelForensics, busE
     if (!ip) return res.status(400).json({ error: 'ip requerida' });
     const updated = await sentinelForensics.addToAllowlist(ip, label, req.user);
     busEmit({
-      id: crypto.randomUUID(), ts: new Date().toISOString(), seq: busEvents.length + 1,
+      id: crypto.randomUUID(), ts: new Date().toISOString(),
       origin: 'SENTINEL', dest: 'ELVI-RA', type: 'event', state: 'APPROVED',
       label: `IP MARCADA DE CONFIANZA · ${ip} · por ${req.user}`, payload: { ip, label }, user: req.user,
     });
@@ -126,7 +126,7 @@ export function mountSentinelForensicRoutes(app, { auth, sentinelForensics, busE
     if (!['ALLOWED', 'BLOCKED'].includes(decision)) return res.status(400).json({ error: 'decision debe ser ALLOWED o BLOCKED' });
     const updated = await sentinelForensics.decideReview(req.params.ip, decision, req.user);
     busEmit({
-      id: crypto.randomUUID(), ts: new Date().toISOString(), seq: busEvents.length + 1,
+      id: crypto.randomUUID(), ts: new Date().toISOString(),
       origin: 'SENTINEL', dest: 'ELVI-RA', type: 'event', state: decision === 'BLOCKED' ? 'BLOCKED' : 'APPROVED',
       label: `IP ${decision} · ${req.params.ip} · por ${req.user}`, payload: { ip: req.params.ip, decision }, user: req.user,
     });
@@ -176,7 +176,7 @@ export function mountSentinelForensicRoutes(app, { auth, sentinelForensics, busE
     if (!['ALLOWED', 'BLOCKED'].includes(decision)) return res.status(400).json({ error: 'decision debe ser ALLOWED o BLOCKED' });
     const updated = await sentinelForensics.decideUserReview(req.params.user, decision, req.user);
     busEmit({
-      id: crypto.randomUUID(), ts: new Date().toISOString(), seq: busEvents.length + 1,
+      id: crypto.randomUUID(), ts: new Date().toISOString(),
       origin: 'SENTINEL', dest: 'ELVI-RA', type: 'event', state: decision === 'BLOCKED' ? 'BLOCKED' : 'APPROVED',
       label: `USUARIO ${decision} · ${req.params.user} · por ${req.user}`, payload: { user: req.params.user, decision }, user: req.user,
     });
@@ -190,7 +190,7 @@ export function mountSentinelForensicRoutes(app, { auth, sentinelForensics, busE
     if (!user) return res.status(400).json({ error: 'user requerido' });
     const updated = await sentinelForensics.manualBlockUser(user, reason, req.user);
     busEmit({
-      id: crypto.randomUUID(), ts: new Date().toISOString(), seq: busEvents.length + 1,
+      id: crypto.randomUUID(), ts: new Date().toISOString(),
       origin: 'SENTINEL', dest: 'ELVI-RA', type: 'alert', state: 'BLOCKED',
       label: `USUARIO BLOQUEADO MANUALMENTE · ${user} · por ${req.user}`, payload: { user, reason }, user: req.user,
     });

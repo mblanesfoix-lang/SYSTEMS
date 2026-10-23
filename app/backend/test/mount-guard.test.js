@@ -220,7 +220,7 @@ describe('mount-guard: arranque con auth, Sentinel y Expediente reales', { skip:
       auth, requireMesa, mongo: db, busEmit, adminNotify: () => {}, cibe: {},
     }), { label: 'Expediente Fiscal y Jurídico', mesa: 'fl_expediente', prefixes: ['/api/fl/expediente'] });
     await guard.safeMount('sentinel-routes', () => mountSentinelForensicRoutes(app, {
-      auth, sentinelForensics: sentinel, busEmit, busEvents,
+      auth, sentinelForensics: sentinel, busEmit,
     }), { label: 'Sentinel · trazabilidad forense', critical: true });
 
     ({ server, baseUrl } = await listen(app));

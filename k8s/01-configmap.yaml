@@ -20,6 +20,7 @@ data:
   # SHUTDOWN_HARD_MS: ""
   # Base de datos
   MONGO_URI: "mongodb://mongo:27017/elvira"
+  # BUS_RETENTION_DAYS: ""
   # IA
   # LLM_PROVIDER: ""
   # LLM_MODEL: ""

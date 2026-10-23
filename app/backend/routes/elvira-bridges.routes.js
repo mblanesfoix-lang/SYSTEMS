@@ -30,7 +30,7 @@ async function getUsdToEurRate() {
 }
 
 export function mountElviraBridges(app, {
-  auth, mongo, busEmit, busEvents,
+  auth, mongo, busEmit,
   readElvira, updateElvira,
 }) {
   /* Overview agregado: estado sistemas + métricas globales */
@@ -231,7 +231,7 @@ export function mountElviraBridges(app, {
       tc.tokensUsed = 0;
     });
     setImmediate(() => busEmit({
-      id: crypto.randomUUID(), ts: new Date().toISOString(), seq: busEvents.length + 1,
+      id: crypto.randomUUID(), ts: new Date().toISOString(),
       origin: 'ELVI-RA', dest: 'TCONTROLER', type: 'event', state: 'COMPLETED',
       label: `TCONTROLER RESET · ${req.user}`, payload: {}, user: req.user,
     }));

@@ -36,7 +36,7 @@ import { mountGridInterlink } from './grid-interlink.js';
 
 import { ensureUsersSeed, seedDefaultTenant, mountAuth, isSessionActive } from './routes/auth.routes.js';
 import { getControlDb, getTenantDb, getTenantReffDb, getTenantDbSync, DEFAULT_TENANT_ID } from './db/tenant-registry.js';
-import { mountBus } from './routes/bus.routes.js';
+import { mountBus, ensureBusIndexes, migrateBusHistoryFile } from './routes/bus.routes.js';
 import { mountNotifications, ensureAdminNotificationIndexes, migrateAdminNotificationsFile } from './routes/notifications.routes.js';
 import { createElviraStore, migrateElviraFile } from './routes/elvira-store.js';
 import { mountReffCrm, migrateSearchHistoryFile } from './routes/reff-crm.routes.js';
@@ -70,26 +70,15 @@ try {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const FRONT = path.join(ROOT, 'frontend');
-// DATA_DIR: estado local de esta réplica (historial del bus, caché de U2, marca de arranque);
-// lo compartido entre réplicas vive en Mongo. Puede estar vacío o ser de solo lectura: lo
-// que no se pueda escribir se queda en memoria. Los JSON de ediciones anteriores
-// (search_history, elvira, admin_notifications) solo se leen una vez para importarlos.
+// DATA_DIR: estado local de esta réplica (caché de U2, marca de arranque); lo compartido
+// entre réplicas vive en Mongo. Puede estar vacío o ser de solo lectura: lo que no se pueda
+// escribir se queda en memoria. Los JSON de ediciones anteriores (search_history, elvira,
+// admin_notifications, bus_history) solo se leen una vez para importarlos.
 const DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(__dirname, 'data');
 const LEGACY_HISTORY_FILE = path.join(DATA_DIR, 'search_history.json');
 const LEGACY_ELVIRA_FILE = path.join(DATA_DIR, 'elvira.json');
 const LEGACY_NOTIFICATIONS_FILE = path.join(DATA_DIR, 'admin_notifications.json');
-const BUS_HISTORY_FILE = path.join(DATA_DIR, 'bus_history.json');
-
-/* ---------- persistence helpers ---------- */
-function atomicWriteJson(file, data) {
-  const tempFile = `${file}.tmp`;
-  try {
-    fs.writeFileSync(tempFile, JSON.stringify(data, null, 2));
-    fs.renameSync(tempFile, file);
-  } catch (err) {
-    console.error(`[persistence] Error crítico escribiendo ${file}:`, err);
-  }
-}
+const LEGACY_BUS_HISTORY_FILE = path.join(DATA_DIR, 'bus_history.json');
 
 try { fs.mkdirSync(DATA_DIR, { recursive: true }); }
 catch (err) { console.warn(`[persistence] ${DATA_DIR} no disponible (${err.code || err.message}): estado local solo en memoria`); }
@@ -359,8 +348,7 @@ app.use('/api', apiLimiter);
  * módulos — los middlewares de mas abajo solo los invocan dentro de un
  * closure, en tiempo de petición, cuando ya están asignados.
  */
-let adminNotify, busEmit, busEmitAlert, busEvents, auth, listAdminNotifications, flushBusHistory;
-// (sseClients del bus no se usa fuera de bus.routes.js; se ignora aquí)
+let adminNotify, busEmit, busEmitAlert, auth, listAdminNotifications, closeNotifications, closeBus, busStatus;
 
 /* Arranque aislado (lib/mount-guard.js). Críticas, con { critical: true }: Sentinel,
    avisos al Admin, bus y auth (el tenant por defecto ya se preparó arriba y también
@@ -462,16 +450,18 @@ const sentinelForensics = await safeMount('sentinel', () => {
 
 /* ---- Notificaciones Admin (mount temprano: adminNotify es dependencia de sentinelLogger/uncaughtException arriba) ---- */
 /* rawMongo: la cola es global (ver routes/notifications.routes.js). */
-({ adminNotify, listAdminNotifications } = await safeMount('notifications', async () => {
+({ adminNotify, listAdminNotifications, closeNotifications } = await safeMount('notifications', async () => {
   await ensureAdminNotificationIndexes(rawMongo);
   return mountNotifications(app, { auth: (req, res, next) => auth(req, res, next), requireAdmin, mongo: rawMongo });
 }, { label: 'Avisos al Admin', critical: true }));
 
 /* ---- Event Bus (mount temprano: busEmit es dependencia compartida por ~10 modulos) ---- */
-({ busEvents, busEmit, busEmitAlert, flushBusHistory } = await safeMount('bus', () => mountBus(app, {
-  auth: (req, res, next) => auth(req, res, next),
-  requireAdmin, atomicWriteJson, BUS_HISTORY_FILE, adminNotify,
-}), { label: 'Bus de eventos', critical: true }));
+/* rawMongo: global, como los avisos (ver routes/bus.routes.js). */
+({ busEmit, busEmitAlert, closeBus, busStatus } = await safeMount('bus', async () => {
+  await ensureBusIndexes(rawMongo);
+  await migrateBusHistoryFile(rawMongo, LEGACY_BUS_HISTORY_FILE);
+  return mountBus(app, { auth: (req, res, next) => auth(req, res, next), mongo: rawMongo, adminNotify });
+}, { label: 'Bus de eventos', critical: true }));
 
 /* ---- Informes CSP del navegador: ruta publica (routes/csp-report.routes.js) ----
    Detras de Sentinel, para que quede en el log forense como cualquier acceso.
@@ -555,7 +545,7 @@ const reffCrm = await safeMount('reff-crm', () => mountReffCrm(app, {
    diario (getU2SnapshotToday) lo consumen los closures getU2Snapshot pasados
    a mountPactvm y mountElviraCentral mas abajo.
 ========================================================================== */
-const u2Ree = await safeMount('snfi-u2', () => mountU2Ree(app, { auth, busEmit, busEmitAlert, busEvents, DATA_DIR }), {
+const u2Ree = await safeMount('snfi-u2', () => mountU2Ree(app, { auth, busEmit, busEmitAlert, DATA_DIR }), {
   label: 'S-NFI U2', mesa: 'snfiu2', prefixes: ['/api/snfi-u2', '/api/u2'],
 });
 // Sin U2, las mesas que leen su snapshot siguen funcionando sin ese dato (ya aceptan null).
@@ -756,7 +746,7 @@ await safeMount('grid', () => mountGridInterlink(app, { auth, requireMesa, mongo
    ELVI-RA · puentes mock (Sentinel/Herzog) + OPHS scoring + T'Controler
 ========================================================================== */
 await safeMount('elvira-bridges', () => mountElviraBridges(app, {
-  auth, mongo, busEmit, busEvents,
+  auth, mongo, busEmit,
   readElvira, updateElvira,
 }), { label: 'Elvi-Ra · puentes y scoring', mesa: 'elvira', prefixes: ['/api/elvira'] });
 
@@ -764,7 +754,7 @@ await safeMount('elvira-bridges', () => mountElviraBridges(app, {
    CNMC · Embudo Legal + Buscador hibrido (numeracionyoperadores.cnmc.es + LLM)
 ========================================================================== */
 await safeMount('cnmc', () => mountCnmc(app, {
-  auth, mongo, busEmit, busEvents, adminNotify,
+  auth, mongo, busEmit, adminNotify,
   readElvira, updateElvira,
   callLlmText: reffCrm.callLlmText, extractJson: reffCrm.extractJson,
 }), { label: 'CNMC', mesa: 'elvira', prefixes: ['/api/elvira/cnmc'], dependsOn: ['reff-crm'] });
@@ -772,7 +762,7 @@ await safeMount('cnmc', () => mountCnmc(app, {
 /* ==========================================================================
    SENTINEL · Trazabilidad forense de IPs (wrappers finos sobre sentinel-forensics.js)
 ========================================================================== */
-await safeMount('sentinel-routes', () => mountSentinelForensicRoutes(app, { auth, sentinelForensics, busEmit, busEvents }), {
+await safeMount('sentinel-routes', () => mountSentinelForensicRoutes(app, { auth, sentinelForensics, busEmit }), {
   label: 'Sentinel · trazabilidad forense', critical: true,
 });
 
@@ -991,6 +981,8 @@ function bootVerification() {
   const units = mountGuard.list();
   const mounted = units.filter((u) => u.state === 'ok').length;
   const pending = units.filter((u) => u.state === 'pending').map((u) => u.label);
+  const bus = busStatus();
+  check('Bus de eventos', bus.crossReplica, bus.detail);
   check('Mesas', units.every((u) => u.state !== 'degraded'),
     `${mounted} montadas${pending.length ? `, cargando: ${pending.join(', ')}` : ''}`);
   for (const u of mountGuard.degraded()) {
@@ -1040,11 +1032,11 @@ server.keepAliveTimeout = 65_000;
 server.headersTimeout = 66_000;
 
 /* Apagado ordenado. El kubelet manda SIGTERM en rollouts, drain de nodo y scale a 0 (y `docker stop`);
-   sin handler Node moria al instante: peticiones en vuelo cortadas, debounce del historial del bus
-   (500ms) perdido y marca de arranque siempre "sucia" (falso aviso de caida en cada despliegue).
+   sin handler Node moria al instante: peticiones en vuelo cortadas, eventos del bus sin guardar y
+   marca de arranque siempre "sucia" (falso aviso de caida en cada despliegue).
    Secuencia: readyz pasa a 503 -> se deja de aceptar conexiones -> se espera a las peticiones en
    vuelo -> pasada la gracia se cortan los streams SSE (los clientes reconectan solos a la nueva
-   instancia) -> flush del bus -> cierre de Mongo -> marca limpia -> exit 0. Tope duro por debajo del
+   instancia) -> eventos pendientes del bus y cierre de su change stream -> cierre de Mongo -> marca limpia -> exit 0. Tope duro por debajo del
    terminationGracePeriodSeconds del Deployment (40s). */
 const SHUTDOWN_GRACE_MS = Number(process.env.SHUTDOWN_GRACE_MS) || (IN_K8S ? 10_000 : 1_500);
 const SHUTDOWN_HARD_MS = Number(process.env.SHUTDOWN_HARD_MS) || 25_000;
@@ -1058,7 +1050,8 @@ async function gracefulShutdown(signal) {
   server.closeIdleConnections();
   setTimeout(() => server.closeAllConnections(), SHUTDOWN_GRACE_MS).unref();
   await closed;
-  try { flushBusHistory?.(); } catch (err) { console.error('[shutdown] flush bus:', err.message); }
+  try { await closeBus?.(); } catch (err) { console.error('[shutdown] bus:', err.message); }
+  try { await closeNotifications?.(); } catch (err) { console.error('[shutdown] avisos:', err.message); }
   try { await egressLog.stop(); } catch (err) { console.error('[shutdown] registro de salidas:', err.message); }
   try { await closeMongo(); } catch (err) { console.error('[shutdown] cierre Mongo:', err.message); }
   if (IN_K8S) writeBootFlag({ cleanShutdown: true, stoppedAt: Date.now() });

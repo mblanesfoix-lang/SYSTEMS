@@ -189,7 +189,7 @@ describe('estado compartido entre réplicas', { skip: skip && 'MONGO_URI no conf
     async function replica() {
       const app = express();
       app.use(express.json());
-      const api = mountNotifications(app, { auth: authAs('admin'), requireAdmin, mongo: db });
+      const api = await mountNotifications(app, { auth: authAs('admin'), requireAdmin, mongo: db, crossReplica: false });
       return { api, base: await listen(app) };
     }
 

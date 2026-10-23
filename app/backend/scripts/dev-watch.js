@@ -2,9 +2,9 @@
 /**
  * Lanza server.js con --watch, pero solo vigilando el codigo: `node --watch`
  * sin --watch-path vigila TODO el cwd recursivo, incluida data/ — y el
- * propio servidor escribe ahi (bus_history.json, notificaciones, etc.) cada
- * pocos segundos, lo que provoca un bucle de reinicio continuo que corta
- * las peticiones a medio vuelo (ver docs/ESTADO-HISTORICO.md 2026-10-05).
+ * propio servidor escribe ahi (cache de U2, marca de arranque), lo que
+ * provocaba un bucle de reinicio continuo que corta las peticiones a medio
+ * vuelo.
  *
  * Node no tiene forma de EXCLUIR un subdirectorio del watch por defecto
  * (no hay --watch-ignore), asi que en vez de listar cada archivo de mesa a

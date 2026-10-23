@@ -69,6 +69,7 @@ services:
       SHUTDOWN_HARD_MS: ${SHUTDOWN_HARD_MS:-}
       # Base de datos
       MONGO_URI: ${MONGO_URI:-mongodb://mongo:27017/elvira}
+      BUS_RETENTION_DAYS: ${BUS_RETENTION_DAYS:-}
       # Claves de firma y cifrado
       JWT_SECRET: ${JWT_SECRET:?}
       SENTINEL_FORENSIC_SECRET: ${SENTINEL_FORENSIC_SECRET:?}

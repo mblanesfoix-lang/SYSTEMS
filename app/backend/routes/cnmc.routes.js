@@ -82,7 +82,7 @@ SALIDA: SOLO JSON válido, sin markdown:
 }`;
 
 export function mountCnmc(app, {
-  auth, mongo, busEmit, busEvents, adminNotify,
+  auth, mongo, busEmit, adminNotify,
   readElvira, updateElvira,
   callLlmText, extractJson,
 }) {
@@ -146,7 +146,7 @@ export function mountCnmc(app, {
     });
 
     busEmit({
-      id: crypto.randomUUID(), ts: new Date().toISOString(), seq: busEvents.length + 1,
+      id: crypto.randomUUID(), ts: new Date().toISOString(),
       origin: 'ELVI-RA', dest: 'REFF', type: 'request', state: 'PENDING',
       label: `CNMC INGEST · ${empresa} · ${periodo}`,
       payload: { docId: doc.id, empresa, periodo, fuente, dataSource: 'CNMC' },
@@ -300,7 +300,7 @@ export function mountCnmc(app, {
       ? `CNMC_AUDIT_FAILED · ${targetCompany.nodo} · ${findings[0]?.parametro || '?'} · OPS BLOQUEADOS`
       : `CNMC_AUDIT_PASSED · ${targetCompany.nodo}`;
     busEmit({
-      id: crypto.randomUUID(), ts: now, seq: busEvents.length + 1,
+      id: crypto.randomUUID(), ts: now,
       origin: 'REFF', dest: 'OPHS', type: 'response', state: busState,
       label: busLabel,
       payload: {
@@ -342,7 +342,7 @@ export function mountCnmc(app, {
 
       // Also emit to bus for panel pickup
       busEmit({
-        id: crypto.randomUUID(), ts: now, seq: busEvents.length + 1,
+        id: crypto.randomUUID(), ts: now,
         origin: 'SENTINEL', dest: 'ELVI-RA', type: 'alert', state: 'BLOCKED',
         label: `HUELLA FORENSE · ${targetCompany.nodo} · ${primaryFinding.parametro}`,
         payload: sentinelEvent.forensic,
@@ -423,7 +423,7 @@ SOLO JSON.`;
       }
 
       busEmit({
-        id: crypto.randomUUID(), ts: new Date().toISOString(), seq: busEvents.length + 1,
+        id: crypto.randomUUID(), ts: new Date().toISOString(),
         origin: 'REFF', dest: 'ELVI-RA', type: 'response', state: 'COMPLETED',
         label: `CNMC SEARCH · ${empresa} · ${periodo} · registro:${found ? 'ENCONTRADO' : 'NO_ENCONTRADO'} · confianza: ${parsed.confianza || '?'}`,
         payload: { empresa, periodo, registroEncontrado: found, confianza: parsed.confianza, estadoCompliance: parsed.datos?.estadoCompliance },

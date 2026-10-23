@@ -8,11 +8,14 @@
  *
  * adminNotify() es síncrona y no falla: la reciben bus, u2-ree, elvira-bridges, cnmc,
  * rack-state, grid-interlink y los manejadores de caída del proceso, que no esperan a
- * Mongo. Empuja el aviso a los clientes SSE de esta réplica y lo guarda en segundo plano.
+ * Mongo. Guarda el aviso en segundo plano. Con replica set, el SSE de cada réplica lo
+ * recibe por change stream, venga de la réplica que venga; con Mongo standalone, o si no
+ * se pudo guardar, solo lo reciben los clientes de esta réplica.
  */
 
 import crypto from 'node:crypto';
 import { migrateJsonOnce, insertIgnoringDuplicates } from '../lib/json-migration.js';
+import { createChangeFeed, supportsChangeStreams } from '../lib/change-feed.js';
 
 const COLLECTION = 'admin_notifications';
 const MAX_NOTIFICATIONS = 300;
@@ -44,9 +47,29 @@ export function migrateAdminNotificationsFile(db, file) {
   });
 }
 
-export function mountNotifications(app, { auth, requireAdmin, mongo }) {
+export async function mountNotifications(app, { auth, requireAdmin, mongo, crossReplica, logger = console }) {
   const col = () => mongo.collection(COLLECTION);
   const adminSseClients = new Set();
+
+  function push(notif) {
+    const payload = `data: ${JSON.stringify(notif)}\n\n`;
+    for (const client of adminSseClients) {
+      try { client.write(payload); } catch { adminSseClients.delete(client); }
+    }
+  }
+
+  let useFeed = crossReplica;
+  if (useFeed === undefined) useFeed = await supportsChangeStreams(mongo).catch(() => false);
+  const feed = useFeed
+    ? createChangeFeed({
+      collection: col(),
+      operationTypes: ['insert'],
+      label: 'notifications',
+      logger,
+      onChange: (change) => push(toPublic(change.fullDocument)),
+    })
+    : null;
+  feed?.start();
 
   async function trimToMax() {
     const surplus = await col().find({}, { projection: { _id: 1 } })
@@ -66,12 +89,12 @@ export function mountNotifications(app, { auth, requireAdmin, mongo }) {
     };
     const { id, ...stored } = notif;
     col().insertOne({ _id: id, ...stored })
+      .then(() => { if (!feed) push(notif); }, (err) => {
+        push(notif);
+        throw err;
+      })
       .then(trimToMax)
-      .catch((err) => console.error(`[notifications] aviso no guardado (${notif.label}):`, err?.message || err));
-    const payload = `data: ${JSON.stringify(notif)}\n\n`;
-    for (const client of adminSseClients) {
-      try { client.write(payload); } catch { adminSseClients.delete(client); }
-    }
+      .catch((err) => logger.error(`[notifications] aviso no guardado (${notif.label}):`, err?.message || err));
     return notif;
   }
 
@@ -80,7 +103,7 @@ export function mountNotifications(app, { auth, requireAdmin, mongo }) {
     return rows.map(toPublic);
   }
 
-  /* GET /api/notifications/stream — SSE, push en tiempo real de los avisos de esta réplica */
+  /* GET /api/notifications/stream — SSE, push en tiempo real de los avisos */
   app.get('/api/notifications/stream', auth, requireAdmin, async (req, res) => {
     const backlog = (await latest(50)).reverse();
     res.setHeader('Content-Type', 'text/event-stream');
@@ -144,5 +167,6 @@ export function mountNotifications(app, { auth, requireAdmin, mongo }) {
   return {
     adminNotify,
     listAdminNotifications: () => latest(MAX_NOTIFICATIONS),
+    closeNotifications: async () => { await feed?.stop(); },
   };
 }
