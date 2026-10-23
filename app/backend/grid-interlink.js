@@ -22,6 +22,7 @@ import path from 'node:path';
 import { runAsTenant } from './db/tenant-context.js';
 import { DEFAULT_TENANT_ID } from './db/tenant-registry.js';
 import { appendChained, verifyLog } from './lib/hash-chain.js';
+import { recordEgress } from './egress/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -154,6 +155,9 @@ export function mountGridInterlink(app, { auth, requireMesa, mongo, busEmit, adm
         c.workerStats = msg.stats;
       } else if (msg.type === 'error') {
         c.workerStats = { ...(c.workerStats || {}), lastError: msg.error };
+      } else if (msg.type === 'egress') {
+        // el worker sale por la compuerta; su registro se guarda desde aqui
+        recordEgress(msg.event);
       }
     });
 

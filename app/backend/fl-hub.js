@@ -473,7 +473,7 @@ export function generarFichaPdf({ entidad, doc, sociedades, logEntry, usuario })
 
 export function mountFlHub(app, {
   auth, requireMesa, mongo, busEmit, adminNotify,
-  fetchImpl = globalThis.fetch, autoSync = true, now = () => new Date(),
+  fetchImpl, autoSync = true, now = () => new Date(),
 }) {
   const guard = [auth, requireMesa('fl')];
   const hoy = () => todayIso(now());

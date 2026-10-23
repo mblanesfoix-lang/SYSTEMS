@@ -28,6 +28,8 @@
  * en fl_alertas_normativas para que el humano las revise o descarte.
  */
 
+import { egressFetcher } from './egress/index.js';
+
 const API_BASE = 'https://www.boe.es/datosabiertos/api';
 const FETCH_TIMEOUT_MS = 15000;
 const USER_AGENT = 'SYSTEMS-SNFI-FL/1.0 (vigilancia normativa interna)';
@@ -244,9 +246,10 @@ export function ultimosDias(hoyIso, dias) {
 
 /**
  * Orquestador de la sincronizacion. mongo: Db (o el Proxy tenant-aware dentro
- * de un contexto de tenant). fetchImpl inyectable para los tests.
+ * de un contexto de tenant). Sale por la compuerta de Pactvm Viridi como consulta
+ * automatica de datos publicos; fetchImpl inyectable para los tests.
  */
-export function createBoletinesSync({ mongo, fetchImpl = globalThis.fetch, adminNotify, appendLog, today, pauseMs = 250 }) {
+export function createBoletinesSync({ mongo, fetchImpl = egressFetcher({ mesa: 'fl', poll: true, timeoutMs: FETCH_TIMEOUT_MS }), adminNotify, appendLog, today, pauseMs = 250 }) {
   const alertas = () => mongo.collection('fl_alertas_normativas');
   const meta = () => mongo.collection('fl_meta');
   let running = null;

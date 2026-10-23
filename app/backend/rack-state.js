@@ -39,6 +39,7 @@ import { runAsTenant } from './db/tenant-context.js';
 import { DEFAULT_TENANT_ID } from './db/tenant-registry.js';
 import { appendChained, canonicalV2, verifyLog } from './lib/hash-chain.js';
 import { safeEqual } from './lib/safe-compare.js';
+import { egressFetch } from './egress/index.js';
 
 const KEY_RE = /^[a-z0-9_.:-]{2,80}$/;
 const MAX_VALUE_BYTES = 2048;
@@ -224,12 +225,12 @@ export function mountRackState(app, { auth, requireMesa, mongo, busEmit, adminNo
 
   async function rpc(url, path, body) {
     const payload = { ...body, proto: RACK_PROTOCOL_VERSION, ts: Date.now(), nonce: crypto.randomBytes(16).toString('hex') };
-    const res = await fetch(`${url}${path}`, {
+    // Infraestructura propia, pero por la compuerta: la lista blanca la deriva de RACK_PEERS.
+    const res = await egressFetch(`${url}${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Rack-Sig': signRackMessage(path, payload, SHARED_KEY) },
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(RPC_TIMEOUT_MS),
-    });
+    }, { mesa: 'sentinel', poll: true, timeoutMs: RPC_TIMEOUT_MS });
     if (!res.ok) {
       const detail = await res.json().then((b) => b?.error).catch(() => null);
       throw new Error(`HTTP ${res.status}${detail ? `: ${detail}` : ''}`);

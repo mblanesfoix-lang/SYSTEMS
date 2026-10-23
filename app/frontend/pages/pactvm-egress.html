@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Salidas a la Red · Pactvm Viridi · S-NFI</title>
+  <link rel="stylesheet" href="/css/fonts.css">
+  <link rel="stylesheet" href="/css/theme.css">
+  <script src="/js/theme-init.js"></script>
+  <link rel="icon" type="image/png" href="/assets/logo-snfi.png">
+  <style>
+    .pactvm-hero {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px 40px;
+      margin-bottom: 24px;
+    }
+    .pactvm-hero__title {
+      font-family: var(--font-display);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin: 0 0 10px;
+    }
+    .pactvm-hero__sub {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      max-width: 680px;
+      line-height: 1.65;
+      margin: 0;
+    }
+    .kpi-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 0;
+      border: 1px solid var(--border-mid); border-radius: var(--radius); overflow: hidden; margin-bottom: 24px; background: var(--bg-card);
+    }
+    @media (max-width: 900px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 520px) { .kpi-grid { grid-template-columns: 1fr; } }
+    .kpi-cell { padding: 20px 22px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .kpi-cell:last-child { border-right: none; }
+    .kpi-label { font-family: var(--font-mono); font-size: 0.55rem; letter-spacing: 0.04em; color: var(--text-muted); margin-bottom: 10px; }
+    .kpi-val { font-family: var(--font-display); font-size: 1.8rem; font-weight: 800; letter-spacing: -0.03em; }
+    .kpi-val--small { font-size: 1rem; }
+
+    .section-head { display: flex; gap: 12px; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; margin-bottom: 14px; }
+    .section-head h2 { margin: 4px 0 0; }
+    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .toolbar .input { min-width: 120px; font-size: 0.78rem; padding: 6px 8px; }
+    .empty-row td { text-align: center; color: var(--text-muted); font-size: 0.82rem; padding: 24px !important; }
+    .cell-sub { display: block; color: var(--text-muted); font-size: 0.7rem; margin-top: 2px; }
+    .policy-note { font-size: 0.8rem; color: var(--text-muted); line-height: 1.7; margin: 14px 0 0; }
+    .card + .card { margin-top: 24px; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="brand">
+      <img src="/assets/logo-snfi.png" alt="S-NFI" style="height:22px;width:auto;vertical-align:middle;margin-right:8px;">
+      <span class="brand-mark">S-NFI Systems (c)</span>
+    </div>
+    <div class="row" style="gap:18px;">
+      <div class="user-menu" id="userMenu">
+        <button class="user-menu__trigger mono" id="userTag" aria-haspopup="true" aria-expanded="false">…</button>
+        <div class="user-menu__dropdown" id="userDropdown" hidden>
+          <div class="user-menu__section">
+            <span class="user-menu__label">Cambiar contraseña</span>
+            <input class="user-menu__input" type="password" id="pwdCurrent" placeholder="Contraseña actual" autocomplete="current-password">
+            <input class="user-menu__input" type="password" id="pwdNew" placeholder="Nueva contraseña" autocomplete="new-password">
+            <input class="user-menu__input" type="password" id="pwdConfirm" placeholder="Confirmar nueva" autocomplete="new-password">
+            <p class="user-menu__error" id="pwdError" hidden></p>
+            <button class="btn sage" id="pwdSubmit" style="width:100%;margin-top:4px;">Actualizar</button>
+          </div>
+          <div class="user-menu__divider"></div>
+          <button class="user-menu__item user-menu__item--danger" id="logoutBtn">Cerrar sesión</button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container">
+    <div class="breadcrumb-row">
+      <a href="/pages/dashboard.html">Systems</a>
+      <span class="sep">/</span>
+      <a href="/pages/pactum-viridi.html">Pactvm Viridi</a>
+      <span class="sep">/</span>
+      <span class="active">Salidas a la Red</span>
+    </div>
+
+    <div class="pactvm-hero reveal">
+      <span class="kicker">Mesa · Compuerta de salida</span>
+      <h1 class="pactvm-hero__title">Salidas <em style="font-style:normal;color:var(--accent-blue);">a la Red</em></h1>
+      <p class="pactvm-hero__sub">
+        Todo lo que SYSTEMS envía a otra máquina pasa por una única compuerta de Pactvm Viridi: solo sale a los
+        destinos de la lista blanca de cada mesa, con tiempo máximo, y cada salida (también las bloqueadas) queda
+        en un registro encadenado e inmutable. Esta vista es de solo lectura.
+      </p>
+    </div>
+
+    <div id="errorBox" style="display:none;" class="mole-error"></div>
+
+    <div class="kpi-grid reveal">
+      <div class="kpi-cell"><div class="kpi-label">Salidas registradas</div><div class="kpi-val" id="kpiCalls">—</div></div>
+      <div class="kpi-cell"><div class="kpi-label">Bloqueadas</div><div class="kpi-val" id="kpiDenied">—</div></div>
+      <div class="kpi-cell"><div class="kpi-label">Terceros distintos</div><div class="kpi-val" id="kpiThird">—</div></div>
+      <div class="kpi-cell"><div class="kpi-label">Integridad del registro</div><div class="kpi-val kpi-val--small" id="kpiIntegrity">—</div></div>
+    </div>
+
+    <div class="card reveal" style="padding:20px;">
+      <div class="section-head">
+        <div>
+          <span class="kicker">Lista blanca vigente</span>
+          <h2>Destinos permitidos</h2>
+        </div>
+        <div class="toolbar">
+          <button class="btn" id="policyExportBtn">Exportar lista blanca (JSON)</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="tbl">
+          <thead><tr><th>Destino</th><th>Dirección</th><th>Tipo</th><th>Mesas</th><th>Origen de la regla</th></tr></thead>
+          <tbody id="policyBody"><tr class="empty-row"><td colspan="5">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+      <p class="policy-note" id="policyNote"></p>
+    </div>
+
+    <div class="card reveal" style="padding:20px;">
+      <div class="section-head">
+        <div>
+          <span class="kicker">Registro encadenado</span>
+          <h2>Últimas salidas</h2>
+        </div>
+        <div class="toolbar">
+          <select class="input" id="filterResult" aria-label="Filtrar por resultado">
+            <option value="">Todos los resultados</option>
+            <option value="ok">Correctas</option>
+            <option value="error">Con error</option>
+            <option value="denegada">Bloqueadas</option>
+          </select>
+          <button class="btn" id="verifyBtn">Verificar cadena</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="tbl">
+          <thead><tr><th>Fecha</th><th>Mesa</th><th>Usuario</th><th>Destino</th><th>Resultado</th><th>Detalle</th></tr></thead>
+          <tbody id="logBody"><tr class="empty-row"><td colspan="6">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="toolbar" style="margin-top:14px;">
+        <button class="btn" id="moreBtn" hidden>Cargar más</button>
+      </div>
+    </div>
+  </main>
+
+  <script type="module" src="/js/pages/pactvm-egress.js"></script>
+</body>
+</html>

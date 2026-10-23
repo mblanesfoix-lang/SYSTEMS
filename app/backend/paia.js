@@ -157,7 +157,7 @@ export function mountPaia(app, { auth, requireMesa, mongo, llmLimiter }) {
     try {
       const result = await callLlm({
         system: systemPrompt, prompt: userPrompt, maxTokens: 400,
-        user: req.user, operation: 'paia-insight',
+        mesa: 'ophs', user: req.user, operation: 'paia-insight',
       });
       insight = result.text;
     } catch (err) {

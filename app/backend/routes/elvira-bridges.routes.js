@@ -12,14 +12,15 @@
 import crypto from 'node:crypto';
 import { llmStatus } from '../llm/index.js';
 import { userCostUsd } from '../llm/usage.js';
+import { egressFetch } from '../egress/index.js';
 
-/* ---------- USD -> EUR exchange rate (cached 1h, frankfurter.app, sin API key) ---------- */
+/* ---------- USD -> EUR exchange rate (cached 1h, frankfurter.app, sin API key, por la compuerta de Pactvm) ---------- */
 let exchangeRateCache = { rate: 0.92, fetchedAt: 0 };
 async function getUsdToEurRate() {
   const ONE_HOUR = 60 * 60 * 1000;
   if (Date.now() - exchangeRateCache.fetchedAt < ONE_HOUR) return exchangeRateCache.rate;
   try {
-    const r = await fetch('https://api.frankfurter.app/latest?from=USD&to=EUR');
+    const r = await egressFetch('https://api.frankfurter.app/latest?from=USD&to=EUR', {}, { mesa: 'elvira', poll: true });
     if (r.ok) {
       const data = await r.json();
       if (data.rates?.EUR) exchangeRateCache = { rate: data.rates.EUR, fetchedAt: Date.now() };

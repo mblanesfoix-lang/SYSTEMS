@@ -1,9 +1,8 @@
 import { Router, Request, Response } from 'express';
-import { lookup as dnsLookup } from 'node:dns/promises';
-import { isIP } from 'node:net';
 import { getReffDb, nextSeq } from '../mongo.js';
 import { authMiddleware } from '../auth.js';
 import { callLlm, isLlmUnavailable } from '../llm.js';
+import { egressFetch, egressErrorCode } from '../egress.js';
 
 const router = Router();
 
@@ -16,35 +15,6 @@ const MAX_EXTRACTED_CHARS = 6000; // límite de texto extraído por URL, para no
 const MAX_URLS_PER_AUDIT = 3;
 const MAX_WEB_SEARCH_USES = 6; // tope de búsquedas por auditoría, coste controlado
 const AUDIT_TIMEOUT_MS = 240_000; // varias rondas de búsqueda web: más margen que una llamada normal a la IA
-
-function isPrivateIp(ip: string): boolean {
-  if (ip === '127.0.0.1' || ip === '::1') return true;
-  if (/^10\./.test(ip)) return true;
-  if (/^192\.168\./.test(ip)) return true;
-  if (/^172\.(1[6-9]|2\d|3[01])\./.test(ip)) return true;
-  if (/^169\.254\./.test(ip)) return true; // link-local, incluye metadata cloud (169.254.169.254)
-  if (/^fc00:|^fd00:|^fe80:/i.test(ip)) return true;
-  return false;
-}
-
-// Bloquea localhost/red privada/metadata cloud antes de hacer el fetch — el
-// texto a auditar lo escribe el usuario, así que una URL ahí es SSRF si no se valida.
-async function isSafePublicUrl(rawUrl: string): Promise<boolean> {
-  let parsed: URL;
-  try { parsed = new URL(rawUrl); } catch { return false; }
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
-
-  const hostname = parsed.hostname.toLowerCase();
-  if (hostname === 'localhost' || hostname.endsWith('.local')) return false;
-  if (isIP(hostname)) return !isPrivateIp(hostname);
-
-  try {
-    const results = await dnsLookup(hostname, { all: true });
-    return results.every((r) => !isPrivateIp(r.address));
-  } catch {
-    return false;
-  }
-}
 
 // Extractor de texto minimalista: sin dependencia nueva. Quita script/style,
 // tags, decodifica entidades comunes y colapsa espacio en blanco.
@@ -67,19 +37,20 @@ function htmlToText(html: string): string {
     .trim();
 }
 
-async function fetchUrlAsText(rawUrl: string): Promise<{ url: string; text: string } | { url: string; error: string }> {
-  if (!(await isSafePublicUrl(rawUrl))) {
+// La descarga sale por la compuerta de Pactvm Viridi como página pública: solo http(s)
+// estándar, y localhost, redes privadas y metadatos cloud se rechazan al conectar y en
+// cada redirección. El texto a auditar lo escribe el usuario, así que una URL ahí es SSRF
+// si no se valida.
+async function fetchUrlAsText(rawUrl: string, username: string): Promise<{ url: string; text: string } | { url: string; error: string }> {
+  try {
+    new URL(rawUrl);
+  } catch {
     return { url: rawUrl, error: 'URL no accesible (privada, local o inválida) — omitida por seguridad' };
   }
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const r = await fetch(rawUrl, {
-      signal: controller.signal,
-      redirect: 'follow',
+    const r = await egressFetch(rawUrl, {
       headers: { 'user-agent': 'Mozilla/5.0 (compatible; ElviRaHerzog/1.0)' },
-    });
+    }, { user: username, publicWeb: true, timeoutMs: FETCH_TIMEOUT_MS, maxBytes: MAX_FETCH_BYTES, truncate: true });
     if (!r.ok) return { url: rawUrl, error: `HTTP ${r.status} al descargar la página` };
 
     const contentType = r.headers.get('content-type') || '';
@@ -87,25 +58,15 @@ async function fetchUrlAsText(rawUrl: string): Promise<{ url: string; text: stri
       return { url: rawUrl, error: `Tipo de contenido no soportado (${contentType || 'desconocido'})` };
     }
 
-    const reader = r.body?.getReader();
-    if (!reader) return { url: rawUrl, error: 'Respuesta sin cuerpo legible' };
-    const chunks: Uint8Array[] = [];
-    let total = 0;
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      total += value.byteLength;
-      if (total > MAX_FETCH_BYTES) { controller.abort(); break; }
-      chunks.push(value);
-    }
-    const raw = Buffer.concat(chunks.map((c) => Buffer.from(c))).toString('utf-8');
-    const text = htmlToText(raw).slice(0, MAX_EXTRACTED_CHARS);
+    const text = htmlToText(await r.text()).slice(0, MAX_EXTRACTED_CHARS);
     if (!text) return { url: rawUrl, error: 'No se pudo extraer texto legible de la página' };
     return { url: rawUrl, text };
   } catch (err: any) {
-    return { url: rawUrl, error: err?.name === 'AbortError' ? 'Timeout al descargar la página' : (err?.message || 'Error al descargar la página') };
-  } finally {
-    clearTimeout(timeout);
+    const code = egressErrorCode(err);
+    if (code === 'denied') return { url: rawUrl, error: 'URL no accesible (privada, local o inválida) — omitida por seguridad' };
+    if (code === 'timeout') return { url: rawUrl, error: 'Timeout al descargar la página' };
+    if (code === 'unavailable') return { url: rawUrl, error: 'Descarga de páginas no disponible en este modo' };
+    return { url: rawUrl, error: err?.message || 'Error al descargar la página' };
   }
 }
 
@@ -313,7 +274,7 @@ router.post('/audit', async (req: Request, res: Response) => {
 
   let extractedBlock = '';
   if (urls.length > 0) {
-    const fetched = await Promise.all(urls.map(fetchUrlAsText));
+    const fetched = await Promise.all(urls.map((u) => fetchUrlAsText(u, req.user.username)));
     extractedBlock = fetched.map((f) => {
       if ('error' in f) return `\n\n[URL ${f.url} — no se pudo extraer contenido: ${f.error}]`;
       return `\n\n[Contenido extraído de ${f.url}]\n${f.text}`;

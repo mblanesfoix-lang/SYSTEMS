@@ -16,23 +16,22 @@
 
 import crypto from 'node:crypto';
 import { isLlmUnavailable } from '../llm/index.js';
+import { egressFetch } from '../egress/index.js';
 
 const CNMC_API_BASE = 'https://numeracionyoperadores.cnmc.es';
 
-async function fetchCnmcOperadores(nombre) {
-  const { default: https } = await import('node:https');
+// Sale por la compuerta de Pactvm Viridi. Sin respuesta válida devuelve [].
+async function fetchCnmcOperadores(nombre, user) {
   const encoded = encodeURIComponent(nombre);
   const url = `${CNMC_API_BASE}/api/operador/get_busqueda_operadores?nombre=${encoded}`;
-  return new Promise((resolve) => {
-    https.get(url, { headers: { 'User-Agent': 'Elvi-Ra/1.0 (S-NFI Corp; regulatorio)', 'Accept': 'application/json' } }, res => {
-      let d = '';
-      res.on('data', c => d += c);
-      res.on('end', () => {
-        try { resolve(JSON.parse(d)); }
-        catch { resolve([]); }
-      });
-    }).on('error', () => resolve([]));
-  });
+  try {
+    const res = await egressFetch(url, {
+      headers: { 'User-Agent': 'Elvi-Ra/1.0 (S-NFI Corp; regulatorio)', 'Accept': 'application/json' },
+    }, { mesa: 'elvira', user });
+    return JSON.parse(await res.text());
+  } catch {
+    return [];
+  }
 }
 
 const CNMC_ENRICH_SYSTEM = `Eres el módulo "CNMC Intelligence" del agente Rëff dentro de Elvi-Ra.
@@ -390,7 +389,7 @@ export function mountCnmc(app, {
       if (!empresa) return res.status(400).json({ error: 'empresa requerida' });
 
       // Step 1: fetch real CNMC registry data
-      const cnmcResults = await fetchCnmcOperadores(empresa);
+      const cnmcResults = await fetchCnmcOperadores(empresa, req.user);
       const found = cnmcResults.length > 0;
       const cnmcDataStr = found
         ? JSON.stringify(cnmcResults.slice(0, 5), null, 2)
@@ -407,7 +406,7 @@ Interpreta estos datos y enriquece con contexto regulatorio adicional (sanciones
 Si hay múltiples resultados, analiza el más relevante o el que coincida mejor con la búsqueda.
 SOLO JSON.`;
 
-      const raw = await callLlmText(CNMC_ENRICH_SYSTEM, userPrompt, 3000, req.user, 'cnmc_search');
+      const raw = await callLlmText(CNMC_ENRICH_SYSTEM, userPrompt, 3000, req.user, 'cnmc_search', 'elvira');
       const parsed = extractJson(raw);
 
       // Override registroOficial with verified data if LLM missed it

@@ -8,9 +8,11 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { connectMongo, closeMongo, getElviraDb, getMongoClient, withTransaction } from './db/mongo.js';
-import { createTenantAwareDb, createTenantAwareReffDb } from './db/tenant-context.js';
+import { createTenantAwareDb, createTenantAwareReffDb, tenantContext } from './db/tenant-context.js';
 import { createSentinelForensics } from './sentinel-forensics.js';
 import { callLlm, llmStatus, setUsageRecorder } from './llm/index.js';
+import { egressFetch, egressRun, egressPolicy, setEgressRecorder } from './egress/index.js';
+import { createEgressLog, mountPactvmEgress } from './pactvm-egress.js';
 import { addUsage } from './llm/usage.js';
 import { mountElviraCentral } from './elvira-central.js';
 import { mountFinance } from './finance.js';
@@ -33,7 +35,7 @@ import { mountRackState } from './rack-state.js';
 import { mountGridInterlink } from './grid-interlink.js';
 
 import { ensureUsersSeed, seedDefaultTenant, mountAuth, isSessionActive } from './routes/auth.routes.js';
-import { getControlDb, getTenantDb, getTenantReffDb, DEFAULT_TENANT_ID } from './db/tenant-registry.js';
+import { getControlDb, getTenantDb, getTenantReffDb, getTenantDbSync, DEFAULT_TENANT_ID } from './db/tenant-registry.js';
 import { mountBus } from './routes/bus.routes.js';
 import { mountNotifications } from './routes/notifications.routes.js';
 import { createElviraStore } from './routes/elvira-store.js';
@@ -155,6 +157,21 @@ await seedDefaultTenant(getControlDb());
 // TenantNotFoundError (cache en frio), no solo tenant_context_missing.
 await getTenantDb(DEFAULT_TENANT_ID);
 await getTenantReffDb(DEFAULT_TENANT_ID);
+
+// Registro de salidas a la red (Pactvm Viridi). Antes de montar ninguna mesa: varias salen
+// a la red al arrancar. Cada salida va al log del tenant que la hizo; las de fondo, que no
+// tienen petición detrás, al del tenant por defecto. Una salida denegada avisa al Admin
+// (adminNotify se asigna más abajo).
+const currentTenant = () => tenantContext.getStore()?.tenantId ?? DEFAULT_TENANT_ID;
+const egressLog = createEgressLog({
+  resolveDb: getTenantDbSync,
+  notifyDenied: (e) => adminNotify?.({
+    origin: 'PACTVM', severity: 'warning',
+    label: `Salida bloqueada · ${e.mesa} -> ${e.host}`,
+    detail: `${e.reason}. Si el destino es legítimo, añadirlo a la lista blanca (EGRESS_ALLOWLIST).`,
+  }),
+});
+setEgressRecorder((event) => egressLog.record({ ...event, tenantId: currentTenant() }));
 
 // Credenciales: usuarios/sesiones en Mongo (colecciones 'users'/'sessions').
 // Seed inicial solo si 'users' esta vacia, desde variables de entorno SEED_*_PASSWORD.
@@ -627,6 +644,11 @@ await safeMount('pactvm', () => mountPactvm(app, {
   prefixes: ['/api/pactvm'], publicPrefixes: ['/api/pactvm-verify', '/api/vdr-share'],
 });
 
+// Registro de salidas a la red y lista blanca de la compuerta (solo lectura).
+await safeMount('pactvm-egress', () => mountPactvmEgress(app, { auth, requireMesa, requireAdmin, mongo, egressLog, currentTenant }), {
+  label: 'Pactvm Viridi · Salidas a la red', mesa: 'pactvm', prefixes: ['/api/pactvm/egress'],
+});
+
 /* ==========================================================================
    S-NFI Resilience (BSS) · inteligencia de deteccion y arbitraje ante fallos
    de red electrica / eventos sistemicos. Manda senal a Elvi-Ra (busEmit +
@@ -819,7 +841,14 @@ safeMount('reff', async () => {
 
   // Rëff usa el mismo módulo de IA que el resto del proceso: misma configuración y contabilidad.
   const { setLlmClient } = await import(toFileUrl(path.join(REFF_SERVER, 'llm.js')));
-  setLlmClient({ call: callLlm, status: llmStatus });
+  setLlmClient({ call: (request) => callLlm({ ...request, mesa: 'reff' }), status: llmStatus });
+
+  // Y sale a la red por la misma compuerta de Pactvm Viridi, siempre como mesa reff.
+  const { setEgressClient } = await import(toFileUrl(path.join(REFF_SERVER, 'egress.js')));
+  setEgressClient({
+    fetch: (url, init, ctx) => egressFetch(url, init, { ...ctx, mesa: 'reff' }),
+    run: (target, ctx, fn) => egressRun(target, { ...ctx, mesa: 'reff' }, fn),
+  });
 
   const { default: reffAuthRoutes }      = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'auth.routes.js')));
   const { default: reffSheetsRoutes }    = await import(toFileUrl(path.join(REFF_SERVER, 'routes', 'sheets.routes.js')));
@@ -975,6 +1004,9 @@ function bootVerification() {
   check('IA', ai.available, ai.available
     ? `${ai.provider} · ${ai.model}${ai.pricing ? '' : ' · sin tarifa (LLM_PRICE_INPUT_PER_M, LLM_PRICE_OUTPUT_PER_M)'}`
     : `${ai.reason} — las funciones de IA responden con ese aviso`);
+  const gate = egressPolicy().destinations.filter((d) => d.via === 'compuerta');
+  const thirdParty = new Set(gate.filter((d) => d.category === 'tercero').map((d) => d.host)).size;
+  check('Salidas a la red', true, `compuerta de Pactvm Viridi: ${gate.length} destinos en la lista blanca (${thirdParty} de terceros)`);
   check('Systems (OPHS real)', !!process.env.SYSTEMS_URL,
     process.env.SYSTEMS_URL ? process.env.SYSTEMS_URL : 'sin configurar — mock local (systems_nodes)');
   check('S-NFI U2 (ESIOS/REE)', !!(process.env.ESIOS_TOKEN || process.env.ESIOS_API_KEY),
@@ -1031,6 +1063,7 @@ async function gracefulShutdown(signal) {
   setTimeout(() => server.closeAllConnections(), SHUTDOWN_GRACE_MS).unref();
   await closed;
   try { flushBusHistory?.(); } catch (err) { console.error('[shutdown] flush bus:', err.message); }
+  try { await egressLog.stop(); } catch (err) { console.error('[shutdown] registro de salidas:', err.message); }
   try { await closeMongo(); } catch (err) { console.error('[shutdown] cierre Mongo:', err.message); }
   if (IN_K8S) writeBootFlag({ cleanShutdown: true, stoppedAt: Date.now() });
   console.log('[shutdown] limpio');

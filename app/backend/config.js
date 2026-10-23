@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { safeEqual } from './lib/safe-compare.js';
 import { PROVIDER_NAMES, providerName, llmStatus, legacyNotices } from './llm/index.js';
+import { parseAllowlist, parseMesaList } from './egress/destinations.js';
 
 /* ============================================================
    Configuración del proceso: inventario único de variables de
@@ -51,6 +52,8 @@ const llmProvider = (v, env) => {
   if (name === undefined) return `valores admitidos: ${PROVIDER_NAMES.join(', ')}`;
   return name === 'simulado' && env.NODE_ENV === 'production' ? 'el proveedor simulado no se admite en producción' : null;
 };
+const allowlist = (v) => parseAllowlist(v).problems[0] ?? null;
+const mesaList = (v) => parseMesaList(v, []).problems[0] ?? null;
 const tcpPort = (v) => (/^\d+$/.test(v) && Number(v) >= 1 && Number(v) <= 65535 ? null : 'debe ser un puerto entre 1 y 65535');
 const mongoUri = (v) => (/^mongodb(\+srv)?:\/\//.test(v) ? null : 'debe empezar por mongodb:// o mongodb+srv://');
 const pemBlock = (v) => (v.includes('-----BEGIN ') ? null : 'debe ser una clave en formato PEM');
@@ -92,6 +95,7 @@ export const GROUPS = [
   { id: 'seed', title: 'Usuarios iniciales (solo primer arranque con la base vacía)' },
   { id: 'llm', title: 'IA' },
   { id: 'data', title: 'Fuentes de datos externas' },
+  { id: 'egress', title: 'Salidas a la red (compuerta de Pactvm Viridi)' },
   { id: 'sentinel', title: 'Sentinel' },
   { id: 'systems', title: 'Systems y enlace Twin' },
   { id: 'cibe', title: 'CIBE Bunker (tokens firmados de Pactvm Viridi)' },
@@ -202,6 +206,20 @@ export const VARS = [
     name: `GRID_${cc}_URL`, group: 'data', check: httpUrl,
     desc: `Endpoint en vivo del operador de red de ${cc}`, def: 'modo simulado',
   })),
+
+  // Salidas a la red
+  { name: 'EGRESS_ALLOWLIST', group: 'egress', check: allowlist,
+    desc: 'Destinos de salida permitidos por mesa, con la forma mesa=destino,destino;mesa=destino. Un destino es una máquina o una URL http(s); ninguna deja a la mesa sin destinos fijos. Para cada mesa que nombra, sustituye a los destinos de serie. Los destinos de la IA, SYSTEMS_URL, RACK_PEERS, GRID_<CC>_URL y SMTP_HOST salen de sus propias variables',
+    def: 'los destinos de serie de cada mesa',
+    hint: 'Ejemplo: snfiu2=apidatos.ree.es,api.esios.ree.es;fl=www.boe.es. La lista efectiva se ve y se exporta en Pactvm Viridi, Salidas a la red' },
+  { name: 'EGRESS_EXTERNAL_LLM_MESAS', group: 'egress', check: mesaList,
+    desc: 'Mesas que pueden enviar datos a un proveedor de IA externo, separadas por comas; ninguna las bloquea todas. La IA local no cuenta como tercero y no se filtra',
+    def: 'elvira, ophs, reff' },
+  { name: 'EGRESS_PUBLIC_WEB_MESAS', group: 'egress', check: mesaList,
+    desc: 'Mesas que pueden descargar páginas públicas que cita un usuario (auditoría Herzog de Rëff); nunca redes privadas ni locales. ninguna lo desactiva',
+    def: 'reff' },
+  { name: 'EGRESS_TIMEOUT_MS', group: 'egress', check: positiveInt, def: '20000',
+    desc: 'Tiempo máximo de cada salida a la red (ms) cuando la llamada no fija el suyo' },
 
   // Sentinel
   { name: 'SENTINEL_RISK_COUNTRIES', group: 'sentinel', check: countryList,

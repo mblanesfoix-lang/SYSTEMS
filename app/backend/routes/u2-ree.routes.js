@@ -16,6 +16,7 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
+import { egressFetch } from '../egress/index.js';
 
 const ESIOS_BASE = 'https://api.esios.ree.es';
 const PRECIO_CERO_UMBRAL_EUR = 1.0; // EUR/MWh
@@ -54,30 +55,29 @@ const REE_IDS = {
   gen_total:      1,
 };
 
+// Salen por la compuerta de Pactvm Viridi como consultas automáticas de datos
+// públicos (registro agregado por ventana). Nunca lanza: { ok, status, data, error? }.
+async function getU2Json(url, headers, timeoutMs) {
+  try {
+    const res = await egressFetch(url, { headers }, { mesa: 'snfiu2', poll: true, timeoutMs });
+    const text = await res.text();
+    if (!text) return { ok: false, status: res.status, data: null, error: 'empty body' };
+    try {
+      return { ok: res.status === 200, status: res.status, data: JSON.parse(text) };
+    } catch (e) {
+      return { ok: false, status: res.status, data: null, error: 'invalid JSON: ' + e.message };
+    }
+  } catch (e) {
+    return { ok: false, status: 0, data: null, error: e.message };
+  }
+}
+
 async function fetchREEOnce(endpoint, startDate, endDate, timeTrunc, timeoutMs) {
-  const { default: https } = await import('node:https');
   const url = new URL(`${REE_BASE}${endpoint}`);
   url.searchParams.set('start_date', `${startDate}T00:00`);
   url.searchParams.set('end_date',   `${endDate}T23:59`);
   url.searchParams.set('time_trunc', timeTrunc);
-  return new Promise((resolve) => {
-    const req = https.get(url.toString(), { headers: { 'Accept': 'application/json' }, timeout: timeoutMs }, res => {
-      let d = '';
-      res.on('data', c => d += c);
-      res.on('end', () => {
-        if (!d) { resolve({ ok: false, status: res.statusCode, data: null, error: 'empty body' }); return; }
-        try {
-          const json = JSON.parse(d);
-          resolve({ ok: res.statusCode === 200, status: res.statusCode, data: json });
-        } catch (e) {
-          resolve({ ok: false, status: res.statusCode, data: null, error: 'invalid JSON: ' + e.message });
-        }
-      });
-      res.on('error', e => resolve({ ok: false, status: res.statusCode, data: null, error: e.message }));
-    });
-    req.on('timeout', () => req.destroy(new Error('timeout')));
-    req.on('error', e => resolve({ ok: false, status: 0, data: null, error: e.message }));
-  });
+  return getU2Json(url, { 'Accept': 'application/json' }, timeoutMs);
 }
 
 // REE apidatos publico es intermitente: reintenta con backoff antes de rendirse
@@ -478,28 +478,12 @@ function estimarCurtailmentES(precios, genRenov, { umbral, tasa }) {
 }
 
 async function fetchESIOS(indicatorId, startDate, endDate, timeTrunc = 'hour') {
-  const { default: https } = await import('node:https');
   const token = process.env.ESIOS_API_KEY || process.env.ESIOS_TOKEN || '';
   const url = `${ESIOS_BASE}/indicators/${indicatorId}?start_date=${encodeURIComponent(startDate + 'T00:00:00')}&end_date=${encodeURIComponent(endDate + 'T23:59:59')}&time_trunc=${timeTrunc}`;
-  return new Promise((resolve) => {
-    https.get(url, {
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'Authorization': `Token token=${token}`,
-      },
-    }, res => {
-      let d = '';
-      res.on('data', c => d += c);
-      res.on('end', () => {
-        try {
-          const json = JSON.parse(d);
-          resolve({ ok: res.statusCode === 200, status: res.statusCode, data: json });
-        } catch {
-          resolve({ ok: false, status: res.statusCode, data: null });
-        }
-      });
-    }).on('error', e => resolve({ ok: false, status: 0, data: null, error: e.message }));
+  return getU2Json(url, {
+    'Accept': 'application/json',
+    'Content-Type': 'application/json',
+    'Authorization': `Token token=${token}`,
   });
 }
 

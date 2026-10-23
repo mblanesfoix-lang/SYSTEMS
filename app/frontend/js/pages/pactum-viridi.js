@@ -1,4 +1,4 @@
-import { api, getUser, getToken, clearSession, requireAuth, toast } from '/js/api.js';
+import { api, getUser, getToken, getRole, clearSession, requireAuth, toast } from '/js/api.js';
 import { mountThemeToggle } from '/js/theme.js';
 import { mountOfficeBg } from '/js/office-bg.js';
 requireAuth();
@@ -16,6 +16,9 @@ try {
     location.href = '/pages/dashboard.html';
   }
 } catch {}
+
+// Mesas que solo ve el Admin (el backend también lo exige).
+if (getRole() !== 'admin') document.querySelectorAll('[data-admin-only]').forEach((el) => el.remove());
 
 document.getElementById('logoutBtn').addEventListener('click', async () => {
   try { await api.logout(); } catch {}

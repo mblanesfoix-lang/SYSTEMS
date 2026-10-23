@@ -18,6 +18,7 @@
  */
 
 import { parentPort, workerData } from 'node:worker_threads';
+import { egressFetch, setEgressRecorder } from './egress/index.js';
 
 const CODE = workerData?.code || 'XX';
 const TSO = workerData?.tso || 'TSO';
@@ -63,8 +64,12 @@ function simSignal() {
   };
 }
 
+// La salida al TSO pasa por la compuerta de Pactvm Viridi (lista blanca de la
+// mesa ophs); sus eventos se registran en el hilo principal.
+setEgressRecorder((event) => parentPort.postMessage({ type: 'egress', event }));
+
 async function liveSignal() {
-  const res = await fetch(URL_LIVE, { signal: AbortSignal.timeout(5000) });
+  const res = await egressFetch(URL_LIVE, {}, { mesa: 'ophs', poll: true, timeoutMs: 5000 });
   if (!res.ok) throw new Error(`TSO ${TSO} HTTP ${res.status}`);
   const data = await res.json();
   // mapeo tolerante: cada adaptador nacional puede renombrar campos, la capa

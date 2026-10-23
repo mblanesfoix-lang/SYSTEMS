@@ -12,6 +12,7 @@ import {
   RENAMED_VARS, PROVIDER_NAMES, LlmError, isLlmUnavailable,
 } from '../llm/index.js';
 import { addUsage, userCostUsd, costOf } from '../llm/usage.js';
+import { setEgressRecorder } from '../egress/index.js';
 
 const realFetch = globalThis.fetch;
 before(() => {
@@ -25,7 +26,7 @@ after(() => {
 const SIM = { LLM_PROVIDER: 'simulado' };
 const EXT = { LLM_PROVIDER: 'externo', LLM_API_KEY: 'clave-de-prueba', LLM_MODEL: 'modelo-prueba', LLM_URL: 'http://proveedor.prueba/' };
 const LOCAL = { LLM_PROVIDER: 'local', LLM_MODEL: 'modelo-local', LLM_URL: 'http://ia.local:11434' };
-const ask = (extra = {}) => ({ system: 'sistema', prompt: 'hola', ...extra });
+const ask = (extra = {}) => ({ system: 'sistema', prompt: 'hola', mesa: 'elvira', ...extra });
 const legacyName = (replacement, provider) => RENAMED_VARS.find((r) => r.replacement === replacement && r.provider === provider).name;
 
 const rejectsWith = (promise, code) => assert.rejects(promise, (err) => {
@@ -39,7 +40,7 @@ function fakeFetch(responses) {
   const queue = [...responses];
   const calls = [];
   const fn = async (url, init) => {
-    calls.push({ url, headers: init.headers, body: JSON.parse(init.body) });
+    calls.push({ url, headers: Object.fromEntries(new Headers(init.headers)), body: JSON.parse(init.body) });
     const next = queue.shift();
     if (!next) throw new Error('el fetch falso no tiene más respuestas');
     if (next instanceof Error) throw next;
@@ -126,7 +127,8 @@ describe('llm: elección de proveedor', () => {
   test('peticiones mal formadas fallan antes de llamar a nadie', async () => {
     await assert.rejects(callLlm({ prompt: 'x' }, { env: SIM }), TypeError);
     await assert.rejects(callLlm({ system: 's' }, { env: SIM }), TypeError);
-    await assert.rejects(callLlm({ system: 's', messages: [{ role: 'otro', content: 'x' }] }, { env: SIM }), TypeError);
+    await assert.rejects(callLlm({ system: 's', messages: [{ role: 'otro', content: 'x' }], mesa: 'elvira' }, { env: SIM }), TypeError);
+    await assert.rejects(callLlm({ system: 's', prompt: 'x' }, { env: SIM }), /falta la mesa/);
   });
 });
 
@@ -257,6 +259,37 @@ describe('llm: conector externo (respuestas falsas)', () => {
     const bad = fakeFetch([{ status: 400, body: 'petición no válida' }]);
     await assert.rejects(callLlm(ask(), { env: EXT, fetch: bad }), (err) => err.code === 'provider' && /400/.test(err.message));
     assert.equal(bad.calls.length, 1);
+  });
+
+  test('la salida pasa por la compuerta: queda registrada con la mesa y el usuario', async () => {
+    const events = [];
+    setEgressRecorder((e) => events.push(e));
+    try {
+      await callLlm(ask({ mesa: 'reff', user: 'marc' }), { env: EXT, fetch: fakeFetch([{ body: textMessage('ok') }]) });
+    } finally {
+      setEgressRecorder(null);
+    }
+    assert.equal(events.length, 1);
+    assert.deepEqual([events[0].mesa, events[0].user, events[0].destination, events[0].result, events[0].host], ['reff', 'marc', 'ia-externa', 'ok', 'proveedor.prueba']);
+  });
+
+  test('una mesa no autorizada no envía datos al proveedor externo: no disponible, sin reintentos y registrado', async () => {
+    const events = [];
+    setEgressRecorder((e) => events.push(e));
+    const fetch = fakeFetch([{ body: textMessage('no debería llegar' ) }]);
+    try {
+      await assert.rejects(callLlm(ask({ mesa: 'fl' }), { env: EXT, fetch }), (err) => isLlmUnavailable(err) && /EGRESS_EXTERNAL_LLM_MESAS/.test(err.message));
+    } finally {
+      setEgressRecorder(null);
+    }
+    assert.equal(fetch.calls.length, 0);
+    assert.deepEqual(events.map((e) => [e.result, e.mesa]), [['denegada', 'fl']]);
+  });
+
+  test('la IA local sirve a cualquier mesa aunque ninguna pueda usar la externa', async () => {
+    const fetch = fakeFetch([{ body: { message: { content: 'ok' }, prompt_eval_count: 1, eval_count: 1 } }]);
+    const r = await callLlm(ask({ mesa: 'fl' }), { env: { ...LOCAL, EGRESS_EXTERNAL_LLM_MESAS: 'ninguna' }, fetch });
+    assert.equal(r.text, 'ok');
   });
 
   test('una pausa que nunca termina se corta', async () => {

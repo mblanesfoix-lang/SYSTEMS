@@ -1,5 +1,6 @@
 import nodemailer, { type Transporter } from 'nodemailer';
 import type { Meeting } from './routes/meetings.routes.js';
+import { egressRun } from './egress.js';
 
 // Destinatarios fijos de los avisos de reuniones (recordatorio 24h + cancelación/
 // reprogramación). Lista pedida directamente por el usuario, no configurable por
@@ -21,23 +22,28 @@ const SMTP_USER = (process.env.SMTP_USER || '').trim();
 const SMTP_PASS = (process.env.SMTP_PASS || '').trim();
 const MAIL_FROM = (process.env.MAIL_FROM || SMTP_USER || 'reff@s-nficorp.com').trim();
 
-let transporter: Transporter | null = null;
-let transporterInitialized = false;
+let smtpWarned = false;
 
-function getTransporter(): Transporter | null {
-  if (transporterInitialized) return transporter;
-  transporterInitialized = true;
-  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
+function smtpConfigured(): boolean {
+  if (SMTP_HOST && SMTP_USER && SMTP_PASS) return true;
+  if (!smtpWarned) {
+    smtpWarned = true;
     console.warn('[Rëff][mail] SMTP no configurado (SMTP_HOST/SMTP_USER/SMTP_PASS) — avisos de reunión en modo simulado');
-    return null;
   }
-  transporter = nodemailer.createTransport({
+  return false;
+}
+
+// El tiempo máximo lo fija la compuerta de salida (EGRESS_TIMEOUT_MS).
+function createTransporter(timeoutMs: number): Transporter {
+  return nodemailer.createTransport({
     host: SMTP_HOST,
     port: SMTP_PORT,
     secure: SMTP_SECURE,
     auth: { user: SMTP_USER, pass: SMTP_PASS },
+    connectionTimeout: timeoutMs,
+    greetingTimeout: timeoutMs,
+    socketTimeout: timeoutMs,
   });
-  return transporter;
 }
 
 function formatWhen(iso: string): string {
@@ -105,18 +111,19 @@ function rescheduledContent(meeting: Meeting, previousIso: string): MailContent 
 }
 
 async function dispatch(content: MailContent): Promise<void> {
-  const t = getTransporter();
-  if (!t) {
+  if (!smtpConfigured()) {
     console.log(`[Rëff][mail] (simulado) "${content.subject}" -> ${MEETING_NOTIFY_RECIPIENTS.join(', ')}`);
     return;
   }
   try {
-    await t.sendMail({
+    // El correo sale por la compuerta de Pactvm Viridi: destino en la lista blanca y registro.
+    const target = { protocol: 'smtp', host: SMTP_HOST, port: SMTP_PORT, bytesOut: Buffer.byteLength(content.subject) + Buffer.byteLength(content.text) };
+    await egressRun(target, {}, ({ timeoutMs }) => createTransporter(timeoutMs).sendMail({
       from: MAIL_FROM,
       to: MEETING_NOTIFY_RECIPIENTS,
       subject: content.subject,
       text: content.text,
-    });
+    }));
   } catch (err) {
     // El envío nunca debe tumbar la petición que lo dispara (agendar/cancelar
     // sigue siendo válido aunque el correo falle) — solo se registra el fallo.

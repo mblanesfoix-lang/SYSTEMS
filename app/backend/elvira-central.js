@@ -24,6 +24,7 @@ import crypto from 'crypto';
 import { runAsTenant } from './db/tenant-context.js';
 import { DEFAULT_TENANT_ID } from './db/tenant-registry.js';
 import { isLlmUnavailable } from './llm/index.js';
+import { egressFetch } from './egress/index.js';
 
 const ACTION_TYPES = {
   'node.shutdown': { params: [], describe: (n) => `Apagar ${n}` },
@@ -131,16 +132,13 @@ export function mountElviraCentral(app, deps) {
   async function executeAction(action, requestedBy) {
     const systemsUrl = process.env.SYSTEMS_URL;
     if (systemsUrl) {
-      // FASE 5 (2026-09-20): sin timeout, un Systems real colgado dejaba este
-      // fetch esperando para siempre — el humano ya autorizo la accion (Regla
-      // de Oro), pero la peticion HTTP que la ejecuta se quedaria bloqueada
-      // sin fin ni de exito ni de error. Mismo AbortController que llm/index.js.
-      const controller = new AbortController();
+      // Con tiempo máximo: un Systems colgado no puede dejar la acción ya
+      // autorizada por el humano esperando sin fin ni de éxito ni de error.
+      // Sale por la compuerta de Pactvm Viridi como el resto de salidas.
       const timeoutMs = Number(process.env.SYSTEMS_TIMEOUT_MS) || 15000;
-      const timeout = setTimeout(() => controller.abort(), timeoutMs);
       let r;
       try {
-        r = await fetch(`${systemsUrl.replace(/\/$/, '')}/api/v1/actions`, {
+        r = await egressFetch(`${systemsUrl.replace(/\/$/, '')}/api/v1/actions`, {
           method: 'POST',
           headers: {
             'content-type': 'application/json',
@@ -150,13 +148,10 @@ export function mountElviraCentral(app, deps) {
             id: action._id, type: action.type, nodeId: action.nodeId,
             params: action.params, requestedBy, authorizedAt: new Date().toISOString(),
           }),
-          signal: controller.signal,
-        });
+        }, { mesa: 'elvira', user: requestedBy, timeoutMs });
       } catch (err) {
-        if (err?.name === 'AbortError') throw new Error(`Systems (${systemsUrl}) timeout tras ${timeoutMs}ms — accion sin confirmar, revisar estado del nodo manualmente`);
+        if (err?.code === 'timeout') throw new Error(`Systems (${systemsUrl}) timeout tras ${timeoutMs}ms — accion sin confirmar, revisar estado del nodo manualmente`);
         throw err;
-      } finally {
-        clearTimeout(timeout);
       }
       const data = await r.json().catch(() => ({}));
       if (!r.ok || !data.ok) throw new Error(data.error || `Systems respondió HTTP ${r.status}`);
@@ -331,7 +326,7 @@ REGLAS DE RESPUESTA:
 
       const result = await callLlm({
         system: buildSystemPrompt(ctx), prompt: userPrompt, maxTokens: 1500,
-        user: req.user, operation: 'central-chat',
+        mesa: 'elvira', user: req.user, operation: 'central-chat',
       });
 
       const { reply, action } = parseAction(result.text);

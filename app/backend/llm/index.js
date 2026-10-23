@@ -1,134 +1,28 @@
-import localProvider from './providers/local.js';
-import simulatedProvider from './providers/simulated.js';
-import externalProvider from './providers/external.js';
 import { LlmError } from './errors.js';
 import { costOf } from './usage.js';
+import { resolveLlmConfig, unavailableReason } from './config.js';
+import { egressFetch, isEgressDenied } from '../egress/index.js';
 
 export { LlmError };
+export {
+  PROVIDER_NAMES, RENAMED_VARS, providerName, resolveLlmConfig, llmStatus, legacyNotices,
+} from './config.js';
 
 /** La IA no está configurada o no ofrece lo pedido: es un aviso de configuración, no una avería. */
 export const isLlmUnavailable = (err) => err instanceof LlmError && err.code === 'unavailable';
 
 /**
  * Módulo único de IA del proceso: lo usan las mesas del backend y Rëff, que
- * comparten proceso, con la misma configuración y la misma contabilidad.
- *
- * LLM_PROVIDER elige el proveedor:
- *   local     servidor de modelos propio (Ollama), el de los servidores de S-NFI
- *   simulado  respuestas deterministas sin red, para pruebas y equipos sin IA;
- *             producción no lo admite
- *   externo   proveedor externo, aislado en providers/external.js
- * LLM_MODEL, LLM_URL, LLM_API_KEY, LLM_TIMEOUT_MS y LLM_PRICE_* valen para
- * cualquiera de ellos. Se leen en cada llamada: server.js carga los .env locales
- * después de importar este módulo.
+ * comparten proceso, con la misma configuración (config.js) y la misma
+ * contabilidad. Las llamadas salen por la compuerta de Pactvm Viridi
+ * (egress/) con la mesa que las pide: el proveedor externo solo atiende a las
+ * mesas autorizadas a enviarle datos; el local, a cualquiera.
  */
 
-const PROVIDERS = { local: localProvider, simulado: simulatedProvider, externo: externalProvider };
-export const PROVIDER_NAMES = Object.keys(PROVIDERS);
-
-const DEFAULT_TIMEOUT_MS = 30000;
 const DEFAULT_MAX_TOKENS = 4096;
 const DEFAULT_WEB_SEARCH_USES = 3;
-
-// Valores anteriores de LLM_PROVIDER.
-const PROVIDER_ALIASES = {
-  ollama: 'local',
-  ...Object.fromEntries(externalProvider.legacy.providerNames.map((n) => [n, 'externo'])),
-};
-
-/** Variables renombradas: se leen mientras falte la nueva, solo con su proveedor, y el arranque avisa. */
-export const RENAMED_VARS = [
-  { name: 'OLLAMA_URL', replacement: 'LLM_URL', provider: 'local' },
-  { name: 'OLLAMA_MODEL', replacement: 'LLM_MODEL', provider: 'local' },
-  ...externalProvider.legacy.env.map((v) => ({ ...v, provider: 'externo' })),
-];
-
-const isSet = (v) => typeof v === 'string' && v.trim() !== '';
-const positiveNumber = (v) => (isSet(v) && Number(v) > 0 ? Number(v) : null);
-const nonNegativeNumber = (v) => (isSet(v) && Number.isFinite(Number(v)) && Number(v) >= 0 ? Number(v) : null);
-
-function legacyValue(env, replacement, provider) {
-  const old = RENAMED_VARS.find((r) => r.replacement === replacement && r.provider === provider && isSet(env[r.name]));
-  return old ? env[old.name] : '';
-}
-
-/** Proveedor que corresponde a un valor de LLM_PROVIDER: su nombre, null si está vacío o undefined si no es válido. */
-export function providerName(value) {
-  const v = String(value ?? '').trim().toLowerCase();
-  if (!v) return null;
-  return PROVIDERS[v] ? v : PROVIDER_ALIASES[v];
-}
-
-function resolvePricing(env, provider, model) {
-  const base = provider.pricing(model);
-  const input = nonNegativeNumber(env.LLM_PRICE_INPUT_PER_M);
-  const output = nonNegativeNumber(env.LLM_PRICE_OUTPUT_PER_M);
-  if (input === null && output === null) return base;
-  return {
-    inputPerM: input ?? base?.inputPerM ?? 0,
-    outputPerM: output ?? base?.outputPerM ?? 0,
-    perWebSearch: base?.perWebSearch ?? 0,
-  };
-}
-
-/** Configuración efectiva de la IA. Incluye la clave: no sale de este módulo y sus proveedores. */
-export function resolveLlmConfig(env = process.env) {
-  let name = providerName(env.LLM_PROVIDER);
-  if (name === undefined) {
-    return { name: null, reason: `IA no configurada: LLM_PROVIDER no es válido (admitidos: ${PROVIDER_NAMES.join(', ')})` };
-  }
-  // Antes el proveedor externo era el predeterminado: con su clave y sin LLM_PROVIDER se sigue usando.
-  if (!name && isSet(env.LLM_API_KEY || legacyValue(env, 'LLM_API_KEY', 'externo'))) name = 'externo';
-  if (!name) return { name: null, reason: `IA no configurada: falta LLM_PROVIDER (${PROVIDER_NAMES.join(', ')})` };
-
-  const provider = PROVIDERS[name];
-  const model = (env.LLM_MODEL || legacyValue(env, 'LLM_MODEL', name) || provider.defaults.model).trim();
-  const apiKey = (env.LLM_API_KEY || legacyValue(env, 'LLM_API_KEY', name) || '').trim();
-  return {
-    name,
-    provider,
-    model,
-    url: (env.LLM_URL || legacyValue(env, 'LLM_URL', name) || provider.defaults.url).trim().replace(/\/+$/, ''),
-    apiKey: !provider.isUsableKey || provider.isUsableKey(apiKey) ? apiKey : '',
-    timeoutMs: positiveNumber(env.LLM_TIMEOUT_MS) ?? DEFAULT_TIMEOUT_MS,
-    pricing: resolvePricing(env, provider, model),
-  };
-}
-
-function unavailableReason(cfg) {
-  if (!cfg.name) return cfg.reason;
-  if (cfg.provider.requiresKey && !cfg.apiKey) return `IA no configurada: falta LLM_API_KEY para el proveedor ${cfg.name}`;
-  return null;
-}
-
-/** Estado de la IA para el arranque, T'Controler y Rëff. Nunca incluye la clave. */
-export function llmStatus(env = process.env) {
-  const cfg = resolveLlmConfig(env);
-  const reason = unavailableReason(cfg);
-  return {
-    available: !reason,
-    provider: cfg.name,
-    model: cfg.name ? cfg.model : null,
-    webSearch: !reason && cfg.provider.supportsWebSearch,
-    pricing: cfg.name ? cfg.pricing : null,
-    reason,
-  };
-}
-
-/** Avisos por nombres antiguos en uso (variables o valores), sin mostrar valores. */
-export function legacyNotices(env = process.env) {
-  const notices = [];
-  const active = resolveLlmConfig(env).name;
-  const raw = String(env.LLM_PROVIDER ?? '').trim().toLowerCase();
-  if (PROVIDER_ALIASES[raw]) notices.push(`LLM_PROVIDER: valor antiguo, equivale a ${PROVIDER_ALIASES[raw]}; cambiarlo`);
-  if (!raw && active) notices.push(`LLM_PROVIDER: sin definir; se usa ${active} porque hay clave de ese proveedor; definirla`);
-  for (const r of RENAMED_VARS) {
-    if (!isSet(env[r.name])) continue;
-    const used = r.provider === active && !isSet(env[r.replacement]);
-    notices.push(`${r.name}: nombre antiguo de ${r.replacement} (proveedor ${r.provider}); ${used ? 'se lee mientras tanto, renombrarla' : 'se ignora'}`);
-  }
-  return notices;
-}
+// La compuerta corta algo después que la IA, para que el tiempo agotado lo informe la IA.
+const EGRESS_TIMEOUT_MARGIN_MS = 1000;
 
 /* ---------- llamada ---------- */
 
@@ -163,6 +57,7 @@ function recordUsage(req, result) {
 function normalizeRequest(request) {
   const r = request || {};
   if (typeof r.system !== 'string') throw new TypeError('callLlm: system debe ser un texto');
+  if (typeof r.mesa !== 'string' || !r.mesa.trim()) throw new TypeError('callLlm: falta la mesa que hace la llamada');
   const messages = Array.isArray(r.messages)
     ? r.messages
     : (typeof r.prompt === 'string' ? [{ role: 'user', content: r.prompt }] : null);
@@ -176,6 +71,7 @@ function normalizeRequest(request) {
     maxTokens: Number.isInteger(r.maxTokens) && r.maxTokens > 0 ? r.maxTokens : DEFAULT_MAX_TOKENS,
     webSearch: r.webSearch ? { maxUses: Number.isInteger(uses) && uses > 0 ? uses : DEFAULT_WEB_SEARCH_USES } : null,
     timeoutMs: Number.isFinite(r.timeoutMs) && r.timeoutMs > 0 ? r.timeoutMs : null,
+    mesa: r.mesa.trim(),
     user: r.user ? String(r.user) : null,
     operation: r.operation ? String(r.operation) : 'general',
   };
@@ -183,12 +79,14 @@ function normalizeRequest(request) {
 
 /**
  * Llamada a la IA configurada.
- *   request: { system, prompt | messages, maxTokens?, webSearch?: { maxUses }, timeoutMs?, user?, operation? }
+ *   request: { system, prompt | messages, mesa, maxTokens?, webSearch?: { maxUses }, timeoutMs?, user?, operation? }
  *   devuelve: { text, parts, inputTokens, outputTokens, webSearches, sources, truncated, provider, model, costUsd }
+ * `mesa` es la que envía los datos (política de salida de Pactvm Viridi).
  * `user` y `operation` alimentan la contabilidad; sin `user` no se registra.
- * Los fallos llegan como LlmError con su `code`.
+ * Los fallos llegan como LlmError con su `code`; la salida denegada, como `unavailable`.
+ * `options.fetch` sustituye al transporte de red de la compuerta (pruebas).
  */
-export async function callLlm(request, { env = process.env, fetch = globalThis.fetch } = {}) {
+export async function callLlm(request, { env = process.env, fetch } = {}) {
   const req = normalizeRequest(request);
   const cfg = resolveLlmConfig(env);
   const reason = unavailableReason(cfg);
@@ -200,10 +98,18 @@ export async function callLlm(request, { env = process.env, fetch = globalThis.f
   const timeoutMs = req.timeoutMs ?? cfg.timeoutMs;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const egress = { mesa: req.mesa, user: req.user, timeoutMs: timeoutMs + EGRESS_TIMEOUT_MARGIN_MS };
+  // Una salida denegada no se reintenta: se corta la llamada entera.
+  const transport = (url, init) => egressFetch(url, init, egress, { env, ...(fetch ? { fetch } : {}) })
+    .catch((err) => {
+      if (isEgressDenied(err)) controller.abort(err);
+      throw err;
+    });
   let out;
   try {
-    out = await cfg.provider.call(req, cfg, { fetch, signal: controller.signal, deadline: Date.now() + timeoutMs });
+    out = await cfg.provider.call(req, cfg, { fetch: transport, signal: controller.signal, deadline: Date.now() + timeoutMs });
   } catch (err) {
+    if (isEgressDenied(err)) throw new LlmError(err.message, 'unavailable', { cause: err });
     if (controller.signal.aborted) throw new LlmError(`La IA no respondió en ${timeoutMs} ms`, 'timeout', { cause: err });
     if (err instanceof LlmError) throw err;
     throw new LlmError(`No se pudo contactar con el servicio de IA (${cfg.name}): ${err?.message || err}`, 'provider', { cause: err });

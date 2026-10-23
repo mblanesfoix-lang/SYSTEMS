@@ -227,8 +227,8 @@ export function mountReffCrm(app, {
     }
   }
 
-  async function callLlmText(system, prompt, maxTokens, user, operation) {
-    const result = await callLlm({ system, prompt, maxTokens, user, operation });
+  async function callLlmText(system, prompt, maxTokens, user, operation, mesa = 'reff') {
+    const result = await callLlm({ system, prompt, maxTokens, mesa, user, operation });
     return result.text;
   }
   const searchNodes = (prompt, user) => callLlmText(SYSTEM_PROMPT, prompt, 8192, user, 'search');
