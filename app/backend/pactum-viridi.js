@@ -185,7 +185,7 @@ const appendPactvmLog = (mongo, entry) => appendChained(mongo, 'pactvm_log', ent
  */
 export function mountPactvm(app, {
   auth, requireMesa, requireAdmin, mongo, getReffDb, getU2Snapshot,
-  systemTenantId = DEFAULT_TENANT_ID, dataSeal = getDataSeal(),
+  systemTenantId = DEFAULT_TENANT_ID, dataSeal = getDataSeal(), rateLimitStore,
 }) {
   const router = app;
   // Codigos de acceso de 6 digitos (certificados y enlaces VDR): en Mongo solo su HMAC
@@ -203,7 +203,8 @@ export function mountPactvm(app, {
   // codigos dentro del TTL con solo el limitador global (120/min por IP). Dos
   // capas que cuentan unicamente los intentos fallidos (skipSuccessfulRequests):
   // por IP + objetivo (10 fallos cada 15 min) y por objetivo desde cualquier IP
-  // (30 fallos por hora), que frena el ataque distribuido.
+  // (30 fallos por hora), que frena el ataque distribuido. rateLimitStore: contador
+  // compartido entre replicas; sin el (pruebas), en memoria.
   const unlockTarget = (req) => String(req.params.token || req.params.packageId || '');
   const unlockLimiterBase = {
     standardHeaders: 'draft-7',
@@ -216,12 +217,14 @@ export function mountPactvm(app, {
     windowMs: 15 * 60 * 1000,
     limit: 10,
     keyGenerator: (req) => `${req.ip ? ipKeyGenerator(req.ip) : 'anon'}|${unlockTarget(req)}`,
+    store: rateLimitStore?.('pactvm-unlock-ip:'),
   });
   const unlockPerTarget = rateLimit({
     ...unlockLimiterBase,
     windowMs: 60 * 60 * 1000,
     limit: 30,
     keyGenerator: (req) => `target|${unlockTarget(req)}`,
+    store: rateLimitStore?.('pactvm-unlock-target:'),
   });
 
   function nodesNeeded(wasteEstTDay) {

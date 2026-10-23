@@ -7,7 +7,7 @@ Lo que existe hoy en el repo es solo la **reserva del puerto** dentro de Elvi-Ra
 
 - Tile en el Dashboard (`app/frontend/pages/dashboard.html`) marcado como "pendiente de conexión".
 - Health-check card con estado `warn` (ámbar) — no intenta hacer fetch a ningún endpoint real.
-- Entrada `systems.ophs` en `app/backend/data/elvira.json` (`status: "pending"`).
+- Entrada `systems.ophs` en el estado de Elvi-Ra (colección `elvira_state`, `app/backend/routes/elvira-store.js`; `status: "pending"`).
 - Mesa registrada en `ROLE_MESAS.admin` (`app/backend/server.js`) para que el tile sea visible al Admin.
 - Webhook receptor ya operativo: `POST /api/elvira/ophs/webhook` (ver más abajo).
 

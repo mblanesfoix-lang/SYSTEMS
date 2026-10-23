@@ -72,7 +72,7 @@ const STATUS_CODE = { NOT_FOUND: 404, REVOKED: 410, EXPIRED: 410, LOCKED: 410 };
  */
 export function mountSeagle(app, {
   auth, requireMesa, requireAdmin, mongo, adminNotify,
-  systemTenantId = DEFAULT_TENANT_ID, dataSeal = getDataSeal(), integrityTtlMs = 15000,
+  systemTenantId = DEFAULT_TENANT_ID, dataSeal = getDataSeal(), integrityTtlMs = 15000, rateLimitStore,
 }) {
   const router = app;
   const guard = [auth, requireMesa('seagle')];
@@ -277,6 +277,7 @@ export function mountSeagle(app, {
 
   // Solo cuentan los intentos fallidos. Por IP y enlace (10 cada 15 min) y por enlace
   // desde cualquier IP (30 por hora); ademas, INVITE_MAX_FAILURES bloquea la invitacion.
+  // rateLimitStore: contador compartido entre replicas; sin el (pruebas), en memoria.
   const limiterBase = {
     standardHeaders: 'draft-7',
     legacyHeaders: false,
@@ -287,10 +288,12 @@ export function mountSeagle(app, {
   const unlockPerIp = rateLimit({
     ...limiterBase, windowMs: 15 * 60 * 1000, limit: 10,
     keyGenerator: (req) => `${req.ip ? ipKeyGenerator(req.ip) : 'anon'}|${targetKey(req)}`,
+    store: rateLimitStore?.('seagle-unlock-ip:'),
   });
   const unlockPerTarget = rateLimit({
     ...limiterBase, windowMs: 60 * 60 * 1000, limit: 30,
     keyGenerator: (req) => `target|${targetKey(req)}`,
+    store: rateLimitStore?.('seagle-unlock-target:'),
   });
 
   async function findByToken(req) {

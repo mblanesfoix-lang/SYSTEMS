@@ -228,7 +228,7 @@ export function mountElviraCentral(app, deps) {
 
     // Estado Elvi-Ra (systems bridges + tcontroler)
     try {
-      const state = readElvira();
+      const state = await readElvira();
       ctx.puentes = Object.fromEntries(Object.entries(state.systems || {}).map(([k, v]) => [k, v.status || v]));
       const tc = state.systems?.tcontroler;
       if (tc) ctx.tcontroler = { tokens_usados: tc.tokensUsed || 0, usuarios: Object.keys(tc.byUser || {}).length };

@@ -8,6 +8,7 @@
 
 import crypto from 'node:crypto';
 import { callLlm, isLlmUnavailable } from '../llm/index.js';
+import { migrateJsonOnce, insertIgnoringDuplicates } from '../lib/json-migration.js';
 
 function normalizeTareas(input) {
   if (!Array.isArray(input)) return [];
@@ -209,10 +210,34 @@ SALIDA: SOLO JSON válido, sin markdown:
   "siguientePaso": "string corto (qué esperamos del destinatario)"
 }`;
 
+/* Historial de búsquedas: por tenant (cada búsqueda es de un usuario con sesión), 30 por
+   usuario como máximo y 48 h de vida, que aplica el índice TTL de expiresAt. */
+const SEARCH_HISTORY = 'search_history';
+const SEARCH_HISTORY_MAX = 30;
+const SEARCH_HISTORY_TTL_MS = 48 * 3600 * 1000;
+
+function historyDoc(user, { id, ...entry }) {
+  const createdMs = Date.parse(entry.createdAt);
+  const base = Number.isFinite(createdMs) ? createdMs : Date.now();
+  return { _id: String(id), user, ...entry, expiresAt: new Date(base + SEARCH_HISTORY_TTL_MS) };
+}
+
+/** Importa data/search_history.json ({ usuario: [búsquedas] }) sin las que ya caducaron. */
+export function migrateSearchHistoryFile(db, file) {
+  return migrateJsonOnce(db, 'search_history.json', file, async (data) => {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return 0;
+    const now = Date.now();
+    const docs = Object.entries(data).flatMap(([user, list]) => (Array.isArray(list) ? list : [])
+      .filter((entry) => entry && entry.id)
+      .map((entry) => historyDoc(user, entry))
+      .filter((doc) => doc.expiresAt.getTime() > now));
+    return insertIgnoringDuplicates(db.collection(SEARCH_HISTORY), docs);
+  });
+}
+
 export function mountReffCrm(app, {
   auth, mongo, withTransaction, adminNotify,
   readElvira,
-  HISTORY_FILE, atomicWriteJson, fs,
 }) {
   /* ---------- sheet helpers ---------- */
   async function ensureUserSheets(user) {
@@ -403,32 +428,34 @@ export function mountReffCrm(app, {
   });
 
   /* ---------- search history (per user, 48h) ---------- */
-  function readHistory() {
-    try { return JSON.parse(fs.readFileSync(HISTORY_FILE, 'utf8')); }
-    catch { return {}; }
-  }
-  function writeHistory(h) { atomicWriteJson(HISTORY_FILE, h); }
-  function pruneHistory(arr) {
-    const cutoff = Date.now() - 48 * 3600 * 1000;
-    return arr.filter(x => new Date(x.createdAt).getTime() >= cutoff);
+  const historyCol = () => mongo.collection(SEARCH_HISTORY);
+
+  async function listHistory(user) {
+    const rows = await historyCol()
+      .find({ user, expiresAt: { $gt: new Date() } })
+      .sort({ createdAt: -1 })
+      .limit(SEARCH_HISTORY_MAX)
+      .toArray();
+    return rows.map(({ _id, user: _user, expiresAt, ...entry }) => ({ id: _id, ...entry }));
   }
 
-  app.get('/api/search/history', auth, (req, res) => {
-    const h = readHistory();
-    const list = pruneHistory(h[req.user] || []);
-    h[req.user] = list;
-    writeHistory(h);
-    res.json(list);
+  async function addHistory(user, entry) {
+    await historyCol().insertOne(historyDoc(user, entry));
+    const surplus = await historyCol()
+      .find({ user }, { projection: { _id: 1 } })
+      .sort({ createdAt: -1 })
+      .skip(SEARCH_HISTORY_MAX)
+      .toArray();
+    if (surplus.length) await historyCol().deleteMany({ _id: { $in: surplus.map((d) => d._id) } });
+  }
+
+  app.get('/api/search/history', auth, async (req, res) => {
+    res.json(await listHistory(req.user));
   });
 
-  app.delete('/api/search/history/:hid', auth, (req, res) => {
-    const h = readHistory();
-    const list = pruneHistory(h[req.user] || []);
-    const idx = list.findIndex(x => x.id === req.params.hid);
-    if (idx < 0) return res.status(404).json({ error: 'no encontrada' });
-    list.splice(idx, 1);
-    h[req.user] = list;
-    writeHistory(h);
+  app.delete('/api/search/history/:hid', auth, async (req, res) => {
+    const { deletedCount } = await historyCol().deleteOne({ _id: String(req.params.hid), user: req.user });
+    if (!deletedCount) return res.status(404).json({ error: 'no encontrada' });
     res.json({ ok: true });
   });
 
@@ -488,11 +515,7 @@ SOLO JSON.`;
         resumen: parsed.resumen || '',
         results,
       };
-      const h = readHistory();
-      const list = pruneHistory(h[req.user] || []);
-      list.unshift(entry);
-      h[req.user] = list.slice(0, 30);
-      writeHistory(h);
+      await addHistory(req.user, entry);
 
       res.json(entry);
     } catch (ex) {
@@ -579,7 +602,7 @@ SOLO JSON.`;
     const c = await mongo.collection('companies').findOne({ _id: req.params.cid, sheetId: { $in: sheetIds } });
     if (!c) return res.status(404).json({ error: 'empresa no encontrada' });
 
-    const state = readElvira();
+    const state = await readElvira();
     const cnmcAuditLog = (state.cnmc?.auditLog || []).filter(a => a.companyId === c._id || a.nodo === c.nodo);
 
     res.json({

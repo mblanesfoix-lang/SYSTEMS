@@ -491,9 +491,12 @@ function extractESIOSValues(data) {
   return data?.indicator?.values || [];
 }
 
-export function mountU2Ree(app, { auth, busEmit, busEmitAlert, busEvents, atomicWriteJson, DATA_DIR }) {
-  /* Historic year-level disk cache — past years never change, current year expires 4h */
+export function mountU2Ree(app, { auth, busEmit, busEmitAlert, busEvents, DATA_DIR }) {
+  /* Historic year-level cache — past years never change, current year expires 4h.
+     Local to each replica and regenerable from REE: if DATA_DIR is missing or read-only
+     it simply lives in memory. */
   const HISTORIC_CACHE_FILE = path.join(DATA_DIR, 'cnmc_historic_cache.json');
+  let historicCacheWritable = true;
   let historicCache = {};
   try {
     if (fs.existsSync(HISTORIC_CACHE_FILE)) {
@@ -512,7 +515,15 @@ export function mountU2Ree(app, { auth, busEmit, busEmitAlert, busEvents, atomic
 
   function historicCacheSet(year, data) {
     historicCache[year] = { ts: Date.now(), data };
-    atomicWriteJson(HISTORIC_CACHE_FILE, historicCache);
+    if (!historicCacheWritable) return;
+    const tempFile = `${HISTORIC_CACHE_FILE}.tmp`;
+    try {
+      fs.writeFileSync(tempFile, JSON.stringify(historicCache));
+      fs.renameSync(tempFile, HISTORIC_CACHE_FILE);
+    } catch (err) {
+      historicCacheWritable = false;
+      console.warn(`[u2] cache historica solo en memoria (${err.code || err.message})`);
+    }
   }
 
   /* GET /api/snfi-u2/waste?start=YYYY-MM-DD&end=YYYY-MM-DD */

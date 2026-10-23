@@ -92,16 +92,23 @@ function reportKey(r) {
   return crypto.createHash('sha256').update(JSON.stringify(id)).digest('hex');
 }
 
-export function mountCspReport(app, { mongo }) {
+// rateLimitStore: contador compartido entre replicas; sin el (pruebas), en memoria.
+export function mountCspReport(app, { mongo, rateLimitStore }) {
   const limiterBase = {
     windowMs: 60 * 1000,
     standardHeaders: 'draft-7',
     legacyHeaders: false,
     message: { error: 'Demasiados informes CSP' },
   };
-  const perIpLimiter = rateLimit({ ...limiterBase, limit: 30, keyGenerator: (req) => (req.ip ? ipKeyGenerator(req.ip) : 'anon') });
+  const perIpLimiter = rateLimit({
+    ...limiterBase, limit: 30, keyGenerator: (req) => (req.ip ? ipKeyGenerator(req.ip) : 'anon'),
+    store: rateLimitStore?.('csp-ip:'),
+  });
   // Techo comun: muchas IPs a la vez no pueden convertir esta ruta en un vertedero de escrituras.
-  const sharedLimiter = rateLimit({ ...limiterBase, limit: 300, keyGenerator: () => 'csp-report' });
+  const sharedLimiter = rateLimit({
+    ...limiterBase, limit: 300, keyGenerator: () => 'csp-report',
+    store: rateLimitStore?.('csp-all:'),
+  });
 
   const parseJson = express.json({ type: REPORT_TYPES, limit: '16kb' });
   // Un cuerpo invalido o enorme se rechaza aqui: no debe llegar al manejador global de errores,

@@ -104,7 +104,7 @@ kubectl -n elvira get pods -w   # Terminating -> Running del pod nuevo, sin que 
 # Confirmar el aviso de caida SUCIA (kill -9, simula OOM/crash real) vs limpia (rollout normal):
 kubectl -n elvira exec deploy/elvira-core -- kill -9 1
 # el siguiente arranque de ESE pod debe generar una notificacion Admin "recuperado tras
-# caida" (ver /api/notif-center o admin_notifications.json); un rollout normal no la genera.
+# caida" (ver /api/notif-center o la colección admin_notifications); un rollout normal no la genera.
 ```
 
 ## Comprobar NetworkPolicy (aislamiento de red)

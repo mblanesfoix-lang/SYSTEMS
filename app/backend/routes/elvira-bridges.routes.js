@@ -4,9 +4,9 @@
  *
  * Incluye: overview agregado, Systems registry, OPHS scoring (Dictamen de
  * Soberanía) + webhook de integración externa, T'Controler (consumo tokens),
- * y los puentes mock de Sentinel/Herzog. Usa el mismo store JSON de Elvira
- * (readElvira/writeElvira) que reff-crm.routes.js, cnmc.routes.js y la
- * contabilidad del módulo de IA.
+ * y los puentes mock de Sentinel/Herzog. Usa el mismo estado de Elvi-Ra
+ * (readElvira/updateElvira, routes/elvira-store.js) que reff-crm.routes.js,
+ * cnmc.routes.js y la contabilidad del módulo de IA.
  */
 
 import crypto from 'node:crypto';
@@ -31,11 +31,11 @@ async function getUsdToEurRate() {
 
 export function mountElviraBridges(app, {
   auth, mongo, busEmit, busEvents,
-  readElvira, writeElvira,
+  readElvira, updateElvira,
 }) {
   /* Overview agregado: estado sistemas + métricas globales */
   app.get('/api/elvira/overview', auth, async (req, res) => {
-    const state = readElvira();
+    const state = await readElvira();
     const [totalUsers, activeSessions, totalCompanies] = await Promise.all([
       mongo.collection('users').countDocuments(),
       mongo.collection('sessions').countDocuments({ exp: { $gt: new Date() } }),
@@ -55,34 +55,39 @@ export function mountElviraBridges(app, {
   });
 
   /* ---------- Systems registry ---------- */
-  app.get('/api/elvira/systems', auth, (req, res) => {
-    const state = readElvira();
+  app.get('/api/elvira/systems', auth, async (req, res) => {
+    const state = await readElvira();
     res.json(state.systems);
   });
 
-  app.put('/api/elvira/systems/:key', auth, (req, res) => {
+  app.put('/api/elvira/systems/:key', auth, async (req, res) => {
     if (req.role !== 'admin') return res.status(403).json({ error: 'admin requerido' });
-    const state = readElvira();
     const key = String(req.params.key);
-    if (!state.systems[key]) return res.status(404).json({ error: 'sistema no registrado' });
     const allowed = ['status', 'endpoint', 'tokensUsed', 'tokensCap', 'backend'];
-    for (const k of allowed) if (k in req.body) state.systems[key][k] = req.body[k];
-    state.systems[key].lastPing = new Date().toISOString();
-    writeElvira(state);
-    res.json(state.systems[key]);
+    const sys = await updateElvira((state) => {
+      const target = Object.hasOwn(state.systems, key) ? state.systems[key] : null;
+      if (!target) return null;
+      for (const k of allowed) if (k in req.body) target[k] = req.body[k];
+      target.lastPing = new Date().toISOString();
+      return target;
+    });
+    if (!sys) return res.status(404).json({ error: 'sistema no registrado' });
+    res.json(sys);
   });
 
   /* Mock ping — sustituir por handshake real cuando exista */
-  app.post('/api/elvira/systems/:key/ping', auth, (req, res) => {
-    const state = readElvira();
+  app.post('/api/elvira/systems/:key/ping', auth, async (req, res) => {
     const key = String(req.params.key);
-    const sys = state.systems[key];
-    if (!sys) return res.status(404).json({ error: 'sistema no registrado' });
     const t0 = Date.now();
-    sys.latencyMs = Math.floor(8 + Math.random() * 22);
-    sys.lastPing = new Date().toISOString();
-    if (sys.endpoint) sys.status = 'connected';
-    writeElvira(state);
+    const sys = await updateElvira((state) => {
+      const target = Object.hasOwn(state.systems, key) ? state.systems[key] : null;
+      if (!target) return null;
+      target.latencyMs = Math.floor(8 + Math.random() * 22);
+      target.lastPing = new Date().toISOString();
+      if (target.endpoint) target.status = 'connected';
+      return target;
+    });
+    if (!sys) return res.status(404).json({ error: 'sistema no registrado' });
     res.json({ key, ...sys, ackMs: Date.now() - t0 });
   });
 
@@ -94,64 +99,66 @@ export function mountElviraBridges(app, {
    * Clasificación: ESTRATEGICO >= threshold.estrategico, OPERATIVO >= threshold.operativo, NO_CANDIDATO resto.
    * Penalización dura: vars.G === 0 (tóxico Herzog) o flags.biogas → NO_CANDIDATO.
    */
-  app.get('/api/elvira/ophs', auth, (req, res) => {
-    const state = readElvira();
+  app.get('/api/elvira/ophs', auth, async (req, res) => {
+    const state = await readElvira();
     res.json(state.ophs);
   });
 
-  app.put('/api/elvira/ophs/config', auth, (req, res) => {
+  app.put('/api/elvira/ophs/config', auth, async (req, res) => {
     if (req.role !== 'admin') return res.status(403).json({ error: 'admin requerido' });
-    const state = readElvira();
     const { weights, threshold } = req.body || {};
-    if (weights && typeof weights === 'object') state.ophs.weights = { ...state.ophs.weights, ...weights };
-    if (threshold && typeof threshold === 'object') state.ophs.threshold = { ...state.ophs.threshold, ...threshold };
-    writeElvira(state);
-    res.json({ weights: state.ophs.weights, threshold: state.ophs.threshold });
+    const config = await updateElvira((state) => {
+      if (weights && typeof weights === 'object') state.ophs.weights = { ...state.ophs.weights, ...weights };
+      if (threshold && typeof threshold === 'object') state.ophs.threshold = { ...state.ophs.threshold, ...threshold };
+      return { weights: state.ophs.weights, threshold: state.ophs.threshold };
+    });
+    res.json(config);
   });
 
-  app.post('/api/elvira/ophs/score', auth, (req, res) => {
+  app.post('/api/elvira/ophs/score', auth, async (req, res) => {
     const { vars = {}, flags = {}, nodo = '' } = req.body || {};
-    const state = readElvira();
-    const w = state.ophs.weights;
-    const th = state.ophs.threshold;
-    const keys = ['W','I','S','M','E','R','B','G','U2'];
-    const clean = {};
-    let total = 0;
-    for (const k of keys) {
-      const v = Math.max(0, Math.min(100, Number(vars[k] ?? 0)));
-      clean[k] = v;
-      total += (w[k] || 0) * v;
-    }
-    let ophs = Math.round(total);
-    let clasificacion = 'NO_CANDIDATO';
-    let razonDescarte = '';
-    if (flags.biogas)              { ophs = Math.min(ophs, 30); razonDescarte = 'Dependencia biogás/anaerobia'; }
-    else if (flags.cnmcSancion)    { ophs = Math.min(ophs, 25); razonDescarte = 'Sanción CNMC previa'; }
-    else if (clean.G === 0)        { ophs = Math.min(ophs, 20); razonDescarte = 'Gobernanza tóxica (Herzog bloquea)'; }
-    if (!razonDescarte) {
-      if (ophs >= th.estrategico) clasificacion = 'ESTRATEGICO';
-      else if (ophs >= th.operativo) clasificacion = 'OPERATIVO';
-    }
-    const dictamen = {
-      id: crypto.randomUUID(),
-      nodo: String(nodo || '').trim(),
-      vars: clean,
-      flags,
-      ophs,
-      clasificacion,
-      razonDescarte,
-      createdAt: new Date().toISOString(),
-      user: req.user,
-    };
-    state.ophs.dictamenes.unshift(dictamen);
-    state.ophs.dictamenes = state.ophs.dictamenes.slice(0, 100);
-    writeElvira(state);
+    const dictamen = await updateElvira((state) => {
+      const w = state.ophs.weights;
+      const th = state.ophs.threshold;
+      const keys = ['W','I','S','M','E','R','B','G','U2'];
+      const clean = {};
+      let total = 0;
+      for (const k of keys) {
+        const v = Math.max(0, Math.min(100, Number(vars[k] ?? 0)));
+        clean[k] = v;
+        total += (w[k] || 0) * v;
+      }
+      let ophs = Math.round(total);
+      let clasificacion = 'NO_CANDIDATO';
+      let razonDescarte = '';
+      if (flags.biogas)              { ophs = Math.min(ophs, 30); razonDescarte = 'Dependencia biogás/anaerobia'; }
+      else if (flags.cnmcSancion)    { ophs = Math.min(ophs, 25); razonDescarte = 'Sanción CNMC previa'; }
+      else if (clean.G === 0)        { ophs = Math.min(ophs, 20); razonDescarte = 'Gobernanza tóxica (Herzog bloquea)'; }
+      if (!razonDescarte) {
+        if (ophs >= th.estrategico) clasificacion = 'ESTRATEGICO';
+        else if (ophs >= th.operativo) clasificacion = 'OPERATIVO';
+      }
+      const dictamen = {
+        id: crypto.randomUUID(),
+        nodo: String(nodo || '').trim(),
+        vars: clean,
+        flags,
+        ophs,
+        clasificacion,
+        razonDescarte,
+        createdAt: new Date().toISOString(),
+        user: req.user,
+      };
+      state.ophs.dictamenes.unshift(dictamen);
+      state.ophs.dictamenes = state.ophs.dictamenes.slice(0, 100);
+      return dictamen;
+    });
     res.json(dictamen);
   });
 
   /* GET /api/elvira/ophs/dictamenes/:id/report — Dictamen de Soberania descargable */
-  app.get('/api/elvira/ophs/dictamenes/:id/report', auth, (req, res) => {
-    const state = readElvira();
+  app.get('/api/elvira/ophs/dictamenes/:id/report', auth, async (req, res) => {
+    const state = await readElvira();
     const dictamen = (state.ophs.dictamenes || []).find(d => d.id === req.params.id);
     if (!dictamen) return res.status(404).json({ error: 'dictamen no encontrado' });
     res.json({
@@ -165,7 +172,7 @@ export function mountElviraBridges(app, {
   /* ---------- T'Controler · consumo de tokens (Admin) ---------- */
   app.get('/api/elvira/tcontroler', auth, async (req, res) => {
     if (req.role !== 'admin') return res.status(403).json({ error: 'admin requerido' });
-    const state = readElvira();
+    const state = await readElvira();
     const tc = state.systems.tcontroler || {};
     const byUser = tc.byUser || {};
     const eurRate = await getUsdToEurRate();
@@ -216,13 +223,13 @@ export function mountElviraBridges(app, {
     });
   });
 
-  app.delete('/api/elvira/tcontroler/reset', auth, (req, res) => {
+  app.delete('/api/elvira/tcontroler/reset', auth, async (req, res) => {
     if (req.role !== 'admin') return res.status(403).json({ error: 'admin requerido' });
-    const state = readElvira();
-    const tc = state.systems.tcontroler || (state.systems.tcontroler = { status: 'local', tokensUsed: 0, tokensCap: 0 });
-    tc.byUser = {};
-    tc.tokensUsed = 0;
-    writeElvira(state);
+    await updateElvira((state) => {
+      const tc = state.systems.tcontroler || (state.systems.tcontroler = { status: 'local', tokensUsed: 0, tokensCap: 0 });
+      tc.byUser = {};
+      tc.tokensUsed = 0;
+    });
     setImmediate(() => busEmit({
       id: crypto.randomUUID(), ts: new Date().toISOString(), seq: busEvents.length + 1,
       origin: 'ELVI-RA', dest: 'TCONTROLER', type: 'event', state: 'COMPLETED',
@@ -244,90 +251,90 @@ export function mountElviraBridges(app, {
    * Los scores de tipo "score" también corren por el mismo pipeline de /ophs/score
    * si incluyen el campo "vars".
    */
-  app.get('/api/elvira/ophs/webhook', auth, (req, res) => {
-    const state = readElvira();
-    if (!state.ophs.webhookEvents) state.ophs.webhookEvents = [];
+  app.get('/api/elvira/ophs/webhook', auth, async (req, res) => {
+    const state = await readElvira();
     res.json({
       status: 'active',
       endpoint: '/api/elvira/ophs/webhook',
-      events: state.ophs.webhookEvents.slice(0, 50),
+      events: (state.ophs.webhookEvents || []).slice(0, 50),
       description: 'Puerto OPHS — receptor webhook para integración externa. POST aquí para enviar eventos o scores.',
     });
   });
 
-  app.post('/api/elvira/ophs/webhook', auth, (req, res) => {
+  app.post('/api/elvira/ophs/webhook', auth, async (req, res) => {
     const b = req.body || {};
     const type    = String(b.type || 'event');   // "event" | "score"
     const source  = String(b.source || 'external');
     const payload = b.payload && typeof b.payload === 'object' ? b.payload : {};
 
-    const state = readElvira();
-    if (!state.ophs.webhookEvents) state.ophs.webhookEvents = [];
+    const entry = await updateElvira((state) => {
+      if (!state.ophs.webhookEvents) state.ophs.webhookEvents = [];
 
-    const entry = {
-      id: crypto.randomUUID(),
-      type,
-      source,
-      payload,
-      receivedAt: new Date().toISOString(),
-      user: req.user,
-    };
-
-    // Si es un score con vars, ejecutar el pipeline OPHS y adjuntar dictamen
-    if (type === 'score' && payload.vars && typeof payload.vars === 'object') {
-      const w  = state.ophs.weights;
-      const th = state.ophs.threshold;
-      const keys = ['W','I','S','M','E','R','B','G','U2'];
-      const flags = payload.flags || {};
-      const clean = {};
-      let total = 0;
-      for (const k of keys) {
-        const v = Math.max(0, Math.min(100, Number(payload.vars[k] ?? 0)));
-        clean[k] = v;
-        total += (w[k] || 0) * v;
-      }
-      let ophs = Math.round(total);
-      let clasificacion = 'NO_CANDIDATO';
-      let razonDescarte = '';
-      if (flags.biogas)           { ophs = Math.min(ophs, 30); razonDescarte = 'Dependencia biogás/anaerobia'; }
-      else if (flags.cnmcSancion) { ophs = Math.min(ophs, 25); razonDescarte = 'Sanción CNMC previa'; }
-      else if (clean.G === 0)     { ophs = Math.min(ophs, 20); razonDescarte = 'Gobernanza tóxica (Herzog bloquea)'; }
-      if (!razonDescarte) {
-        if (ophs >= th.estrategico) clasificacion = 'ESTRATEGICO';
-        else if (ophs >= th.operativo) clasificacion = 'OPERATIVO';
-      }
-      const dictamen = {
+      const entry = {
         id: crypto.randomUUID(),
-        nodo: String(payload.nodo || '').trim(),
-        vars: clean,
-        flags,
-        ophs,
-        clasificacion,
-        razonDescarte,
-        createdAt: new Date().toISOString(),
+        type,
+        source,
+        payload,
+        receivedAt: new Date().toISOString(),
         user: req.user,
-        viaWebhook: true,
-        webhookSource: source,
       };
-      state.ophs.dictamenes.unshift(dictamen);
-      state.ophs.dictamenes = state.ophs.dictamenes.slice(0, 100);
-      entry.dictamen = dictamen;
-    }
 
-    state.ophs.webhookEvents.unshift(entry);
-    state.ophs.webhookEvents = state.ophs.webhookEvents.slice(0, 200);
-    writeElvira(state);
+      // Si es un score con vars, ejecutar el pipeline OPHS y adjuntar dictamen
+      if (type === 'score' && payload.vars && typeof payload.vars === 'object') {
+        const w  = state.ophs.weights;
+        const th = state.ophs.threshold;
+        const keys = ['W','I','S','M','E','R','B','G','U2'];
+        const flags = payload.flags || {};
+        const clean = {};
+        let total = 0;
+        for (const k of keys) {
+          const v = Math.max(0, Math.min(100, Number(payload.vars[k] ?? 0)));
+          clean[k] = v;
+          total += (w[k] || 0) * v;
+        }
+        let ophs = Math.round(total);
+        let clasificacion = 'NO_CANDIDATO';
+        let razonDescarte = '';
+        if (flags.biogas)           { ophs = Math.min(ophs, 30); razonDescarte = 'Dependencia biogás/anaerobia'; }
+        else if (flags.cnmcSancion) { ophs = Math.min(ophs, 25); razonDescarte = 'Sanción CNMC previa'; }
+        else if (clean.G === 0)     { ophs = Math.min(ophs, 20); razonDescarte = 'Gobernanza tóxica (Herzog bloquea)'; }
+        if (!razonDescarte) {
+          if (ophs >= th.estrategico) clasificacion = 'ESTRATEGICO';
+          else if (ophs >= th.operativo) clasificacion = 'OPERATIVO';
+        }
+        const dictamen = {
+          id: crypto.randomUUID(),
+          nodo: String(payload.nodo || '').trim(),
+          vars: clean,
+          flags,
+          ophs,
+          clasificacion,
+          razonDescarte,
+          createdAt: new Date().toISOString(),
+          user: req.user,
+          viaWebhook: true,
+          webhookSource: source,
+        };
+        state.ophs.dictamenes.unshift(dictamen);
+        state.ophs.dictamenes = state.ophs.dictamenes.slice(0, 100);
+        entry.dictamen = dictamen;
+      }
+
+      state.ophs.webhookEvents.unshift(entry);
+      state.ophs.webhookEvents = state.ophs.webhookEvents.slice(0, 200);
+      return entry;
+    });
     res.status(201).json(entry);
   });
 
   /* ---------- Sentinel bridge (mock) ---------- */
   /* Espejo de eventos de identidad/acceso. Real Sentinel publicará aquí. */
-  app.get('/api/elvira/sentinel/events', auth, (req, res) => {
-    const state = readElvira();
+  app.get('/api/elvira/sentinel/events', auth, async (req, res) => {
+    const state = await readElvira();
     res.json(state.bridges.sentinel.events.slice(0, 50));
   });
 
-  app.post('/api/elvira/sentinel/events', auth, (req, res) => {
+  app.post('/api/elvira/sentinel/events', auth, async (req, res) => {
     const b = req.body || {};
     const ev = {
       id: crypto.randomUUID(),
@@ -337,21 +344,21 @@ export function mountElviraBridges(app, {
       severity: String(b.severity || 'info'), // info | warn | critical
       createdAt: new Date().toISOString(),
     };
-    const state = readElvira();
-    state.bridges.sentinel.events.unshift(ev);
-    state.bridges.sentinel.events = state.bridges.sentinel.events.slice(0, 200);
-    writeElvira(state);
+    await updateElvira((state) => {
+      state.bridges.sentinel.events.unshift(ev);
+      state.bridges.sentinel.events = state.bridges.sentinel.events.slice(0, 200);
+    });
     res.status(201).json(ev);
   });
 
   /* ---------- Herzog bridge (mock) ---------- */
   /* Auditoría Fase 4 protocolo S-NFI. Real Herzog publicará aquí. */
-  app.get('/api/elvira/herzog/audits', auth, (req, res) => {
-    const state = readElvira();
+  app.get('/api/elvira/herzog/audits', auth, async (req, res) => {
+    const state = await readElvira();
     res.json(state.bridges.herzog.audits.slice(0, 50));
   });
 
-  app.post('/api/elvira/herzog/audits', auth, (req, res) => {
+  app.post('/api/elvira/herzog/audits', auth, async (req, res) => {
     const b = req.body || {};
     const a = {
       id: crypto.randomUUID(),
@@ -362,10 +369,10 @@ export function mountElviraBridges(app, {
       createdAt: new Date().toISOString(),
       user: req.user,
     };
-    const state = readElvira();
-    state.bridges.herzog.audits.unshift(a);
-    state.bridges.herzog.audits = state.bridges.herzog.audits.slice(0, 200);
-    writeElvira(state);
+    await updateElvira((state) => {
+      state.bridges.herzog.audits.unshift(a);
+      state.bridges.herzog.audits = state.bridges.herzog.audits.slice(0, 200);
+    });
     res.status(201).json(a);
   });
 }

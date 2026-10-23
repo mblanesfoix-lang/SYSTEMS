@@ -83,20 +83,18 @@ SALIDA: SOLO JSON válido, sin markdown:
 
 export function mountCnmc(app, {
   auth, mongo, busEmit, busEvents, adminNotify,
-  readElvira, writeElvira,
+  readElvira, updateElvira,
   callLlmText, extractJson,
 }) {
   /* GET /api/elvira/cnmc/documents — lista documentos ingestados */
-  app.get('/api/elvira/cnmc/documents', auth, (req, res) => {
-    const state = readElvira();
-    if (!state.cnmc) state.cnmc = { documents: [], auditLog: [] };
+  app.get('/api/elvira/cnmc/documents', auth, async (req, res) => {
+    const state = await readElvira();
     res.json(state.cnmc.documents.slice(0, 100));
   });
 
   /* GET /api/elvira/cnmc/audit-log — historial de auditorias CNMC (asimetria declarado vs CNMC) */
-  app.get('/api/elvira/cnmc/audit-log', auth, (req, res) => {
-    const state = readElvira();
-    if (!state.cnmc) state.cnmc = { documents: [], auditLog: [] };
+  app.get('/api/elvira/cnmc/audit-log', auth, async (req, res) => {
+    const state = await readElvira();
     res.json(state.cnmc.auditLog.slice(0, 100));
   });
 
@@ -122,7 +120,7 @@ export function mountCnmc(app, {
    *   }
    * }
    */
-  app.post('/api/elvira/cnmc/ingest', auth, (req, res) => {
+  app.post('/api/elvira/cnmc/ingest', auth, async (req, res) => {
     const b = req.body || {};
     const empresa  = String(b.empresa  || '').trim();
     const periodo  = String(b.periodo  || '').trim();
@@ -142,11 +140,10 @@ export function mountCnmc(app, {
       ingestedBy: req.user,
     };
 
-    const state = readElvira();
-    if (!state.cnmc) state.cnmc = { documents: [], auditLog: [] };
-    state.cnmc.documents.unshift(doc);
-    state.cnmc.documents = state.cnmc.documents.slice(0, 500);
-    writeElvira(state);
+    await updateElvira((state) => {
+      state.cnmc.documents.unshift(doc);
+      state.cnmc.documents = state.cnmc.documents.slice(0, 500);
+    });
 
     busEmit({
       id: crypto.randomUUID(), ts: new Date().toISOString(), seq: busEvents.length + 1,
@@ -172,8 +169,7 @@ export function mountCnmc(app, {
    * Body opcional: { docId } para forzar un documento específico.
    */
   app.post('/api/elvira/cnmc/audit/:companyId', auth, async (req, res) => {
-    const state = readElvira();
-    if (!state.cnmc) state.cnmc = { documents: [], auditLog: [] };
+    const state = await readElvira();
 
     const targetCompany = await mongo.collection('companies').findOne({ _id: req.params.companyId });
     if (targetCompany) {
@@ -293,9 +289,10 @@ export function mountCnmc(app, {
     );
 
     // --- Persist in auditLog ---
-    state.cnmc.auditLog.unshift(auditRecord);
-    state.cnmc.auditLog = state.cnmc.auditLog.slice(0, 200);
-    writeElvira(state);
+    await updateElvira((latest) => {
+      latest.cnmc.auditLog.unshift(auditRecord);
+      latest.cnmc.auditLog = latest.cnmc.auditLog.slice(0, 200);
+    });
 
     // --- Bus event: REFF → OPHS ---
     const busState = hasFailed ? 'BLOCKED' : 'COMPLETED';
@@ -338,9 +335,10 @@ export function mountCnmc(app, {
           ts:             now,
         },
       };
-      state.bridges.sentinel.events.unshift(sentinelEvent);
-      state.bridges.sentinel.events = state.bridges.sentinel.events.slice(0, 200);
-      writeElvira(state);
+      await updateElvira((latest) => {
+        latest.bridges.sentinel.events.unshift(sentinelEvent);
+        latest.bridges.sentinel.events = latest.bridges.sentinel.events.slice(0, 200);
+      });
 
       // Also emit to bus for panel pickup
       busEmit({
@@ -361,9 +359,8 @@ export function mountCnmc(app, {
    * útil cuando una empresa pide pruebas de por qué se detectó una asimetría
    * (ej. "por qué nos marcasteis error de mercado en 2023").
    */
-  app.get('/api/elvira/cnmc/audit-log/:auditId/report', auth, (req, res) => {
-    const state = readElvira();
-    if (!state.cnmc) state.cnmc = { documents: [], auditLog: [] };
+  app.get('/api/elvira/cnmc/audit-log/:auditId/report', auth, async (req, res) => {
+    const state = await readElvira();
 
     const auditRecord = state.cnmc.auditLog.find(a => a.id === req.params.auditId);
     if (!auditRecord) return res.status(404).json({ error: 'auditoría no encontrada' });

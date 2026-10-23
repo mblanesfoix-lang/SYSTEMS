@@ -36,10 +36,10 @@ const LOCAL_DIRS = localEntries.filter((e) => e.endsWith('/')).map((e) => escape
 // The log is a dated history: it cites files that no longer exist on purpose.
 const SKIP_DOCS = new Set(['docs/ESTADO-HISTORICO.md']);
 
-// Produced by a build, an install or a setup step (absent from a clean clone),
-// or local folders listed in .git/info/exclude.
+// Produced by a build, an install, a setup step or the running server (state files
+// under data/), absent from a clean clone, or local folders listed in .git/info/exclude.
 const GENERATED = new RegExp(
-  `(^|/)(${['\\.env', '\\.git', 'node_modules', 'dist', '02-secrets\\.yaml', 'data/elvira\\.json', ...LOCAL_DIRS].join('|')})(/|$)`,
+  `(^|/)(${['\\.env', '\\.git', 'node_modules', 'dist', '02-secrets\\.yaml', 'data/[\\w.]+\\.json', ...LOCAL_DIRS].join('|')})(/|$)`,
 );
 const SHELL_COMMAND = /^(sudo|bash|sh|cd|npm|npx|node|docker|kubectl|kind|git|curl|cp|mv|rm|ls|cat|nano)\s/;
 

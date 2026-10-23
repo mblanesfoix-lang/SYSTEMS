@@ -8,7 +8,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { connectMongo, closeMongo, getElviraDb, getMongoClient, withTransaction } from './db/mongo.js';
-import { createTenantAwareDb, createTenantAwareReffDb, tenantContext } from './db/tenant-context.js';
+import { createTenantAwareDb, createTenantAwareReffDb, tenantContext, runAsTenant } from './db/tenant-context.js';
 import { createSentinelForensics } from './sentinel-forensics.js';
 import { callLlm, llmStatus, setUsageRecorder } from './llm/index.js';
 import { egressFetch, egressRun, egressPolicy, setEgressRecorder } from './egress/index.js';
@@ -37,9 +37,9 @@ import { mountGridInterlink } from './grid-interlink.js';
 import { ensureUsersSeed, seedDefaultTenant, mountAuth, isSessionActive } from './routes/auth.routes.js';
 import { getControlDb, getTenantDb, getTenantReffDb, getTenantDbSync, DEFAULT_TENANT_ID } from './db/tenant-registry.js';
 import { mountBus } from './routes/bus.routes.js';
-import { mountNotifications } from './routes/notifications.routes.js';
-import { createElviraStore } from './routes/elvira-store.js';
-import { mountReffCrm } from './routes/reff-crm.routes.js';
+import { mountNotifications, ensureAdminNotificationIndexes, migrateAdminNotificationsFile } from './routes/notifications.routes.js';
+import { createElviraStore, migrateElviraFile } from './routes/elvira-store.js';
+import { mountReffCrm, migrateSearchHistoryFile } from './routes/reff-crm.routes.js';
 import { mountElviraBridges } from './routes/elvira-bridges.routes.js';
 import { mountCnmc } from './routes/cnmc.routes.js';
 import { mountSentinelForensicRoutes } from './routes/sentinel-forensic.routes.js';
@@ -50,6 +50,7 @@ import { applySecurityHeaders, CSP_REPORT_PATH } from './lib/security-headers.js
 import { createMountGuard } from './lib/mount-guard.js';
 import { captureAsyncErrors, createErrorHandler } from './lib/async-errors.js';
 import { safeEqual } from './lib/safe-compare.js';
+import { MongoRateLimitStore, ensureRateLimitIndexes } from './lib/mongo-rate-limit-store.js';
 
 // Lo primero: .env locales (si existen) y validación, antes de conectar a Mongo o montar
 // ninguna mesa. En producción, si falta algo o tiene un formato inválido, el proceso no
@@ -69,13 +70,15 @@ try {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const FRONT = path.join(ROOT, 'frontend');
-// DATA_DIR: en k8s el volumen persistente (PVC) se monta en /app/backend/data, y los tests/sandbox necesitan
-// aislar el estado local sin tocar data/ real. Sin la variable, el default de siempre.
+// DATA_DIR: estado local de esta réplica (historial del bus, caché de U2, marca de arranque);
+// lo compartido entre réplicas vive en Mongo. Puede estar vacío o ser de solo lectura: lo
+// que no se pueda escribir se queda en memoria. Los JSON de ediciones anteriores
+// (search_history, elvira, admin_notifications) solo se leen una vez para importarlos.
 const DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(__dirname, 'data');
-const HISTORY_FILE = path.join(DATA_DIR, 'search_history.json');
-const ELVIRA_FILE = path.join(DATA_DIR, 'elvira.json');
+const LEGACY_HISTORY_FILE = path.join(DATA_DIR, 'search_history.json');
+const LEGACY_ELVIRA_FILE = path.join(DATA_DIR, 'elvira.json');
+const LEGACY_NOTIFICATIONS_FILE = path.join(DATA_DIR, 'admin_notifications.json');
 const BUS_HISTORY_FILE = path.join(DATA_DIR, 'bus_history.json');
-const NOTIFICATIONS_FILE = path.join(DATA_DIR, 'admin_notifications.json');
 
 /* ---------- persistence helpers ---------- */
 function atomicWriteJson(file, data) {
@@ -88,9 +91,8 @@ function atomicWriteJson(file, data) {
   }
 }
 
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-if (!fs.existsSync(HISTORY_FILE)) atomicWriteJson(HISTORY_FILE, {});
-if (!fs.existsSync(BUS_HISTORY_FILE)) atomicWriteJson(BUS_HISTORY_FILE, []);
+try { fs.mkdirSync(DATA_DIR, { recursive: true }); }
+catch (err) { console.warn(`[persistence] ${DATA_DIR} no disponible (${err.code || err.message}): estado local solo en memoria`); }
 
 /* ---------- MongoDB Initialization ---------- */
 await connectMongo();
@@ -108,39 +110,8 @@ const mongo = createTenantAwareDb();
 const reffDbProxy = createTenantAwareReffDb();
 const getReffDb = () => reffDbProxy;
 
-if (!fs.existsSync(ELVIRA_FILE)) atomicWriteJson(ELVIRA_FILE, {
-  systems: {
-    sentinel: { status: 'connected', endpoint: 'local · bus events', lastPing: null, latencyMs: null },
-    herzog:   { status: 'connected', endpoint: 'local · reff/api/herzog', lastPing: null, latencyMs: null },
-    ophs:     { status: 'pending', endpoint: '', lastPing: null, latencyMs: null },
-    tcontroler: { status: 'local', tokensUsed: 0, tokensCap: 0, byUser: {} },
-    dataBase: { status: 'ok', backend: 'mongodb' },
-  },
-  ophs: {
-    weights: { W: 0.18, I: 0.10, S: 0.10, M: 0.12, E: 0.10, R: 0.10, B: 0.12, G: 0.13, U2: 0.05 },
-    threshold: { estrategico: 70, operativo: 45 },
-    dictamenes: [],
-  },
-  bridges: {
-    sentinel: { events: [] },
-    herzog:   { audits: [] },
-  },
-  cnmc: {
-    documents: [],
-    auditLog:  [],
-  },
-  updatedAt: new Date().toISOString(),
-});
-
-const { readElvira, writeElvira } = createElviraStore(ELVIRA_FILE, atomicWriteJson);
-
-// Contabilidad de la IA (T'Controler): toda llamada con usuario, sea de una mesa o de Rëff,
-// se suma aquí con el coste del proveedor que la atendió.
-setUsageRecorder((entry) => {
-  const state = readElvira();
-  addUsage(state.systems, entry);
-  writeElvira(state);
-});
+// Estado de Elvi-Ra por tenant en Mongo (routes/elvira-store.js).
+const { readElvira, updateElvira } = createElviraStore(mongo);
 
 // Multi-tenancy Fase 1: siembra el tenant 'equipo-interno' (apunta a las dbs
 // 'elvira'/'reff' de siempre, cero migracion) antes de sembrar usuarios, que
@@ -173,10 +144,20 @@ const egressLog = createEgressLog({
 });
 setEgressRecorder((event) => egressLog.record({ ...event, tenantId: currentTenant() }));
 
+// Contabilidad de la IA (T'Controler): toda llamada con usuario, sea de una mesa o de Rëff,
+// se suma aquí con el coste del proveedor que la atendió, en el tenant de la petición.
+setUsageRecorder((entry) => runAsTenant(currentTenant(), () => updateElvira((state) => addUsage(state.systems, entry))));
+
 // Credenciales: usuarios/sesiones en Mongo (colecciones 'users'/'sessions').
 // Seed inicial solo si 'users' esta vacia, desde variables de entorno SEED_*_PASSWORD.
 // rawMongo (no el Proxy): boot, sin request/tenant todavia.
 await ensureUsersSeed(rawMongo);
+
+// Lo que en ediciones anteriores vivía en JSON de data/ se importa una sola vez al tenant
+// por defecto, el único que existía entonces (lib/json-migration.js). El archivo no se toca.
+await migrateElviraFile(rawMongo, LEGACY_ELVIRA_FILE);
+await migrateSearchHistoryFile(rawMongo, LEGACY_HISTORY_FILE);
+await migrateAdminNotificationsFile(rawMongo, LEGACY_NOTIFICATIONS_FILE);
 
 // Mesas accesibles por rol. 'admin' = todo. Others = whitelist.
 // fl_expediente: scope propio del Expediente Fiscal y Juridico (NDA-B bilaterales
@@ -345,6 +326,12 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '2mb' }));
 
+/* Límites de tasa con el contador en Mongo (lib/mongo-rate-limit-store.js): todas las
+   réplicas cuentan juntas. rawMongo: corren antes de la sesión, sin tenant. Un prefijo por
+   limitador. */
+await ensureRateLimitIndexes(rawMongo);
+const rateLimitStore = (prefix) => new MongoRateLimitStore({ db: rawMongo, prefix });
+
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
   limit: 120,
@@ -355,6 +342,10 @@ const apiLimiter = rateLimit({
   // no deben gastar el cupo de peticiones del usuario.
   skip: (req) => req.baseUrl + req.path === CSP_REPORT_PATH,
   message: { error: 'Demasiadas peticiones. Intenta de nuevo en un minuto.' },
+  store: rateLimitStore('api:'),
+  // Techo genérico: si el contador falla, la petición sigue (los limitadores de login, IA
+  // y códigos de desbloqueo sí rechazan).
+  passOnStoreError: true,
 });
 app.use('/api', apiLimiter);
 
@@ -411,6 +402,7 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => req.ip ? ipKeyGenerator(req.ip) : 'anon',
   message: { error: 'Demasiados intentos de login. Espera 15 minutos.' },
+  store: rateLimitStore('auth:'),
 });
 
 /* apiLimiter (120/min/IP) es un techo generico, insuficiente para rutas que
@@ -425,6 +417,7 @@ const llmLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => req.user || (req.ip ? ipKeyGenerator(req.ip) : 'anon'),
   message: { error: 'Demasiadas consultas a la IA. Espera un minuto.' },
+  store: rateLimitStore('llm:'),
 });
 
 /* ---------- Middleware de Auditoría Sentinel ----------
@@ -468,9 +461,11 @@ const sentinelForensics = await safeMount('sentinel', () => {
 }, { label: 'Sentinel', critical: true });
 
 /* ---- Notificaciones Admin (mount temprano: adminNotify es dependencia de sentinelLogger/uncaughtException arriba) ---- */
-({ adminNotify, listAdminNotifications } = await safeMount('notifications', () => mountNotifications(app, {
-  auth: (req, res, next) => auth(req, res, next), requireAdmin, atomicWriteJson, NOTIFICATIONS_FILE,
-}), { label: 'Avisos al Admin', critical: true }));
+/* rawMongo: la cola es global (ver routes/notifications.routes.js). */
+({ adminNotify, listAdminNotifications } = await safeMount('notifications', async () => {
+  await ensureAdminNotificationIndexes(rawMongo);
+  return mountNotifications(app, { auth: (req, res, next) => auth(req, res, next), requireAdmin, mongo: rawMongo });
+}, { label: 'Avisos al Admin', critical: true }));
 
 /* ---- Event Bus (mount temprano: busEmit es dependencia compartida por ~10 modulos) ---- */
 ({ busEvents, busEmit, busEmitAlert, flushBusHistory } = await safeMount('bus', () => mountBus(app, {
@@ -484,7 +479,7 @@ const sentinelForensics = await safeMount('sentinel', () => {
    rawMongo: llegan sin sesion, no hay tenant. */
 await safeMount('csp-report', async () => {
   await ensureCspReportIndexes(rawMongo);
-  mountCspReport(app, { mongo: rawMongo });
+  mountCspReport(app, { mongo: rawMongo, rateLimitStore });
 }, { label: 'Informes CSP', publicPrefixes: [CSP_REPORT_PATH] });
 
 /* ---------- auth (usuarios/sesiones en Mongo, ver routes/auth.routes.js) ---------- */
@@ -549,7 +544,6 @@ app.use(mountGuard.gate);
 const reffCrm = await safeMount('reff-crm', () => mountReffCrm(app, {
   auth, mongo, withTransaction, adminNotify,
   readElvira,
-  HISTORY_FILE, atomicWriteJson, fs,
 }), {
   label: 'Rëff · hojas y empresas', mesa: 'reff',
   prefixes: ['/api/sheets', '/api/companies', '/api/search', '/api/overview', '/api/linkedin', '/api/email'],
@@ -561,7 +555,7 @@ const reffCrm = await safeMount('reff-crm', () => mountReffCrm(app, {
    diario (getU2SnapshotToday) lo consumen los closures getU2Snapshot pasados
    a mountPactvm y mountElviraCentral mas abajo.
 ========================================================================== */
-const u2Ree = await safeMount('snfi-u2', () => mountU2Ree(app, { auth, busEmit, busEmitAlert, busEvents, atomicWriteJson, DATA_DIR }), {
+const u2Ree = await safeMount('snfi-u2', () => mountU2Ree(app, { auth, busEmit, busEmitAlert, busEvents, DATA_DIR }), {
   label: 'S-NFI U2', mesa: 'snfiu2', prefixes: ['/api/snfi-u2', '/api/u2'],
 });
 // Sin U2, las mesas que leen su snapshot siguen funcionando sin ese dato (ya aceptan null).
@@ -638,7 +632,7 @@ await safeMount('fl-expediente', () => mountFlExpediente(app, { auth, requireMes
    de auditorias Herzog (db 'reff', sin escritura).
 ========================================================================== */
 await safeMount('pactvm', () => mountPactvm(app, {
-  auth, requireMesa, requireAdmin, mongo, getReffDb, getU2Snapshot,
+  auth, requireMesa, requireAdmin, mongo, getReffDb, getU2Snapshot, rateLimitStore,
 }), {
   label: 'Pactvm Viridi', mesa: 'pactvm',
   prefixes: ['/api/pactvm'], publicPrefixes: ['/api/pactvm-verify', '/api/vdr-share'],
@@ -683,7 +677,7 @@ await safeMount('herzog-law', () => mountHerzogLaw(app, { auth, requireMesa, mon
    lectura sobre el cumplimiento de S-NFI: el Admin invita, el inspector
    entra con enlace y codigo por /api/seagle-inspect. Ver seagle.js.
 ========================================================================== */
-await safeMount('seagle', () => mountSeagle(app, { auth, requireMesa, requireAdmin, mongo, adminNotify }), {
+await safeMount('seagle', () => mountSeagle(app, { auth, requireMesa, requireAdmin, mongo, adminNotify, rateLimitStore }), {
   label: 'S-EAGLE', mesa: 'seagle', prefixes: ['/api/seagle'], publicPrefixes: ['/api/seagle-inspect'],
 });
 
@@ -763,7 +757,7 @@ await safeMount('grid', () => mountGridInterlink(app, { auth, requireMesa, mongo
 ========================================================================== */
 await safeMount('elvira-bridges', () => mountElviraBridges(app, {
   auth, mongo, busEmit, busEvents,
-  readElvira, writeElvira,
+  readElvira, updateElvira,
 }), { label: 'Elvi-Ra · puentes y scoring', mesa: 'elvira', prefixes: ['/api/elvira'] });
 
 /* ==========================================================================
@@ -771,7 +765,7 @@ await safeMount('elvira-bridges', () => mountElviraBridges(app, {
 ========================================================================== */
 await safeMount('cnmc', () => mountCnmc(app, {
   auth, mongo, busEmit, busEvents, adminNotify,
-  readElvira, writeElvira,
+  readElvira, updateElvira,
   callLlmText: reffCrm.callLlmText, extractJson: reffCrm.extractJson,
 }), { label: 'CNMC', mesa: 'elvira', prefixes: ['/api/elvira/cnmc'], dependsOn: ['reff-crm'] });
 
@@ -926,7 +920,9 @@ app.use(createErrorHandler({ notify: (notice) => adminNotify(notice) }));
    K8s · puente entre la deteccion de infraestructura (kubelet) y la capa de
    negocio (Sentinel/bus). Un contenedor roto lo reinicia el kubelet sin que
    Sentinel se entere por si solo (viven en planos distintos). Marca de arranque
-   en DATA_DIR (PVC en k8s: sobrevive al reinicio del contenedor y del pod):
+   en DATA_DIR, propia de cada pod y no compartida: describe a este proceso, y le
+   basta un volumen que sobreviva al reinicio de su contenedor (un emptyDir vale).
+   Sin disco escribible solo se pierde este aviso. Funcionamiento:
      - al arrancar se escribe { cleanShutdown: false };
      - el apagado ordenado (SIGTERM del kubelet en rollout, drain o scale a 0)
        la pasa a true justo antes de salir.
@@ -947,7 +943,7 @@ let bootFlag = null;
 function writeBootFlag(patch) {
   bootFlag = { ...bootFlag, ...patch };
   try { fs.writeFileSync(BOOT_FLAG_FILE, JSON.stringify(bootFlag)); }
-  catch (err) { console.error('[k8s-boot-flag] no se pudo persistir:', err.message); }
+  catch (err) { console.warn('[k8s-boot-flag] no se pudo persistir, sin aviso de caida en este pod:', err.message); }
 }
 
 if (IN_K8S) {

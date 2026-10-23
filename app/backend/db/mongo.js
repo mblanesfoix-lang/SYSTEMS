@@ -45,6 +45,9 @@ export async function ensureTenantIndexes(db) {
   await db.collection('sheets').createIndex({ user: 1 });
   await db.collection('companies').createIndex({ sheetId: 1 });
   await db.collection('companies').createIndex({ cnmc: 1 });
+  // Historial de busquedas de Reff (routes/reff-crm.routes.js): 48 h de vida por TTL
+  await db.collection('search_history').createIndex({ user: 1, createdAt: -1 });
+  await db.collection('search_history').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
   await db.collection('u2_calculos').createIndex({ creadoAt: -1 });
   await db.collection('bus_history').createIndex({ ts: -1 });
   await db.collection('bus_history').createIndex({ origin: 1, state: 1, type: 1 });

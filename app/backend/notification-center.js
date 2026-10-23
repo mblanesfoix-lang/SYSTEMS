@@ -20,8 +20,8 @@
  * Retención 6 meses: al resolver una traffic_request (aprobada/denegada) se
  * fija expireAt = ahora + 6 meses; TTL index de Mongo la purga sola si nadie
  * la borra antes a mano. Las 'pendiente'/'justificacion_requerida' no
- * expiran (siguen abiertas). admin_notifications usa el mismo umbral vía
- * listAdminNotifications() (purga en cada lectura, ver notifications.routes.js).
+ * expiran (siguen abiertas). admin_notifications usa el mismo umbral para las
+ * leídas, también con TTL (ver routes/notifications.routes.js).
  */
 
 import { getMongoClient } from './db/mongo.js';
@@ -79,7 +79,7 @@ export function mountNotificationCenter(app, { auth, requireMesa, requireAdmin, 
 
   /* GET /api/notif-center/summary — KPIs agregados de las dos fuentes */
   app.get('/api/notif-center/summary', ...guard, async (req, res) => {
-    const systemList = listAdminNotifications();
+    const systemList = await listAdminNotifications();
     const trafficList = await trafficCol().find({}).toArray();
 
     res.json({
@@ -104,7 +104,7 @@ export function mountNotificationCenter(app, { auth, requireMesa, requireAdmin, 
 
     let items = [];
     if (source !== 'traffic') {
-      let sys = listAdminNotifications().map(serializeSystem);
+      let sys = (await listAdminNotifications()).map(serializeSystem);
       if (status) sys = sys.filter(n => n.status === status);
       items = items.concat(sys);
     }
